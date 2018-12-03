@@ -1,6 +1,5 @@
 package io.rcktapp.api.handler.redis;
 
-import java.util.HashMap;
 import java.util.Hashtable;
 import java.util.Map;
 import java.util.TreeMap;
@@ -236,6 +235,76 @@ public class RedisHandler implements Handler
       }
 
       return jedis;
+   }
+
+   public void setRedisHost(String redisHost)
+   {
+      this.redisHost = redisHost;
+   }
+
+   public void setRedisPort(int redisPort)
+   {
+      this.redisPort = redisPort;
+   }
+
+   public void setRedisPoolMin(int redisPoolMin)
+   {
+      this.redisPoolMin = redisPoolMin;
+   }
+
+   public void setRedisPoolMax(int redisPoolMax)
+   {
+      this.redisPoolMax = redisPoolMax;
+   }
+
+   public void setRedisTestOnBorrow(boolean redisTestOnBorrow)
+   {
+      this.redisTestOnBorrow = redisTestOnBorrow;
+   }
+
+   public void setRedisTestOnReturn(boolean redisTestOnReturn)
+   {
+      this.redisTestOnReturn = redisTestOnReturn;
+   }
+
+   public void setRedisTestWhileIdle(boolean redisTestWhileIdle)
+   {
+      this.redisTestWhileIdle = redisTestWhileIdle;
+   }
+
+   public void setRedisMinEvictableIdleTimeMillis(int redisMinEvictableIdleTimeMillis)
+   {
+      this.redisMinEvictableIdleTimeMillis = redisMinEvictableIdleTimeMillis;
+   }
+
+   public void setRedisTimeBetweenEvictionRunsMillis(int redisTimeBetweenEvictionRunsMillis)
+   {
+      this.redisTimeBetweenEvictionRunsMillis = redisTimeBetweenEvictionRunsMillis;
+   }
+
+   public void setRedisNumTestsPerEvictionRun(int redisNumTestsPerEvictionRun)
+   {
+      this.redisNumTestsPerEvictionRun = redisNumTestsPerEvictionRun;
+   }
+
+   public void setRedisBlockWhenExhausted(boolean redisBlockWhenExhausted)
+   {
+      this.redisBlockWhenExhausted = redisBlockWhenExhausted;
+   }
+
+   public void setRedisNocacheParam(String redisNocacheParam)
+   {
+      this.redisNocacheParam = redisNocacheParam;
+   }
+
+   public void setRedisReadSocketTimeout(int redisReadSocketTimeout)
+   {
+      this.redisReadSocketTimeout = redisReadSocketTimeout;
+   }
+
+   public void setRedisTtl(int redisTtl)
+   {
+      this.redisTtl = redisTtl;
    }
 
 }
