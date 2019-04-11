@@ -210,4 +210,8 @@ public class ElasticsearchDb extends Db<ElasticsearchDb>
       return url;
    }
 
+   public void withURL(String host)
+   {
+      url = host;
+   }
 }
