@@ -1,8 +1,8 @@
 package io.rocketpartners.cloud.action.sql;
-
 import java.io.File;
 import java.sql.Connection;
 import java.sql.DriverManager;
+import java.sql.SQLException;
 
 import io.rocketpartners.cloud.action.rest.RestAction;
 import io.rocketpartners.cloud.model.ObjectNode;
@@ -43,21 +43,65 @@ public class SqlServiceFactory
          });
    }
 
-   public static void main(String[] args) throws Exception
+   public static void main(String[] args) 
    {
-      Class.forName("org.h2.Driver");
-
+//      Class.forName("org.h2.Driver");
+      
       Utils.delete(new File("./.h2"));
+      
+//      Connection full1 = DriverManager.getConnection("jdbc:h2:./.h2/northwind-source" + "-" + Utils.time());
+//      SqlUtils.runDdl(full1, SqlServiceFactory.class.getResourceAsStream("northwind-emptyish.h2.ddl"));
+//      
+//      Connection full2 = DriverManager.getConnection("jdbc:h2:./.h2/northwind-empty" + "-" + Utils.time());
+//      SqlUtils.runDdl(full2, SqlServiceFactory.class.getResourceAsStream("northwind-full.h2.ddl"));
 
-      Connection full1 = DriverManager.getConnection("jdbc:h2:./.h2/northwind-source" + "-" + Utils.time());
-      SqlUtils.runDdl(full1, SqlServiceFactory.class.getResourceAsStream("northwind-emptyish.h2.ddl"));
-
-      Connection full2 = DriverManager.getConnection("jdbc:h2:./.h2/northwind-empty" + "-" + Utils.time());
-      SqlUtils.runDdl(full2, SqlServiceFactory.class.getResourceAsStream("northwind-full.h2.ddl"));
+      try
+      {
+         Connection mySqlConnection = getMySqlConn("jdbc:mysql://rocket-inversion.cluster-cqpoc4ovfn6g.us-east-2.rds.amazonaws.com:3306", "rocketinversion", "xyxLWwa3tGEZCwe");
+         System.out.println(mySqlConnection);
+//         SqlUtils.runDdl(mySqlConnection, SqlServiceFactory.class.getResourceAsStream("Northwind.MySQL5.sql"));
+      }
+      catch (SQLException e)
+      {
+         // TODO Auto-generated catch block
+         e.printStackTrace();
+      }
+      catch (Exception e)
+      {
+         // TODO Auto-generated catch block
+         e.printStackTrace();
+      }
 
       System.out.println("OK");
 
    }
+
+   public static java.sql.Connection getMySqlConn(String url, String user, String pass) throws SQLException
+   {
+
+      java.sql.Connection connection = null;
+      try
+      {
+         Class.forName("com.mysql.jdbc.Driver");
+         connection = DriverManager.getConnection(url, user, pass);
+      }
+      catch (ClassNotFoundException e)
+      {
+         e.printStackTrace();
+      }
+      return connection;
+
+   }
+
+   //   public static SqlDb createMySqlDb(String ddl, String driver, String url, String user, String pass, String collectionPath)
+   //   {
+   //         Connection conn = db.getConnection();
+   //         SqlUtils.runDdl(conn, SqlServiceFactory.class.getResourceAsStream(ddl + ".ddl"));
+   //   }
+
+//   return db;
+//
+//   }
 
    public static synchronized Service service() throws Exception
    {

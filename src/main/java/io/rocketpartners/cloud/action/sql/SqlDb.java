@@ -16,8 +16,8 @@
 package io.rocketpartners.cloud.action.sql;
 
 import java.lang.reflect.Field;
-import java.sql.Connection;
 import java.sql.DatabaseMetaData;
+import java.sql.DriverManager;
 import java.sql.ResultSet;
 import java.sql.Types;
 import java.util.ArrayList;
@@ -28,6 +28,8 @@ import java.util.Map;
 
 import javax.sql.DataSource;
 
+import com.mysql.jdbc.Connection;
+import com.mysql.jdbc.Statement;
 import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
 
@@ -259,22 +261,41 @@ public class SqlDb extends Db<SqlDb>
       {
          return h2Upsert(table, row);
       }
-      //    else if (isType("mysql"))
-      //    {
-      //       return mysqlUpsert(table, row);
-      //    }
-      //    
+      else if (isType("mysql"))
+      {
+         return mysqlUpsert(table, row);
+      }
+
       else
       {
          throw new ApiException(SC.SC_500_INTERNAL_SERVER_ERROR, "Need to implement SqlDb.upsert for db type '" + getType() + "'");
       }
    }
-   //
-   //   public String mysqlUpsert(Table table, Map<String, Object> row) throws Exception
-   //   {
-   //      Utils.error("IMPLEMENT ME!!!!");
-   //      return null;
-   //   }
+
+   public String mysqlUpsert(Table table, Map<String, Object> row) throws Exception
+   {
+      String sql = "INSERT INTO " + table.getName() + " (";
+      for (String col : row.keySet())
+      {
+         sql += col + ",";
+      }
+      sql += ") VALUES(";
+      for (String col : row.keySet())
+      {
+         sql += row.get(col) + ",";
+      }
+      sql += ") ON DUPLICATE KEY UPDATE";
+
+      for (String col : row.keySet())
+      {
+         sql += col + "= " + row.get(col) + ",";
+      }
+      sql.substring(0, sql.length() - 1);
+
+      Connection connection = getConnection();
+      java.sql.Statement statement = connection.createStatement();
+      ResultSet rs = statement.executeQuery(sql);
+   }
 
    public String h2Upsert(Table table, Map<String, Object> row) throws Exception
    {
@@ -317,19 +338,19 @@ public class SqlDb extends Db<SqlDb>
          String sql = "";
          sql += " DELETE FROM " + quoteCol(table.getName());
          sql += " WHERE ";
-         
+
          List values = new ArrayList();
-         for(String entityKey : entityKeys)
+         for (String entityKey : entityKeys)
          {
-            if(values.size() > 0)
+            if (values.size() > 0)
                sql += " OR ";
             sql += "(";
             Row row = table.decodeKey(entityKey);
             int i = 0;
-            for(String key : row.keySet())
+            for (String key : row.keySet())
             {
                i++;
-               if(i > 1)
+               if (i > 1)
                   sql += "AND ";
                sql += quoteCol(key) + " = ? ";
                values.add(row.get(key));
