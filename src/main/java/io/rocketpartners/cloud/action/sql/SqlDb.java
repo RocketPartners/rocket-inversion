@@ -15,6 +15,7 @@
  */
 package io.rocketpartners.cloud.action.sql;
 
+import java.io.File;
 import java.lang.reflect.Field;
 import java.sql.Connection;
 import java.sql.DatabaseMetaData;
@@ -147,6 +148,22 @@ public class SqlDb extends Db<SqlDb>
       return null;
    }
 
+   public void truncateDb()
+   {
+      if (isType("h2"))
+      {
+         File dir = new File("./.h2");
+         dir.mkdir();
+
+         File[] dbfiles = dir.listFiles();
+         for (int i = 0; dbfiles != null && i < dbfiles.length; i++)
+         {
+            if (dbfiles[i].getName().startsWith(name))
+               dbfiles[i].delete();
+         }
+      }
+   }
+
    protected void shutdown0()
    {
       //pool.close();
@@ -213,7 +230,7 @@ public class SqlDb extends Db<SqlDb>
 
    public List<String> mysqlUpsert(Table table, List<Map<String, Object>> rows) throws Exception
    {
-      return SqlUtils.mysqlUpsert(getConnection(), table.getName(), rows);
+      return SqlUtils.mysqlUpsert(getConnection(), table, rows);
    }
 
    public String h2Upsert(Table table, Map<String, Object> row) throws Exception

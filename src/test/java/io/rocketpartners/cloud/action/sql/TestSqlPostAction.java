@@ -1,8 +1,13 @@
 package io.rocketpartners.cloud.action.sql;
 
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+
 import io.rocketpartners.cloud.model.ObjectNode;
 import io.rocketpartners.cloud.model.Response;
 import io.rocketpartners.cloud.service.Service;
+import io.rocketpartners.cloud.utils.Utils;
 import junit.framework.TestCase;
 
 public class TestSqlPostAction extends TestCase
@@ -13,15 +18,41 @@ public class TestSqlPostAction extends TestCase
       return "northwind/h2/";
    }
 
-   protected Service service() throws Exception
+   protected Service service(String type) throws Exception
    {
-      return SqlServiceFactory.service();
+      return SqlServiceFactory.service(type);
+   }
+
+   public void testPost0() throws Exception
+   {
+      Response res = null;
+      Service service = service("mysql");
+
+      //the bootstrap process copies 25 orders into the orders table, they are not sequential
+      res = service.get("http://localhost/northwind/source/Categories");
+
+      res = service.get("http://localhost/northwind/source/orders?limit=100&sort=orderid");
+      
+      res = service.post("northwind/mysql/orders", new ObjectNode("orderid", 222000, "shipaddress", "somewhere in atlanta", "shipcity", "atlanta").toString());
+      assertEquals(res.find("data.0.href"), "http://localhost/northwind/mysql/orders/222000");
+
+      ObjectNode json = res.getJson();
+      List<Map<String, Object>> mapList = new ArrayList();
+      for (Object o : json.getArray("data"))
+      {
+         ObjectNode node = (ObjectNode) o;
+         node.asMap();
+         mapList.add(node);
+      }
+      res = service.post("northwind/mysql/Categories", mapList);
+      Utils.assertEq(1, res.findArray("data").length(), "Confirm 1 documents poste");
+
    }
 
    public void testPost1() throws Exception
    {
       Response res = null;
-      Service service = service();
+      Service service = service("h2");
 
       //the bootstrap process copies 25 orders into the orders table, they are not sequential
       res = service.get("http://localhost/northwind/h2/orders?limit=100&sort=orderid");

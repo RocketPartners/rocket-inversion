@@ -47,6 +47,7 @@ import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import io.rocketpartners.cloud.model.Table;
 import io.rocketpartners.cloud.utils.Rows.Row;
 
 /**
@@ -441,13 +442,17 @@ public class SqlUtils
       return sql.toString();
    }
 
-   public static List<String> mysqlUpsert(Connection conn, String tableName, List<Map<String, Object>> rows) throws Exception
+   public static List<String> mysqlUpsert(Connection conn, Table table, List<Map<String, Object>> rows) throws Exception
    {
       LinkedHashSet keySet = new LinkedHashSet();
+      String tableName = table.getName();
 
+      List<String> primaryKeys = new ArrayList<String>();
       for (Map row : rows)
       {
          keySet.addAll(row.keySet());
+         String pk = table.encodeKey(row);
+         primaryKeys.add(pk);
       }
 
       List<String> keys = new ArrayList(keySet);
@@ -480,7 +485,7 @@ public class SqlUtils
          SqlUtils.close(stmt);
          notifyAfter("upsert", sql, rows, ex, null);
       }
-      return keys;
+      return primaryKeys;
    }
 
    public static Object insertMap(Connection conn, String tableName, Map row) throws Exception

@@ -16,7 +16,7 @@ public class TestSqlDeleteAction extends TestCase
 
    protected Service service() throws Exception
    {
-      return SqlServiceFactory.service();
+      return SqlServiceFactory.service("h2");
    }
 
    public void testSingleDelete() throws Exception

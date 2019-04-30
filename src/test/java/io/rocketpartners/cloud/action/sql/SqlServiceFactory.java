@@ -59,31 +59,13 @@ public class SqlServiceFactory
 
    }
 
-   public static synchronized Service service() throws Exception
+   public static synchronized Service service(String type) throws Exception
    {
-      if (service != null)
+      if (service != null) // TODO service != null && type of service == type
          return service;
 
       try
       {
-         SqlDb source = createDb("northwind-full.h2", "org.h2.Driver", "jdbc:h2:./.h2/northwind-source" + "-" + Utils.time(), "sa", "", "source/");
-
-         Connection conn = source.getConnection();
-         Rows rows = SqlUtils.selectRows(conn, "SELECT * FROM \"ORDERS\" WHERE (\"SHIPNAME\" = 'Blauer See Delikatessen' OR \"CUSTOMERID\" = 'HILAA') ORDER BY \"ORDERID\" DESC  LIMIT 100");
-         Utils.assertEq(25, rows.size());
-
-         //         rows = SqlUtils.selectRows(conn,  "SELECT o.EmployeeID, od.OrderId, od.ProductId FROM \"Order\" o JOIN \"OrderDetails\" od ON o.OrderId = od.OrderId"); 
-         //         for(Row row : rows)
-         //         {
-         //            SqlUtils.insertMap(conn,  "EmployeeOrderDetails", row);
-         //         }
-
-         SqlDb partial = createDb("northwind-emptyish.h2", "org.h2.Driver", "jdbc:h2:./.h2/northwind-empty" + "-" + Utils.time(), "sa", "", "h2/");
-
-         conn = partial.getConnection();
-         rows = SqlUtils.selectRows(conn, "SELECT * FROM \"ORDERS\"");
-         Utils.assertEq(0, rows.size());
-
          service = new Service()
             {
                public Response service(String method, String url, String body)
@@ -118,49 +100,14 @@ public class SqlServiceFactory
                   return res;
                }
             };
-
-         //
-         service.withApi("northwind")//
-                .withEndpoint("GET,PUT,POST,DELETE", "source/", "*").withAction(new RestAction()).getApi()//
-                .withDb(source).getApi()//
-                .withEndpoint("GET,PUT,POST,DELETE", "h2/", "*").withAction(new RestAction()).getApi()//
-                .withDb(partial).getApi()//
-                .getService();
-
-         Response res = null;
-
-         //      res = service.get("northwind/sql/orders");
-         //      Utils.assertEq(200, res.getStatusCode());
-         //      Utils.assertEq(0, res.findArray("data").length());
-
-         res = service.service("GET", "northwind/source/orders?or(eq(shipname, 'Blauer See Delikatessen'),eq(customerid,HILAA))&pageSize=100&sort=-orderid");
-         //System.out.println(res.getJson());
-         Utils.assertEq(25, res.findArray("data").length());
-         Utils.assertEq(100, res.find("meta.pageSize"));
-         Utils.assertEq(25, res.find("meta.foundRows"));
-         Utils.assertEq(11058, res.find("data.0.orderid"));
-
-         int inserted = 0;
-         for (Object o : res.getJson().getArray("data"))
+         if (type == "h2")
          {
-            ObjectNode js = (ObjectNode) o;
-            js.remove("href");
-            res = service.post("northwind/h2/orders", js);
-            res.dump();
-               
-            inserted += 1;
-
-            //System.out.println(res.getDebug());
-            Utils.assertEq(201, res.getStatusCode());//claims it was created
-
-            String href = res.findString("data.0.href");
-            res = service.get(href);
-
-            Utils.assertEq(href, res.find("data.0.href"));//check that it actually was created
+            initiateH2Db();
          }
-
-         res = service.get("northwind/h2/orders");
-         Utils.assertEq(25, res.find("meta.foundRows"));
+         else if (type == "mysql")
+         {
+            initiateMySqlDb();
+         }
 
       }
       catch (Exception ex)
@@ -169,6 +116,84 @@ public class SqlServiceFactory
          throw ex;
       }
       return service;
+   }
+
+   private static void initiateH2Db() throws Exception
+   {
+      SqlDb source = createDb("northwind-full.h2", "org.h2.Driver", "jdbc:h2:./.h2/northwind-source" + "-" + Utils.time(), "sa", "", "source/");
+
+      Connection conn = source.getConnection();
+      Rows rows = SqlUtils.selectRows(conn, "SELECT * FROM \"ORDERS\" WHERE (\"SHIPNAME\" = 'Blauer See Delikatessen' OR \"CUSTOMERID\" = 'HILAA') ORDER BY \"ORDERID\" DESC  LIMIT 100");
+      Utils.assertEq(25, rows.size());
+
+      //         rows = SqlUtils.selectRows(conn,  "SELECT o.EmployeeID, od.OrderId, od.ProductId FROM \"Order\" o JOIN \"OrderDetails\" od ON o.OrderId = od.OrderId"); 
+      //         for(Row row : rows)
+      //         {
+      //            SqlUtils.insertMap(conn,  "EmployeeOrderDetails", row);
+      //         }
+
+      SqlDb partial = createDb("northwind-emptyish.h2", "org.h2.Driver", "jdbc:h2:./.h2/northwind-empty" + "-" + Utils.time(), "sa", "", "h2/");
+
+      conn = partial.getConnection();
+      rows = SqlUtils.selectRows(conn, "SELECT * FROM \"ORDERS\"");
+      Utils.assertEq(0, rows.size());
+      service.withApi("northwind")//
+             .withEndpoint("GET,PUT,POST,DELETE", "source/", "*").withAction(new RestAction()).getApi()//
+             .withDb(source).getApi()//
+             .withEndpoint("GET,PUT,POST,DELETE", "h2/", "*").withAction(new RestAction()).getApi()//
+             .withDb(partial).getApi()//
+             .getService();
+
+      Response res = null;
+
+      //      res = service.get("northwind/sql/orders");
+      //      Utils.assertEq(200, res.getStatusCode());
+      //      Utils.assertEq(0, res.findArray("data").length());
+
+      res = service.service("GET", "northwind/source/orders?or(eq(shipname, 'Blauer See Delikatessen'),eq(customerid,HILAA))&pageSize=100&sort=-orderid");
+      //System.out.println(res.getJson());
+      Utils.assertEq(25, res.findArray("data").length());
+      Utils.assertEq(100, res.find("meta.pageSize"));
+      Utils.assertEq(25, res.find("meta.foundRows"));
+      Utils.assertEq(11058, res.find("data.0.orderid"));
+
+      int inserted = 0;
+      for (Object o : res.getJson().getArray("data"))
+      {
+         ObjectNode js = (ObjectNode) o;
+         js.remove("href");
+         res = service.post("northwind/h2/orders", js);
+         res.dump();
+
+         inserted += 1;
+
+         //System.out.println(res.getDebug());
+         Utils.assertEq(201, res.getStatusCode());//claims it was created
+
+         String href = res.findString("data.0.href");
+         res = service.get(href);
+
+         Utils.assertEq(href, res.find("data.0.href"));//check that it actually was created
+      }
+
+      res = service.get("northwind/h2/orders");
+      Utils.assertEq(25, res.find("meta.foundRows"));
+   }
+
+   private static void initiateMySqlDb() throws Exception
+   {
+      SqlDb source = createDb("northwind-full.mysql", "com.mysql.jdbc.Driver", "jdbc:mysql://127.0.0.1:3306/northwind_source", "root", "root", "source/");
+      Connection conn = source.getConnection();
+      Rows rows = SqlUtils.selectRows(conn, "SELECT * FROM Categories;");
+      //      Utils.assertEq(1, rows.size());
+      SqlDb partial = createDb("northwind-emptyish.mysql", "com.mysql.jdbc.Driver", "jdbc:mysql://127.0.0.1:3306/northwind_empty", "root", "root", "mysql/");
+
+      service.withApi("northwind")//
+             .withEndpoint("GET,PUT,POST,DELETE", "source/", "*").withAction(new RestAction()).getApi()//
+             .withDb(source).getApi()//
+             .withEndpoint("GET,PUT,POST,DELETE", "mysql/", "*").withAction(new RestAction()).getApi()//
+             .withDb(partial).getApi()//
+             .getService();
    }
 
    public static SqlDb createDb(String ddl, String driver, String url, String user, String pass, String collectionPath)
@@ -185,16 +210,7 @@ public class SqlServiceFactory
 
       try
       {
-         File dir = new File("./.h2");
-         dir.mkdir();
-
-         File[] dbfiles = dir.listFiles();
-         for (int i = 0; dbfiles != null && i < dbfiles.length; i++)
-         {
-            if (dbfiles[i].getName().startsWith(ddl))
-               dbfiles[i].delete();
-         }
-
+         db.truncateDb();
          Connection conn = db.getConnection();
          SqlUtils.runDdl(conn, SqlServiceFactory.class.getResourceAsStream(ddl + ".ddl"));
       }

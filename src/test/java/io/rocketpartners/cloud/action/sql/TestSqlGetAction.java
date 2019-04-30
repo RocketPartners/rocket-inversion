@@ -24,7 +24,7 @@ public class TestSqlGetAction extends TestRestGetActions
    @Override
    protected Service service() throws Exception
    {
-      return SqlServiceFactory.service();
+      return SqlServiceFactory.service("h2");
    }
 
    /**

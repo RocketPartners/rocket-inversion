@@ -37,7 +37,7 @@ public class DynamoServiceFactory
 
    protected static Service buildService(String apiCode, final String ddl, String dynamoTbl) throws Exception
    {
-      Service service = SqlServiceFactory.service();
+      Service service = SqlServiceFactory.service("h2");
 
       final DynamoDb dynamoDb = new DynamoDb("dynamo", dynamoTbl);
       final Api api = service.getApi(apiCode);
