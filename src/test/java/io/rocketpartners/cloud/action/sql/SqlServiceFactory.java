@@ -4,6 +4,13 @@ import java.io.File;
 import java.sql.Connection;
 import java.sql.DriverManager;
 
+import com.amazonaws.services.rds.AmazonRDS;
+import com.amazonaws.services.rds.AmazonRDSClientBuilder;
+import com.amazonaws.services.rds.model.CreateDBInstanceRequest;
+import com.amazonaws.services.rds.model.DBInstance;
+import com.amazonaws.services.rds.model.DBInstanceAlreadyExistsException;
+import com.amazonaws.services.rds.model.DescribeDBInstancesResult;
+
 import io.rocketpartners.cloud.action.rest.RestAction;
 import io.rocketpartners.cloud.model.ObjectNode;
 import io.rocketpartners.cloud.model.Response;
@@ -222,6 +229,37 @@ public class SqlServiceFactory
       }
 
       return db;
+   }
+
+   //Utility provisions micro MySQL RDS instance if it doesn't already exist, and returns the public URL
+   public String createMySqlRDS(String dbName, String username, String password)
+   {
+      AmazonRDS client = AmazonRDSClientBuilder.defaultClient();
+      CreateDBInstanceRequest dbRequest = new CreateDBInstanceRequest(dbName, 20, "db.t2.micro", "mysql", username, password);
+      String url = null;
+      try
+      {
+         DBInstance db = client.createDBInstance(dbRequest);
+         url = db.getEndpoint().toString();
+      }
+      catch (DBInstanceAlreadyExistsException e)
+      {
+         DescribeDBInstancesResult dbs = client.describeDBInstances();
+         for (DBInstance db : dbs.getDBInstances())
+         {
+            if (db.getDBInstanceIdentifier().equalsIgnoreCase(dbName))
+            {
+               url = db.getEndpoint().toString();
+               break;
+            }
+         }
+      }
+      catch (Exception e)
+      {
+         System.out.println("Error creating RDS Instance: " + e.getMessage());
+         e.printStackTrace();
+      }
+      return url;
    }
 
    //   public static void main(String[] args) throws Exception
