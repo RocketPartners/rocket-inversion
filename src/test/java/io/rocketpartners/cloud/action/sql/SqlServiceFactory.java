@@ -13,6 +13,7 @@ import com.amazonaws.services.rds.AmazonRDSClientBuilder;
 import com.amazonaws.services.rds.model.CreateDBInstanceRequest;
 import com.amazonaws.services.rds.model.DBInstance;
 import com.amazonaws.services.rds.model.DBInstanceAlreadyExistsException;
+import com.amazonaws.services.rds.model.DeleteDBInstanceRequest;
 import com.amazonaws.services.rds.model.DescribeDBInstancesResult;
 
 import io.rocketpartners.cloud.action.rest.RestAction;
@@ -241,14 +242,23 @@ public class SqlServiceFactory
    }
 
    //Utility provisions micro MySQL RDS instance if it doesn't already exist, and returns the public URL
-   public String createMySqlRDS(String dbName, String username, String password)
+   public static String createMySqlRDS(String instanceName, String username, String password)
    {
       AmazonRDS client = AmazonRDSClientBuilder.defaultClient();
-      CreateDBInstanceRequest dbRequest = new CreateDBInstanceRequest(dbName, 20, "db.t2.micro", "mysql", username, password);
+      CreateDBInstanceRequest dbRequest = new CreateDBInstanceRequest(instanceName, 20, "db.t2.micro", "mysql", username, password);
+      dbRequest.setEngineVersion("5.6.40");
+      dbRequest.setDBName(instanceName);
       String url = null;
       try
       {
          DBInstance db = client.createDBInstance(dbRequest);
+         System.out.println("creating DB, need to wait for endpoint…");
+         while (db.getDBInstanceStatus().equalsIgnoreCase("creating"))
+         {
+            System.out.println("waiting…");
+            Thread.sleep(5000);
+         }
+         System.out.println("DB created, retrieving endpoint");
          url = db.getEndpoint().toString();
       }
       catch (DBInstanceAlreadyExistsException e)
@@ -256,19 +266,59 @@ public class SqlServiceFactory
          DescribeDBInstancesResult dbs = client.describeDBInstances();
          for (DBInstance db : dbs.getDBInstances())
          {
-            if (db.getDBInstanceIdentifier().equalsIgnoreCase(dbName))
+            if (db.getDBInstanceIdentifier().equalsIgnoreCase(instanceName))
             {
+               System.out.println("found existing DB, waiting for endpoint…");
+               while (db.getDBInstanceStatus().equalsIgnoreCase("creating"))
+               {
+                  System.out.println("waiting…");
+                  try
+                  {
+                     Thread.sleep(5000);
+                  }
+                  catch (InterruptedException e1)
+                  {
+                     e1.printStackTrace();
+                  }
+               }
+               System.out.println("endpoint available");
                url = db.getEndpoint().toString();
                break;
             }
          }
       }
+      catch (NullPointerException e)
+      {
+         System.out.println("Null Pointer Exception!");
+         e.printStackTrace();
+         url = null;
+      }
       catch (Exception e)
       {
          System.out.println("Error creating RDS Instance: " + e.getMessage());
          e.printStackTrace();
+         url = null;
       }
       return url;
+   }
+
+   public static boolean deleteMySqlRDS(String instanceName)
+   {
+      boolean result = false;
+      try
+      {
+         AmazonRDS client = AmazonRDSClientBuilder.defaultClient();
+         DeleteDBInstanceRequest deleteRequest = new DeleteDBInstanceRequest(instanceName).withSkipFinalSnapshot(true);
+         client.deleteDBInstance(deleteRequest);
+         result = true;
+      }
+      catch (Exception e)
+      {
+         System.out.println(e);
+         e.printStackTrace();
+
+      }
+      return result;
    }
 
    //   public static void main(String[] args) throws Exception
