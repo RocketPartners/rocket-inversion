@@ -248,6 +248,8 @@ public class SqlServiceFactory
       CreateDBInstanceRequest dbRequest = new CreateDBInstanceRequest(instanceName, 20, "db.t2.micro", "mysql", username, password);
       dbRequest.setEngineVersion("5.6.40");
       dbRequest.setDBName(instanceName);
+      dbRequest.setPubliclyAccessible(true);
+      dbRequest.setBackupRetentionPeriod(0);
       String url = null;
       try
       {
