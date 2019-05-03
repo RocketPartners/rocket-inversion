@@ -210,7 +210,7 @@ public class AuthAction extends Action<AuthAction>
          {
             if (now - user.getRequestAt() > sessionExp)
             {
-               sessionCache.remove(token);
+               sessionCache.remove(sessionKey);
                user = null;
             }
          }
