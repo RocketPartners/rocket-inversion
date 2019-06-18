@@ -142,6 +142,7 @@ public class ElasticServiceFactory
    static void createElasticCluster()
    {
       createDomain();
+      System.out.println("It will take around 10-15 minutes for this new cluster to be ready.");
       waitForDomainProcessing();
    }
 
