@@ -24,6 +24,8 @@ import java.util.Set;
 import java.util.Stack;
 
 import org.apache.commons.collections4.map.CaseInsensitiveMap;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import io.rocketpartners.cloud.model.Action;
 import io.rocketpartners.cloud.model.Api;
@@ -35,7 +37,7 @@ import io.rocketpartners.cloud.utils.Utils;
 
 public class Chain
 {
-
+   protected Logger                 log        = LoggerFactory.getLogger(getClass());
    static ThreadLocal<Stack<Chain>> chainLocal = new ThreadLocal();
 
    protected static Stack<Chain> get()
@@ -357,7 +359,18 @@ public class Chain
 
    public String getConfig(String key, String defaultValue)
    {
-      String value = request.getEndpoint().getConfig(key);
+      String value = null;
+
+      Endpoint endpoint = request.getEndpoint();
+      if (endpoint != null)
+      {
+         value = endpoint.getConfig(key);
+      }
+      else
+      {
+         log.warn("Config lookup for '" + key + "' is not checking the Endpoint because it is null.");
+      }
+
       if (!Utils.empty(value))
       {
          return value;
