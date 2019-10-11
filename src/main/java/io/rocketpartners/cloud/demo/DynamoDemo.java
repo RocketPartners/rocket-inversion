@@ -18,7 +18,9 @@ package io.rocketpartners.cloud.demo;
 import java.util.ArrayList;
 import java.util.List;
 
+import com.amazonaws.AmazonServiceException;
 import com.amazonaws.services.dynamodbv2.AmazonDynamoDB;
+import com.amazonaws.services.dynamodbv2.AmazonDynamoDBClientBuilder;
 import com.amazonaws.services.dynamodbv2.document.DynamoDB;
 import com.amazonaws.services.dynamodbv2.document.Table;
 import com.amazonaws.services.dynamodbv2.model.AttributeDefinition;
@@ -29,42 +31,28 @@ import com.amazonaws.services.dynamodbv2.model.KeyType;
 import com.amazonaws.services.dynamodbv2.model.Projection;
 import com.amazonaws.services.dynamodbv2.model.ProjectionType;
 import com.amazonaws.services.dynamodbv2.model.ProvisionedThroughput;
-import com.amazonaws.services.dynamodbv2.model.TimeToLiveSpecification;
 
 import io.rocketpartners.cloud.action.dynamo.DynamoDb;
 
 /**
- * This simple demo launches an API that exposes SQL database tables 
- * as REST collection endpoints.  The demo supports full GET,PUT,POST,DELETE
- * operations with an extensive Resource Query Language (RQL) for GET
- * requests.
- * <br>  
- * The demo connects to an in memory H2 sql db that gets initialized from
- * scratch each time this demo is run.  That means you can fully explore
- * modifying operations (PUT,POST,DELETE) and 'break' whatever you want
- * then restart and have a clean demo app again.
- * <br>
- * If you want to explore your own JDBC DB, you can swap the "withDb()"
- * line below with the commented out one and fill in your connection info.
- * Currently, Inversion only ships with MySQL drivers out of the box but
- * has SQL syntax support for MySQL, SqlServer, and PostgreSQL.
- * <br>
- * Northwind is a demo db that has shipped with various Microsoft products
- * for years.  Some of its table designs seem strange or antiquated 
- * compared to modern conventions but it makes a great demo and test
- * specifically because it shows how Inversion can accommodate a broad
- * range of database design patterns.  
- * 
- * @see Demo1SqlDbNorthwind.ddl for more details on the db
- * @see https://github.com/RocketPartners/rocket-inversion for more information 
- *      on building awesome APIs with Inversion
  *  
- * @author wells
- *
  */
-public class DynamoDBTableBuilder
+
+public class DynamoDemo
 {
-   public static Table buildTable() throws Exception
+   private String tableName;
+
+   public DynamoDemo()
+   {
+      this.tableName = "inversion-demo";
+   }
+
+   public DynamoDemo(String tableName)
+   {
+      this.tableName = tableName;
+   }
+
+   public Table buildTable() throws Exception
    {
       List<AttributeDefinition> attrs = new ArrayList<>();
 
@@ -75,9 +63,9 @@ public class DynamoDBTableBuilder
       keys.add(new KeySchemaElement().withAttributeName("hk").withKeyType(KeyType.HASH));
       keys.add(new KeySchemaElement().withAttributeName("sk").withKeyType(KeyType.RANGE));
 
-      List<GlobalSecondaryIndex> gsxs = new ArrayList();
+      List<GlobalSecondaryIndex> gsxs = new ArrayList<>();
       gsxs.add(new GlobalSecondaryIndex().withIndexName("gs1")//
-                                         .withKeySchema(//
+                                         .withKeySchema(// 
                                                new KeySchemaElement()//
                                                                      .withAttributeName("sk").withKeyType(KeyType.HASH),
                                                new KeySchemaElement()//
@@ -88,26 +76,21 @@ public class DynamoDBTableBuilder
          gsx.setProjection(new Projection().withProjectionType(ProjectionType.ALL));
          gsx.withProvisionedThroughput(new ProvisionedThroughput()//
                                                                   .withReadCapacityUnits(5L)//
-                                                                  .withWriteCapacityUnits(5L));;
+                                                                  .withWriteCapacityUnits(5L));
       }
 
-      // TODO -> Where to add TTL attribute?
-      TimeToLiveSpecification ttl = new TimeToLiveSpecification().withEnabled(true).withAttributeName("ttl");
-
-      AmazonDynamoDB client = DynamoDb.buildDynamoClient("urls-and-otps");
+      AmazonDynamoDB client = DynamoDb.buildDynamoClient(tableName);
 
       DynamoDB ddb = new DynamoDB(client);
 
       CreateTableRequest request = new CreateTableRequest()//
                                                            .withGlobalSecondaryIndexes(gsxs)//
-                                                           .withTableName("urls-and-otps")//
+                                                           .withTableName(tableName)//
                                                            .withKeySchema(keys)//
                                                            .withAttributeDefinitions(attrs)//
                                                            .withProvisionedThroughput(new ProvisionedThroughput()//
                                                                                                                  .withReadCapacityUnits(5L)//
                                                                                                                  .withWriteCapacityUnits(5L));
-
-      // .withBillingMode("PAY_PER_REQUEST");
 
       Table table = ddb.createTable(request);
 
@@ -115,11 +98,26 @@ public class DynamoDBTableBuilder
       {
          table.waitForActive();
       }
+      // TODO -> Why is it handled like this?
       catch (Exception ex)
       {
          table.waitForActive();
       }
-
       return table;
    }
+
+//   public void deleteTable() throws Exception
+//   {
+//      try
+//      {
+//         final AmazonDynamoDB ddb = AmazonDynamoDBClientBuilder.defaultClient();
+//         ddb.deleteTable(tableName);
+//      }
+//
+//      catch (AmazonServiceException e)
+//      {
+//         System.err.println(e.getErrorMessage());
+//         System.exit(1);
+//      }
+//   }
 }
