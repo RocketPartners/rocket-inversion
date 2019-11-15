@@ -50,6 +50,13 @@ public class DynamoRql extends Rql
 
       DynamoIndex primaryIdx = null;
 
+      Order order = null;
+      if (orderList != null && !orderList.isEmpty())
+      {
+         order = orderList.get(0); // an index can only have one sort key
+         order.col = Parser.dequote(order.col);
+      }
+
       // find the best index to use based on the given request params
       List<DynamoIndex> potentialIndexList = new ArrayList<DynamoIndex>();
       for (DynamoIndex idx : (List<DynamoIndex>) (List<?>) table.getIndexes())
@@ -73,6 +80,15 @@ public class DynamoRql extends Rql
       {
          if (predicatesContainField(predicates, idx.getSortKey()))
          {
+            if(order != null && !idx.getSortKey().equals(order.col))
+            {
+               continue;
+            }
+            dynamoIdx = idx;
+            hasSortKey = true;
+         }
+         else if (order != null && idx.getSortKey().equals(order.col))
+         {
             dynamoIdx = idx;
             hasSortKey = true;
          }
@@ -92,17 +108,14 @@ public class DynamoRql extends Rql
       if (hasPartitionKey)
       {
          // sorting only works for querying which means we must have a partition key to sort
-         if (orderList != null && !orderList.isEmpty())
+         if (order != null)
          {
-            Order order = orderList.get(0); // an index can only have one sort key
-            order.col = Parser.dequote(order.col);
-            if (sk != null)
+            if (sk != null && sk.equals(order.col))//TODO check
             {
-               if (sk.equals(order.col))
-                  dynamoExpression.setOrder(order);
-               else
-                  throw new Exception("Cannot sort on field: '" + order.col + "' that does not match the sort key: '" + sk + "'");
+               dynamoExpression.setOrder(order);
             }
+            else
+               throw new Exception("Cannot sort on field: '" + order.col + "' that does not match the sort key: '" + sk + "'");
          }
          else if (hasSortKey) // default to the index's sort key if it exists but is not being specified.
             dynamoExpression.setOrder(new Order(sk, "ASC"));
