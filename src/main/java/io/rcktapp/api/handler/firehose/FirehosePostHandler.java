@@ -90,7 +90,7 @@ public class FirehosePostHandler implements Handler
 
             batch.add(new Record().withData(ByteBuffer.wrap(string.getBytes())));
 
-            if (i > 0 && i % batchMax == 0)
+            if (i > 1 && (i+1) % batchMax == 0)
             {
                firehose.putRecordBatch(new PutRecordBatchRequest().withDeliveryStreamName(streamName).withRecords(batch));
                batch.clear();
