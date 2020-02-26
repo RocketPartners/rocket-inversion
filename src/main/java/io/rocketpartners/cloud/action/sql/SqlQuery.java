@@ -152,22 +152,25 @@ public class SqlQuery extends Query<SqlQuery, SqlDb, Table, Select<Select<Select
 
          if (joins != null && joins.size() > 0)
          {
-            Map joined = new HashMap();
-
-            select = "SELECT DISTINCT " + qt + ".* FROM " + qt;
-
-            for (int i = 0; i < joins.size(); i++)
-            {
-               Term join = joins.get(i);
-               String tableName = join.getToken(0);
-               String tableAlias = join.getToken(1);
-
-               if (!joined.containsKey(tableAlias))
-               {
-                  joined.put(tableAlias, tableName);
-                  select += ", " + quoteCol(tableName) + " " + quoteCol(tableAlias);
-               }
-            }
+//            Map joined = new HashMap();
+//
+//            select = "SELECT DISTINCT " + qt + ".* FROM " + qt;
+//
+//            for (int i = 0; i < joins.size(); i++)
+//            {
+//               Term join = joins.get(i);
+//               String tableName = join.getToken(0);
+//               String tableAlias = join.getToken(1);
+//
+//               if (!joined.containsKey(tableAlias))
+//               {
+//                  joined.put(tableAlias, tableName);
+//                  select += ", " + quoteCol(tableName) + " " + quoteCol(tableAlias);
+//               }
+//            }
+            
+            select = "SELECT " + qt + ".* FROM " + qt;
+            
          }
          else
          {
@@ -263,36 +266,46 @@ public class SqlQuery extends Query<SqlQuery, SqlDb, Table, Select<Select<Select
       //               
       //            }
 
-      for (int i = 0; joins != null && i < joins.size(); i++)
-      {
-         Term join = joins.get(i);
-
-         String where = "";
-
-         for (int j = 2; j < join.size(); j += 4)//the first token is the related name, the second token is the table alias
-         {
-            if (j > 2)
-               where += " AND ";
-            where += quoteCol(join.getToken(j)) + "." + quoteCol(join.getToken(j + 1)) + " = " + quoteCol(join.getToken(j + 2)) + "." + quoteCol(join.getToken(j + 3));
-         }
-
-         if (where != null)
-         {
-            where = "(" + where + ")";
-
-            if (empty(parts.where))
-               parts.where = " WHERE " + where;
-            else
-               parts.where += " AND " + where;
-         }
-      }
+//      for (int i = 0; joins != null && i < joins.size(); i++)
+//      {
+//         Term join = joins.get(i);
+//
+//         String where = "";
+//
+//         for (int j = 2; j < join.size(); j += 4)//the first token is the related name, the second token is the table alias
+//         {
+//            if (j > 2)
+//               where += " AND ";
+//            where += quoteCol(join.getToken(j)) + "." + quoteCol(join.getToken(j + 1)) + " = " + quoteCol(join.getToken(j + 2)) + "." + quoteCol(join.getToken(j + 3));
+//         }
+//
+//         if (where != null)
+//         {
+//            where = "(" + where + ")";
+//
+//            if (empty(parts.where))
+//               parts.where = " WHERE " + where;
+//            else
+//               parts.where += " AND " + where;
+//         }
+//      }
 
       terms = where().filters();
       for (int i = 0; i < terms.size(); i++)
       {
          Term term = terms.get(i);
 
-         String where = print(term, null, preparedStmt);
+         Term joinTerm = findJoinTerm(term);
+         String where = null;
+         if (joinTerm != null)
+         {
+            where = printJoinSubselect(term, null, preparedStmt, joinTerm);
+         }
+         else
+         {
+            where = print(term, null, preparedStmt);
+         }
+
          if (where != null)
          {
             if (empty(parts.where))
@@ -458,6 +471,59 @@ public class SqlQuery extends Query<SqlQuery, SqlDb, Table, Select<Select<Select
       }
 
       return str;
+   }
+
+   protected Term findJoinTerm(Term term)
+   {
+      if (!this.joins.isEmpty())
+      {
+         String s = term.getToken(0);
+         if (s.contains("."))
+         {
+            String[] arr = s.split("\\.");
+            for (Term joinTerm : this.joins)
+            {
+               if (joinTerm.getToken(1).equals(arr[0]))
+               {
+                  return joinTerm;
+               }
+            }
+         }
+      }
+      return null;
+   }
+
+   protected String printJoinSubselect(Term term, String col, boolean preparedStmt, Term joinTerm)
+   {
+      // (`Location`.`id` not in(select locationId from LocationTag where `content` LIKE '%froster%')) 
+
+      String t1 = joinTerm.getToken(2);
+      String c1 = joinTerm.getToken(3);
+
+      String t2 = joinTerm.getToken(0);
+      String c2 = joinTerm.getToken(5);
+
+      String alias = joinTerm.getToken(1);
+
+      boolean negation = term.hasToken("ne", "nw", "wo");
+
+      String in = " in (select ";
+      if (negation)
+      {
+         in = " not in (select ";
+
+         // need to swap to the positive form since it will be a "not in"
+         Map<String, String> ops = new HashMap<>();
+         ops.put("ne", "eq");
+         ops.put("nw", "w");
+         ops.put("wo", "w");
+         term.withToken(ops.get(term.getToken()));
+      }
+
+      String where = print(term, col, preparedStmt);
+      String subselect = quoteCol(t1) + "." + quoteCol(c1) + in + quoteCol(c2) + " from " + quoteCol(t2) + " " + quoteCol(alias) + " where " + where + ") ";
+
+      return subselect;
    }
 
    protected String print(Term term, String col, boolean preparedStmt)
