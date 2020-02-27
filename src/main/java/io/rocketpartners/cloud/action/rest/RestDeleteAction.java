@@ -78,7 +78,7 @@ public class RestDeleteAction extends Action<RestDeleteAction>
          toDelete.add(req.getUrl().toString());
       }
 
-      String collectionUrl = req.getApiUrl() + Utils.implode("/", req.getEndpointPath(), req.getCollectionKey());
+      String collectionUrl = req.getApiUrl() + "/" + Utils.implode("/", req.getEndpointPath(), req.getCollectionKey());
       int deleted = delete(req, req.getCollection(), collectionUrl, toDelete);
 
       if (deleted < 1)
