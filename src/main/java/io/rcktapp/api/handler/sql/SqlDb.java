@@ -58,7 +58,7 @@ public class SqlDb extends Db
       }
    }
 
-   public static final int MIN_POOL_SIZE            = 3;
+   public static final int MIN_POOL_SIZE            = 5;
    public static final int MAX_POOL_SIZE            = 10;
 
    boolean                 shutdown                 = false;
@@ -69,8 +69,8 @@ public class SqlDb extends Db
    protected String        url                      = null;
    protected String        user                     = null;
    protected String        pass                     = null;
-   protected int           poolMin                  = 3;
-   protected int           poolMax                  = 10;
+   protected int           poolMin                  = MIN_POOL_SIZE;
+   protected int           poolMax                  = MAX_POOL_SIZE;
    protected int           idleConnectionTestPeriod = 3600; // in seconds
 
    // set this to false to turn off SQL_CALC_FOUND_ROWS and SELECT FOUND_ROWS()
@@ -129,14 +129,12 @@ public class SqlDb extends Db
                      int maxPoolSize = getPoolMax();
                      int idleTestPeriod = getIdleConnectionTestPeriod();
 
-                     minPoolSize = Math.max(MIN_POOL_SIZE, minPoolSize);
-                     maxPoolSize = Math.min(maxPoolSize, MAX_POOL_SIZE);
-
                      pool = new ComboPooledDataSource();
                      pool.setDriverClass(driver);
                      pool.setJdbcUrl(url);
                      pool.setUser(user);
                      pool.setPassword(password);
+                     pool.setInitialPoolSize(minPoolSize);
                      pool.setMinPoolSize(minPoolSize);
                      pool.setMaxPoolSize(maxPoolSize);
 
