@@ -59,6 +59,11 @@ public class SqlGetHandler extends SqlHandler
 {
    int maxRows        = 100;
 
+   // This is the limit for child expand collections
+   // configure using endpoint.config=expandsMaxRows=1000
+   // -1 will do the default behavior which is to use the maxRows value
+   int expandsMaxRows = -1;
+
    Set reservedParams = new HashSet(Arrays.asList("includes", "excludes", "expands"));
 
    @Override
@@ -434,6 +439,14 @@ public class SqlGetHandler extends SqlHandler
             if (!J.empty(value))
                url += "=" + URLEncoder.encode(value, "UTF-8");
          }
+      }
+
+      // This is so expand calls can get more than 100 rows
+      int limit = chain.getConfig("expandsMaxRows", expandsMaxRows);
+      if (limit > 0)
+      {
+         String quesOrAmp = url.contains("?") ? "&" : "?";
+         url = url + quesOrAmp + "limit=" + limit;
       }
 
       Response res = chain.getService().include(chain, "GET", url, null);
