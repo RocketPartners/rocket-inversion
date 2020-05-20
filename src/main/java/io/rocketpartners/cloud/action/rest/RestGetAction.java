@@ -691,8 +691,18 @@ public class RestGetAction extends Action<RestGetAction>
       Term includes = Term.term(null, "includes", columns);
       Term sort = Term.term(null, "sort", columns);
       Term notNull = Term.term(null, "nn", columns);
+      
+      List<Term> terms = new ArrayList<>(Arrays.asList(termKeys, includes, sort, notNull));
+      
+      // This is so expand calls can get more than 100 rows
+      int limit = Chain.peek().getConfig("expandsMaxRows", -1);
+      if (limit > 0)
+      {
+         Term limitTerm = Term.term(null, "limit", limit);
+         terms.add(limitTerm);
+      }
 
-      Rows rows = ((Rows) idxToMatch.getColumn(0).getTable().getDb().select(idxToRetrieve.getTable(), Arrays.asList(termKeys, includes, sort, notNull)).getRows());
+      Rows rows = ((Rows) idxToMatch.getColumn(0).getTable().getDb().select(idxToRetrieve.getTable(), terms).getRows());
       for (Row row : rows)
       {
          List keyParts = row.asList();
@@ -737,6 +747,14 @@ public class RestGetAction extends Action<RestGetAction>
          }
       }
 
+      // This is so expand calls can get more than 100 rows
+      int limit = Chain.peek().getConfig("expandsMaxRows", -1);
+      if (limit > 0)
+      {
+         String quesOrAmp = url.contains("?") ? "&" : "?";
+         url = url + quesOrAmp + "limit=" + limit;
+      }
+      
       Response res = Chain.peek().getService().get(url);
       int sc = res.getStatusCode();
       if (sc == 401 || sc == 403)//unauthorized || forbidden
