@@ -485,7 +485,7 @@ public class SqlQuery extends Query<SqlQuery, SqlDb, Table, Select<Select<Select
 
       String alias = joinTerm.getToken(1);
 
-      boolean negation = term.hasToken("ne", "nw", "wo");
+      boolean negation = term.hasToken("ne", "nw", "wo", "out");
 
       String in = " in (select ";
       if (negation)
@@ -497,6 +497,7 @@ public class SqlQuery extends Query<SqlQuery, SqlDb, Table, Select<Select<Select
          ops.put("ne", "eq");
          ops.put("nw", "w");
          ops.put("wo", "w");
+         ops.put("out", "in");
          term.withToken(ops.get(term.getToken()));
       }
 
