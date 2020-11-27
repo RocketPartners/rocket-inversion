@@ -21,6 +21,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import io.forty11.web.Url;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -51,7 +52,7 @@ public class LogHandler implements Handler
 
    @Override
    public void service(Service service, Api api, Endpoint endpoint, Action action, Chain chain, Request req, Response res) throws Exception
-   {
+   { 
       if (chain.getParent() != null)
       {
          //this must be a nested call to service.include so the outter call
@@ -105,7 +106,8 @@ public class LogHandler implements Handler
                      logParams.put("body", "");
                   }
 
-                  logParams.put("url", req.getUrl().toString());
+                  String maskedUrl = maskUrl(req.getUrl(), logMask);
+                  logParams.put("url", maskedUrl);
                   logParams.put("collectionKey", req.getCollectionKey());
                   if (api.isMultiTenant())
                   {
@@ -127,6 +129,7 @@ public class LogHandler implements Handler
                      }
                      changeMap.add(changeParams);
                   }
+
                   Sql.insertMaps(conn, logChangeTable, changeMap);
                }
             }
@@ -166,6 +169,52 @@ public class LogHandler implements Handler
 
       return json;
    }
+
+   private String maskUrl(Url url, String logMask) {
+
+      String baseUrl = url.getBase().toString();
+
+      String query = url.getQuery();
+      Map<String, String> params = Url.parseQuery(query);
+
+      if(params.isEmpty()) {
+         return baseUrl;
+      }
+
+      StringBuilder maskedUrlBuilder = new StringBuilder(baseUrl);
+
+      if(!baseUrl.endsWith("?")) {
+         maskedUrlBuilder.append("?");
+      }
+
+      int paramsChecked = 0;
+      int totalParams = params.keySet().size();
+
+      for (String key : params.keySet()) {
+
+         String value = params.get(key);
+
+         if (logMaskFields.contains(key)) {
+            value = logMask;
+         }
+
+         maskedUrlBuilder.append(key);
+
+         if(value != null) {
+            maskedUrlBuilder.append("=");
+            maskedUrlBuilder.append(value);
+         }
+
+         paramsChecked++;
+
+         if(paramsChecked < totalParams) {
+            maskedUrlBuilder.append("&");
+         }
+      }
+
+      return maskedUrlBuilder.toString();
+   }
+
 
    public List<String> getLogMaskFields()
    {
