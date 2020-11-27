@@ -16,10 +16,7 @@
 package io.rcktapp.api.handler.util;
 
 import java.sql.Connection;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 import io.forty11.web.Url;
 import org.slf4j.Logger;
@@ -52,7 +49,7 @@ public class LogHandler implements Handler
 
    @Override
    public void service(Service service, Api api, Endpoint endpoint, Action action, Chain chain, Request req, Response res) throws Exception
-   { 
+   {
       if (chain.getParent() != null)
       {
          //this must be a nested call to service.include so the outter call
@@ -170,52 +167,6 @@ public class LogHandler implements Handler
       return json;
    }
 
-   private String maskUrl(Url url, String logMask) {
-
-      String baseUrl = url.getBase().toString();
-
-      String query = url.getQuery();
-      Map<String, String> params = Url.parseQuery(query);
-
-      if(params.isEmpty()) {
-         return baseUrl;
-      }
-
-      StringBuilder maskedUrlBuilder = new StringBuilder(baseUrl);
-
-      if(!baseUrl.endsWith("?")) {
-         maskedUrlBuilder.append("?");
-      }
-
-      int paramsChecked = 0;
-      int totalParams = params.keySet().size();
-
-      for (String key : params.keySet()) {
-
-         String value = params.get(key);
-
-         if (logMaskFields.contains(key)) {
-            value = logMask;
-         }
-
-         maskedUrlBuilder.append(key);
-
-         if(value != null) {
-            maskedUrlBuilder.append("=");
-            maskedUrlBuilder.append(value);
-         }
-
-         paramsChecked++;
-
-         if(paramsChecked < totalParams) {
-            maskedUrlBuilder.append("&");
-         }
-      }
-
-      return maskedUrlBuilder.toString();
-   }
-
-
    public List<String> getLogMaskFields()
    {
       return new ArrayList(logMaskFields);
@@ -225,6 +176,71 @@ public class LogHandler implements Handler
    {
       this.logMaskFields.clear();
       this.logMaskFields.addAll(logMaskFields);
+   }
+
+   private String maskUrl(Url url, String logMask) {
+
+      String baseUrl = url.getBase().toString();
+      String query = url.getQuery();
+
+      if(query == null) {
+         return baseUrl;
+      }
+
+      Map<Integer, String> maskedParams = maskQueryParams(query);
+
+     return getUrlFromMaskedParams(maskedParams, baseUrl);
+   }
+
+   private Map<Integer, String> maskQueryParams(String query) {
+
+      Map<String, String> params = Url.parseQuery(query);
+      Map<Integer, String> maskedParams = new HashMap<>();
+
+      for (String key : params.keySet()) {
+
+         String value = params.get(key);
+
+         if (logMaskFields.contains(key)) {
+            value = logMask;
+         }
+
+         String maskedParam = key;
+
+         if(value != null) {
+            maskedParam += "=";
+            maskedParam += value;
+         }
+
+         maskedParams.put(query.indexOf(key), maskedParam);
+      }
+
+      return maskedParams;
+   }
+
+   private String getUrlFromMaskedParams(Map<Integer, String> maskedParams, String baseUrl) {
+
+      StringBuilder maskedUrlBuilder = new StringBuilder(baseUrl);
+      maskedUrlBuilder.append("?");
+
+      int paramsChecked = 0;
+      int totalParams = maskedParams.keySet().size();
+
+      List<Integer> keys = new ArrayList<>(maskedParams.keySet());
+      Collections.sort(keys);
+
+      for (Integer position : keys) {
+         String maskedParam = maskedParams.get(position);
+         maskedUrlBuilder.append(maskedParam);
+
+         paramsChecked++;
+
+         if(paramsChecked < totalParams) {
+            maskedUrlBuilder.append("&");
+         }
+      }
+
+      return  maskedUrlBuilder.toString();
    }
 
 }
