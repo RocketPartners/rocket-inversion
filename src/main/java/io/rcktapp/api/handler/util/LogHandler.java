@@ -16,11 +16,9 @@
 package io.rcktapp.api.handler.util;
 
 import java.sql.Connection;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
+import io.forty11.web.Url;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -105,7 +103,8 @@ public class LogHandler implements Handler
                      logParams.put("body", "");
                   }
 
-                  logParams.put("url", req.getUrl().toString());
+                  String maskedUrl = maskUrl(req.getUrl(), logMask);
+                  logParams.put("url", maskedUrl);
                   logParams.put("collectionKey", req.getCollectionKey());
                   if (api.isMultiTenant())
                   {
@@ -127,6 +126,7 @@ public class LogHandler implements Handler
                      }
                      changeMap.add(changeParams);
                   }
+
                   Sql.insertMaps(conn, logChangeTable, changeMap);
                }
             }
@@ -176,6 +176,71 @@ public class LogHandler implements Handler
    {
       this.logMaskFields.clear();
       this.logMaskFields.addAll(logMaskFields);
+   }
+
+   private String maskUrl(Url url, String mask) {
+
+      String baseUrl = url.getBase().toString();
+      String query = url.getQuery();
+
+      if(query == null) {
+         return baseUrl;
+      }
+
+      Map<Integer, String> maskedParams = maskQueryParams(query, mask);
+
+     return getUrlFromMaskedParams(maskedParams, baseUrl);
+   }
+
+   private Map<Integer, String> maskQueryParams(String query, String mask) {
+
+      Map<String, String> params = Url.parseQuery(query);
+      Map<Integer, String> maskedParams = new HashMap<>();
+
+      for (String key : params.keySet()) {
+
+         String value = params.get(key);
+
+         if (logMaskFields.contains(key)) {
+            value = mask;
+         }
+
+         String maskedParam = key;
+
+         if(value != null) {
+            maskedParam += "=";
+            maskedParam += value;
+         }
+
+         maskedParams.put(query.indexOf(key), maskedParam);
+      }
+
+      return maskedParams;
+   }
+
+   private String getUrlFromMaskedParams(Map<Integer, String> maskedParams, String baseUrl) {
+
+      StringBuilder maskedUrlBuilder = new StringBuilder(baseUrl);
+      maskedUrlBuilder.append("?");
+
+      int paramsChecked = 0;
+      int totalParams = maskedParams.keySet().size();
+
+      List<Integer> keys = new ArrayList<>(maskedParams.keySet());
+      Collections.sort(keys);
+
+      for (Integer position : keys) {
+         String maskedParam = maskedParams.get(position);
+         maskedUrlBuilder.append(maskedParam);
+
+         paramsChecked++;
+
+         if(paramsChecked < totalParams) {
+            maskedUrlBuilder.append("&");
+         }
+      }
+
+      return  maskedUrlBuilder.toString();
    }
 
 }
