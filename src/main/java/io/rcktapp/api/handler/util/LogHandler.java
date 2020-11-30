@@ -178,7 +178,7 @@ public class LogHandler implements Handler
       this.logMaskFields.addAll(logMaskFields);
    }
 
-   private String maskUrl(Url url, String logMask) {
+   private String maskUrl(Url url, String mask) {
 
       String baseUrl = url.getBase().toString();
       String query = url.getQuery();
@@ -187,12 +187,12 @@ public class LogHandler implements Handler
          return baseUrl;
       }
 
-      Map<Integer, String> maskedParams = maskQueryParams(query);
+      Map<Integer, String> maskedParams = maskQueryParams(query, mask);
 
      return getUrlFromMaskedParams(maskedParams, baseUrl);
    }
 
-   private Map<Integer, String> maskQueryParams(String query) {
+   private Map<Integer, String> maskQueryParams(String query, String mask) {
 
       Map<String, String> params = Url.parseQuery(query);
       Map<Integer, String> maskedParams = new HashMap<>();
@@ -202,7 +202,7 @@ public class LogHandler implements Handler
          String value = params.get(key);
 
          if (logMaskFields.contains(key)) {
-            value = logMask;
+            value = mask;
          }
 
          String maskedParam = key;
