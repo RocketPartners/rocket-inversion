@@ -69,11 +69,12 @@ public class SqlRql extends Rql
             {
                if (col.indexOf("$$$ANON") > -1)
                {
-                  cols += " " + print(stmt.table, p, stmt.replacer, null) + ",";
+                  cols += " " + print(stmt.table, p, stmt.replacer, null, stmt.caseInsensitive) + ",";
                }
                else
                {
-                  cols += " " + print(stmt.table, p, stmt.replacer, null) + " AS " + parser.asStr(col) + ",";
+                  cols += " " + print(stmt.table, p, stmt.replacer, null,
+                                      stmt.caseInsensitive) + " AS " + parser.asStr(col) + ",";
                }
             }
          }
@@ -118,7 +119,7 @@ public class SqlRql extends Rql
          {
             Predicate p = stmt.where.get(i);
 
-            String where = print(stmt.table, p, stmt.replacer, null);
+            String where = print(stmt.table, p, stmt.replacer, null, stmt.caseInsensitive);
             if (where != null)
             {
                if (J.empty(stmt.parts.where))
@@ -205,7 +206,7 @@ public class SqlRql extends Rql
       return buff.toString();
    }
 
-   String print(Table table, Predicate p, Replacer r, String col) throws Exception
+   String print(Table table, Predicate p, Replacer r, String col, boolean caseInsensitive) throws Exception
    {
       //System.out.println("processPredicate(" + p + ")");
       StringBuffer sql = new StringBuffer("");
@@ -231,7 +232,7 @@ public class SqlRql extends Rql
       List<String> terms = new ArrayList();
       for (int i = 0; i < p.terms.size(); i++)
       {
-         terms.add(print(table, p.terms.get(i), r, col));
+         terms.add(print(table, p.terms.get(i), r, col, caseInsensitive));
       }
 
       List<String> preReplace = new ArrayList(terms);
@@ -273,7 +274,14 @@ public class SqlRql extends Rql
          else if (orig2.indexOf('*') > -1)
          {
             term2 = term2.replace('*', '%');
-            sql.append(term1).append(" LIKE ").append(term2);
+            if (caseInsensitive)
+            {
+               sql.append("LOWER(").append(term1).append(") LIKE LOWER(").append(term2).append(")");
+            }
+            else
+            {
+               sql.append(term1).append(" LIKE ").append(term2);
+            }
          }
          else
          {
@@ -285,16 +293,25 @@ public class SqlRql extends Rql
          String term1 = terms.get(0);
          for (int i = 1; i < terms.size(); i++)
          {
-            if (i == 1)
-               sql.append(term1).append(" LIKE ").append(terms.get(i));
+            if (i > 1)
+            {
+               sql.append(" OR ");
+            }               
+            if (caseInsensitive)
+            {
+               sql.append("LOWER(").append(term1).append(") LIKE LOWER(").append(terms.get(i)).append(")");
+            }
             else
-               sql.append(" OR ").append(term1).append(" LIKE ").append(terms.get(i));
+            {
+               sql.append(term1).append(" LIKE ").append(terms.get(i));
+            }
          }
       }
       else if ("ne".equalsIgnoreCase(token))
       {
          String term1 = terms.get(0);
          String term2 = terms.get(1);
+         String orig1 = preReplace.get(0);
          String orig2 = preReplace.get(1);
 
          if ("null".equalsIgnoreCase(term2))
@@ -304,13 +321,29 @@ public class SqlRql extends Rql
          else if (orig2.indexOf('*') > -1)
          {
             term2 = term2.replace('*', '%');
-            sql.append(term1).append(" NOT LIKE ").append(term2);
+            if (caseInsensitive)
+            {
+               sql.append("LOWER(").append(term1).append(") NOT LIKE LOWER(").append(term2).append(")");
+            }
+            else
+            {
+               sql.append(term1).append(" NOT LIKE ").append(term2);
+            }
          }
          else
          {
             // using a null safe equals with a NOT to include results where the db has a null value for this column
             // the <> operator will only include non-null values that are not equal to the passed in term
-            sql.append(" NOT ").append(term1).append(" <=> ").append(term2);
+            sql.append(" (").append(term1).append(" <> ").append(term2)
+               .append(" OR ");
+            if (r == null || !parser.isLiteral(orig1))
+            {
+               sql.append(term1).append(" IS NULL) ");
+            }
+            else
+            {
+               sql.append(r.replace(p, col, orig1)).append(" IS NULL) ");
+            }
          }
       }
       else if ("nn".equalsIgnoreCase(token))
