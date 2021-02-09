@@ -173,22 +173,31 @@ public abstract class SqlHandler implements Handler
       return set;
    }
 
-   Object cast(io.rcktapp.api.Collection coll, String col, Object val)
+   public static Object cast(io.rcktapp.api.Collection coll, String col, Object val)
+   {
+      if (coll != null)
+      {
+         return cast(coll.getEntity().getTable(), col, val);
+      }
+
+      return cast((io.rcktapp.api.Table)null, col, val);
+   }
+   
+   public static Object cast(io.rcktapp.api.Table table, String col, Object val)
    {
       String type = null;
-
-      if (coll != null && coll.getEntity().getTable().getColumn(col) != null)
+      
+      if (table != null && table.getColumn(col) != null)
       {
          try
          {
-            type = coll.getEntity().getTable().getColumn(col).getType();
+            type = table.getColumn(col).getType();
          }
          catch (Exception ex)
          {
             ex.printStackTrace();
          }
       }
-
       if (type == null && (col.endsWith("date") || col.endsWith("at")))
       {
          type = "date";
