@@ -27,32 +27,33 @@ import io.rcktapp.api.Table;
 public class Stmt
 {
 
-   Rql                               rql          = null;
+   Rql                               rql             = null;
 
-   public Parts                      parts        = null;
-   public Replacer                   replacer     = null;
-   public Table                      table        = null;
+   public Parts                      parts           = null;
+   public Replacer                   replacer        = null;
+   public Table                      table           = null;
 
-   public boolean                    restrictCols = false;
+   public boolean                    restrictCols    = false;
 
    //url arg order is undependable so order does not matter here either
-   public HashMap<String, Predicate> cols         = new LinkedHashMap();
+   public HashMap<String, Predicate> cols            = new LinkedHashMap();
 
-   public boolean                    distinct     = false;
+   public boolean                    distinct        = false;
+   public boolean                    caseInsensitive = false;
 
-   public List<Predicate>            where        = new ArrayList();
-   public List<String>               groups       = new ArrayList();
-   public List<Order>                order        = new ArrayList();
+   public List<Predicate>            where           = new ArrayList();
+   public List<String>               groups          = new ArrayList();
+   public List<Order>                order           = new ArrayList();
 
-   public int                        pagenum      = -1;
-   public int                        pagesize     = -1;
+   public int                        pagenum         = -1;
+   public int                        pagesize        = -1;
 
-   public int                        limit        = -1;
-   public int                        offset       = -1;
+   public int                        limit           = -1;
+   public int                        offset          = -1;
 
-   public int                        maxRows      = 100;
+   public int                        maxRows         = 100;
 
-   public String                     rowcount     = null;
+   public String                     rowcount        = null;
 
    public Stmt(Rql rql, Parts parts, Replacer replacer, Table table)
    {
@@ -121,5 +122,5 @@ public class Stmt
    {
       this.maxRows = maxRows;
    }
-
+   
 }
