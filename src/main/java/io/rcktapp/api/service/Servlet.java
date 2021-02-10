@@ -171,6 +171,15 @@ public class Servlet extends HttpServlet
       {
          ex.printStackTrace();
          httpResp.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
+         if (res.getInputStream() != null)
+         {
+            try
+            {
+               res.getInputStream().close();
+            }
+            catch (Exception ignored)
+            {}
+         }
       }
    }
 
