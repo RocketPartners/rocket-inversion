@@ -163,6 +163,10 @@ public class Servlet extends HttpServlet
             });
 
          res = new Response();
+         if (!req.isDebug() && !req.isExplain())
+         {
+            res.disableDebugging();
+         }
 
          service.service(req, res);
          writeResponse(req, res, httpResp);
