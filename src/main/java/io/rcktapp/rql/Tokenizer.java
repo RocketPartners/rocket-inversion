@@ -69,7 +69,7 @@ public class Tokenizer
                }
             case '=':
             case ')':
-               if (escape)
+               if (escape || singleQuote || doubleQuote)
                {
                   next.append(c);
                   continue;
