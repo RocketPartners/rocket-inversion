@@ -79,9 +79,10 @@ import io.rcktapp.rql.s3.S3Rql;
  */
 public class S3DbRestHandler implements Handler
 {
-   Logger log     = LoggerFactory.getLogger(S3DbRestHandler.class);
+   ObjectMapper mapper  = new ObjectMapper();
+   Logger       log     = LoggerFactory.getLogger(S3DbRestHandler.class);
 
-   int    maxRows = 100;
+   int          maxRows = 100;
 
    @Override
    public void service(Service service, Api api, Endpoint endpoint, Action action, Chain chain, Request req, Response res) throws Exception
@@ -136,7 +137,6 @@ public class S3DbRestHandler implements Handler
       S3Rql rql = (S3Rql) Rql.getRql(db.getType());
       S3Request s3Req = rql.buildS3Request(req, table, pageSize);
 
-      ObjectMapper mapper = new ObjectMapper();
 
       if (s3Req.isDownload() || (!s3Req.isMeta() && db.isDefaultDownload()))
       {
@@ -390,7 +390,6 @@ public class S3DbRestHandler implements Handler
       ObjectMetadata meta = buildMetadata(metaJson);
 
       CopyObjectResult copy = db.updateObject(table.getName(), key, table.getName(), key, meta);
-      ObjectMapper mapper = new ObjectMapper();
 
       // the copy result doesn't contain much helpful data.
       JSObject json = JS.toJSObject(mapper.writeValueAsString(copy));

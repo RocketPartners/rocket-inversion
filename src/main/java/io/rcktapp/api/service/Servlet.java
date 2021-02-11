@@ -163,6 +163,10 @@ public class Servlet extends HttpServlet
             });
 
          res = new Response();
+         if (!req.isDebug() && !req.isExplain())
+         {
+            res.disableDebugging();
+         }
 
          service.service(req, res);
          writeResponse(req, res, httpResp);
@@ -171,6 +175,15 @@ public class Servlet extends HttpServlet
       {
          ex.printStackTrace();
          httpResp.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
+         if (res.getInputStream() != null)
+         {
+            try
+            {
+               res.getInputStream().close();
+            }
+            catch (Exception ignored)
+            {}
+         }
       }
    }
 

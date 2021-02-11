@@ -54,12 +54,14 @@ import io.rcktapp.rql.elastic.QueryDsl;
  */
 public class ElasticDbGetHandler implements Handler
 {
-   Logger  log           = LoggerFactory.getLogger(ElasticDbGetHandler.class);
+   ObjectMapper mapper        = new ObjectMapper();
+   
+   Logger       log           = LoggerFactory.getLogger(ElasticDbGetHandler.class);
 
    // The following properties can be assigned via snooze.properties
-   int     maxRows       = 100;
-   String  defaultSource = null;
-   boolean isOneSrcArray = true;
+   int          maxRows       = 100;
+   String       defaultSource = null;
+   boolean      isOneSrcArray = true;
 
    /**
     * @see io.rcktapp.api.Handler#service(io.rcktapp.api.service.Service, io.rcktapp.api.Api, io.rcktapp.api.Endpoint, io.rcktapp.api.Action, io.rcktapp.api.Chain, io.rcktapp.api.Request, io.rcktapp.api.Response)
@@ -145,7 +147,6 @@ public class ElasticDbGetHandler implements Handler
          }
       }
 
-      ObjectMapper mapper = new ObjectMapper();
 
       String json = mapper.writeValueAsString(dsl.toDslMap());
 
@@ -445,7 +446,6 @@ public class ElasticDbGetHandler implements Handler
                   try
                   {
                      dsl.getOrder().reverseOrdering();
-                     ObjectMapper mapper = new ObjectMapper();
                      String json = mapper.writeValueAsString(dsl.toDslMap());
                      Web.Response r = Web.post(elasticUrl, json, headers, 0).get(ElasticDb.maxRequestDuration, TimeUnit.SECONDS);
 

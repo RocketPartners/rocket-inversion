@@ -24,22 +24,23 @@ import io.forty11.web.js.JSObject;
 
 public class Response
 {
-   ListMap<String, String> headers     = new ListMap();
+   ListMap<String, String> headers      = new ListMap();
 
-   int                     statusCode  = 200;
-   String                  statusMesg  = "OK";
-   String                  statusError = null;
-   String                  redirect    = null;
-   JSObject                json        = new JSObject();
-   String                  text        = null;
-   String                  contentType = null;
-   List<Change>            changes     = new ArrayList();
+   int                     statusCode   = 200;
+   String                  statusMesg   = "OK";
+   String                  statusError  = null;
+   String                  redirect     = null;
+   JSObject                json         = new JSObject();
+   String                  text         = null;
+   String                  contentType  = null;
+   List<Change>            changes      = new ArrayList();
 
-   StringBuffer            debug       = new StringBuffer();
+   boolean                 debugEnabled = true;
+   StringBuffer            debug        = new StringBuffer();
 
-   StringBuffer            out         = new StringBuffer();
+   StringBuffer            out          = new StringBuffer();
 
-   InputStream             in          = null;
+   InputStream             in           = null;
 
    public Response()
    {
@@ -60,6 +61,10 @@ public class Response
 
    public void debug(Object... msgs)
    {
+      if (!debugEnabled)
+      {
+         return;
+      }
       write(debug, msgs);
    }
 
@@ -243,5 +248,10 @@ public class Response
    public InputStream getInputStream()
    {
       return in;
+   }
+
+   public void disableDebugging()
+   {
+      debugEnabled = false;
    }
 }
