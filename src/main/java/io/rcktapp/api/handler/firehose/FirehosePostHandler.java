@@ -45,9 +45,10 @@ import java.util.List;
  */
 public class FirehosePostHandler implements Handler
 {
-   protected int     batchMax    = 500;
-   protected String  separator   = "\n";
-   protected boolean prettyPrint = false;
+   protected int     batchMax     = 500;
+   protected int     fieldCharMax = 10000;
+   protected String  separator    = "\n";
+   protected boolean prettyPrint  = false;
 
    @Override
    public void service(Service service, Api api, Endpoint endpoint, Action action, Chain chain, Request req, Response res) throws Exception
@@ -82,9 +83,26 @@ public class FirehosePostHandler implements Handler
 
             if (data == null)
                continue;
-
-            String string = data instanceof JSObject ? this.convertJsonFieldNamesToLowercase((JSObject) data).toString(prettyPrint) : data.toString();
-
+            
+            String string;
+            if(data instanceof JSObject)
+            {
+               JSObject obj = (JSObject) data;
+               for (JSObject.Property property : obj.getProperties())
+               {
+                  //firehose has a max field length.. limit here
+                  if (property.getValue() instanceof String && ((String)property.getValue()).length() > fieldCharMax)
+                  {
+                     property.setValue(((String) property.getValue()).substring(0, fieldCharMax));
+                  }
+               }
+               string = this.convertJsonFieldNamesToLowercase(obj).toString(prettyPrint);
+            }
+            else
+            {
+               string = data.toString();
+            }
+            
             if (separator != null && !string.endsWith(separator))
                string += separator;
 
