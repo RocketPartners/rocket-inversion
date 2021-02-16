@@ -33,7 +33,7 @@ dependencies {
    else {
       compile("com.github.wellsb1:fort_j:release-1.0.x-SNAPSHOT") { changing = true }
    }
-   
+
    if (gradle.ext.rckt_snooze['addFortWProjectToClasspath']) {
       compile findProject(":fort_w")
    }
