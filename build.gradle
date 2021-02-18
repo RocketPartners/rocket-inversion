@@ -63,7 +63,7 @@ dependencies {
 
 
    // required for the Redis client
-   compile group: 'redis.clients', name: 'jedis', version: '2.9.0'
+   compile group: 'redis.clients', name: 'jedis', version: '3.1.0'
 
    compile 'com.amazonaws:aws-java-sdk-s3:1.11.390'
    compile 'com.amazonaws:aws-java-sdk-dynamodb:1.11.390'
