@@ -277,8 +277,15 @@ public class Servlet extends HttpServlet
       }
       finally
       {
-         out.flush();
-         out.close();
+         try
+         {
+            //on network failure this can fail (and frequently does!) 
+            out.flush();
+         }
+         finally
+         {
+            out.close();
+         }
       }
    }
 }
