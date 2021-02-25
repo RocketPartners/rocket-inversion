@@ -453,9 +453,13 @@ public class Configurator
    {
       Config config = new Config();
 
+      String environment = service.getEnvironment();
+
+      environment = environment == null ? "" : "-" + environment;
+
       for (int i = -1; i <= 100; i++)
       {
-         String fileName = service.getConfigPath() + "snooze" + (i < 0 ? "" : i) + ".properties";
+         String fileName = service.getConfigPath() + "snooze" + environment + (i < 0 ? "" : i) + ".properties";
          InputStream is = service.getResource(fileName);
          if (is != null)
          {
@@ -468,7 +472,7 @@ public class Configurator
       {
          for (int i = -1; i <= 100; i++)
          {
-            String fileName = service.getConfigPath() + "snooze" + (i < 0 ? "" : i) + "-" + service.getProfile() + ".properties";
+            String fileName = service.getConfigPath() + "snooze" + environment + (i < 0 ? "" : i) + "-" + service.getProfile() + ".properties";
             InputStream is = service.getResource(fileName);
             if (is != null)
             {

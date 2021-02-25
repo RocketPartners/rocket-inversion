@@ -62,6 +62,8 @@ public class Service
 
    protected String  profile        = null;
 
+   protected String  environment     = null;
+
    protected String  configPath     = "";
    protected int     configTimeout  = 10000;
    protected boolean configFast     = false;
@@ -796,6 +798,14 @@ public class Service
    public void setConfigTimeout(int configTimeout)
    {
       this.configTimeout = configTimeout;
+   }
+
+   public String getEnvironment() {
+      return environment;
+   }
+
+   public void setEnvironment(String environment) {
+      this.environment = environment;
    }
 
 }
