@@ -455,7 +455,7 @@ public class Configurator
 
       String environment = service.getEnvironment();
 
-      environment = environment == null ? "" : "-" + environment;
+      environment = environment == null || environment.equalsIgnoreCase("") ? "" : "-" + environment;
 
       for (int i = -1; i <= 100; i++)
       {
