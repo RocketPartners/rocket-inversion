@@ -22,7 +22,7 @@ public class ElasticRql extends Rql
    public static final int MAX_NORMAL_ELASTIC_QUERY_SIZE = 10000;
 
    private enum WithType {
-      WITH, STARTS_WITH, ENDS_WITH
+      WITH, STARTS_WITH, ENDS_WITH, WITHOUT
    };
 
    private ElasticRql()
@@ -256,8 +256,7 @@ public class ElasticRql extends Rql
             elastic = withWildCardPopulater(pred, WithType.WITH);
             break;
          case "wo":
-            elastic = new BoolQuery();
-            ((BoolQuery) elastic).addMustNot(new Wildcard(pred.terms.get(0).token, "*" + Parser.dequote(pred.terms.get(1).token) + "*"));
+            elastic = withWildCardPopulater(pred, WithType.WITHOUT);
             break;
          case "emp": // checks for empty strings AND null values
             elastic = new BoolQuery();
@@ -341,6 +340,8 @@ public class ElasticRql extends Rql
             case ENDS_WITH:
                bq.addShould(new Wildcard(termToken, "*" + Parser.dequote(pred.terms.get(i).token)));
                break;
+            case WITHOUT:
+               bq.addMustNot(new Wildcard(termToken, "*" + Parser.dequote(pred.terms.get(i).token) + "*"));
          }
       }
       return bq;
