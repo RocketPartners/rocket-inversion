@@ -62,6 +62,8 @@ public class Service
 
    protected String  profile        = null;
 
+   protected String  appName     = null;
+
    protected String  configPath     = "";
    protected int     configTimeout  = 10000;
    protected boolean configFast     = false;
@@ -796,6 +798,14 @@ public class Service
    public void setConfigTimeout(int configTimeout)
    {
       this.configTimeout = configTimeout;
+   }
+
+   public String getAppName() {
+      return appName;
+   }
+
+   public void setAppName(String appName) {
+      this.appName = appName;
    }
 
 }
