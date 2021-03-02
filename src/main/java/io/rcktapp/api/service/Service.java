@@ -62,7 +62,7 @@ public class Service
 
    protected String  profile        = null;
 
-   protected String  environment     = null;
+   protected String  appName     = null;
 
    protected String  configPath     = "";
    protected int     configTimeout  = 10000;
@@ -800,12 +800,12 @@ public class Service
       this.configTimeout = configTimeout;
    }
 
-   public String getEnvironment() {
-      return environment;
+   public String getAppName() {
+      return appName;
    }
 
-   public void setEnvironment(String environment) {
-      this.environment = environment;
+   public void setAppName(String appName) {
+      this.appName = appName;
    }
 
 }
