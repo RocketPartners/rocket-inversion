@@ -90,6 +90,7 @@ public class Tokenizer
                if (escape || singleQuote)
                {
                   next.append(c);
+                  escape = false;
                   continue;
                }
 
