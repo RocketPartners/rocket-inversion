@@ -49,7 +49,8 @@ public class Endpoint extends Rule
          }
       }
 
-      return this.path != null;
+      //if there are include rules, but they don't match, return false
+      return includePaths.size() < 1 && this.path != null;
    }
 
    public void setApi(Api api)
