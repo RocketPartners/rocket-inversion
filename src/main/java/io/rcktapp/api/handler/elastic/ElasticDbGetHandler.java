@@ -190,7 +190,7 @@ public class ElasticDbGetHandler implements Handler
             JSObject lastHit = data.getObject(data.length() - 1);
 
             // get that object's 'sort' values
-            String startStr = srcObjectFieldsToStringBySortList(lastHit, sortList);
+            String startStr = srcObjectFieldsToStringBySortList(lastHit, sortList, true);
 
             // update 'search after' starting position on the dsl
             dsl.setSearchAfter(new ArrayList<String>(Arrays.asList(startStr.split(","))));
@@ -423,7 +423,8 @@ public class ElasticDbGetHandler implements Handler
             // the start values for the 'next' search should be pulled from the lastHit object using the sort order to obtain the correct fields
             String startString = null;
             if (sources != null)
-               startString = srcObjectFieldsToStringBySortList(sources, sortList);
+               startString = srcObjectFieldsToStringBySortList(sources, sortList, true);
+               dsl.setSearchAfter(new ArrayList<>(Arrays.asList(startString.split(","))));
 
             if (prevPageNum == 1)
                // the first page only requires the original rql query because there is no 'search after' that 
@@ -455,7 +456,7 @@ public class ElasticDbGetHandler implements Handler
                         JSArray hits = jsObj.getObject("hits").getArray("hits");
                         JSObject prevLastHit = hits.getObject(hits.length() - 1);
 
-                        prevStartString = srcObjectFieldsToStringBySortList(prevLastHit.getObject("_source"), sortList);
+                        prevStartString = srcObjectFieldsToStringBySortList(prevLastHit.getObject("_source"), sortList, true);
 
                         meta.put("prev", (pageNum == 1) ? null : url + "&pageNum=" + prevPageNum + "&start=" + prevStartString);
                      }
@@ -480,14 +481,19 @@ public class ElasticDbGetHandler implements Handler
 
    private String srcObjectFieldsToStringBySortList(Object sourceObj, List<String> sortList)
    {
+      return srcObjectFieldsToStringBySortList(sourceObj, sortList, false);
+   }
 
+   private String srcObjectFieldsToStringBySortList(Object sourceObj, List<String> sortList, boolean needsToCleanField)
+   {
       List<String> list = new ArrayList<String>();
 
       for (String field : sortList)
       {
-         if (sourceObj instanceof JSObject && ((JSObject) sourceObj).get(field) != null)
+         String cleanedField = needsToCleanField ? field.replace("-","") : field;
+         if (sourceObj instanceof JSObject && ((JSObject) sourceObj).get(cleanedField) != null)
          {
-            list.add(((JSObject) sourceObj).get(field).toString().toLowerCase());
+            list.add(((JSObject) sourceObj).get(cleanedField).toString().toLowerCase());
          }
          else if (sourceObj instanceof String)
          {
