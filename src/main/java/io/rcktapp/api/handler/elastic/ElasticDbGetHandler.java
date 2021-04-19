@@ -15,11 +15,15 @@
  */
 package io.rcktapp.api.handler.elastic;
 
+import java.io.UnsupportedEncodingException;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -503,8 +507,17 @@ public class ElasticDbGetHandler implements Handler
             list.add("[NULL]");
       }
 
-      return String.join(",", list);
-   }
+      return String.join(",", list.stream()
+              .map(s -> {
+                 try {
+                    return URLEncoder.encode(s, StandardCharsets.UTF_8.toString());
+                 } catch (UnsupportedEncodingException e) {
+                    e.printStackTrace();
+                 }
+                 return s;
+              })
+              .collect(Collectors.toList()));
+}
 
    private JSArray createDataJsArray(boolean isAll, boolean isOneSrcArr, JSArray hits, QueryDsl dsl)
    {
