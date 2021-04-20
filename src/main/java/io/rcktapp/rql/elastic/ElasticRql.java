@@ -73,7 +73,9 @@ public class ElasticRql extends Rql
                  .map(s -> {
                     try {
                        return URLDecoder.decode(s, StandardCharsets.UTF_8.toString());
-                    } catch (UnsupportedEncodingException e) {
+                    } catch (IllegalArgumentException | UnsupportedEncodingException e) {
+                       // This can be cause because the string s
+                       // didnt need to be decoded, but it will be logged anyways
                        e.printStackTrace();
                        return s;
                     }
