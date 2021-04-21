@@ -3,6 +3,7 @@ package io.rcktapp.rql.elastic;
 import java.io.UnsupportedEncodingException;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
+import java.text.ParsePosition;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -10,6 +11,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+import io.forty11.j.utils.ISO8601Util;
 import io.rcktapp.rql.Order;
 import io.rcktapp.rql.Parser;
 import io.rcktapp.rql.Predicate;
@@ -72,11 +74,20 @@ public class ElasticRql extends Rql
          List<String> searchAfterList = Arrays.stream(params.remove("start").split(","))
                  .map(s -> {
                     try {
-                       return URLDecoder.decode(s, StandardCharsets.UTF_8.toString());
-                    } catch (IllegalArgumentException | UnsupportedEncodingException e) {
+                       //return URLDecoder.decode(s, StandardCharsets.UTF_8.toString());
+                       return s;
+                    } catch (IllegalArgumentException e) { // | UnsupportedEncodingException e) {
                        // This can be cause because the string s
                        // didnt need to be decoded, but it will be logged anyways
                        e.printStackTrace();
+                       return s;
+                    }
+                 })
+                 .map(s -> {
+                    try {
+                       // dates have to be converted to unix timestamp.
+                       return String.valueOf(ISO8601Util.parse(s.toUpperCase(), new ParsePosition(0)).getTime());
+                    } catch (Exception ex) {
                        return s;
                     }
                  })
