@@ -1,11 +1,17 @@
 package io.rcktapp.rql.elastic;
 
+import java.io.UnsupportedEncodingException;
+import java.net.URLDecoder;
+import java.nio.charset.StandardCharsets;
+import java.text.ParsePosition;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
+import io.forty11.j.utils.ISO8601Util;
 import io.rcktapp.rql.Order;
 import io.rcktapp.rql.Parser;
 import io.rcktapp.rql.Predicate;
@@ -65,7 +71,18 @@ public class ElasticRql extends Rql
       // will come from a row index > 10k.  
       if (params.containsKey("start"))
       {
-         List<String> searchAfterList = Arrays.asList(params.remove("start").split(","));
+         List<String> searchAfterList = Arrays.stream(params.remove("start").split("\\\\,"))
+                 .map(s -> {
+                    try {
+                       // dates have to be converted to unix timestamp.
+                       // if something is convertible to a date it will be assumed that is a date
+                       return String.valueOf(ISO8601Util.parse(s.toUpperCase(), new ParsePosition(0)).getTime());
+                    } catch (Exception ex) {
+                       return s;
+                    }
+                 })
+                 .collect(Collectors.toList());
+
          if (pageNum * size > MAX_NORMAL_ELASTIC_QUERY_SIZE - 1)
          {
             for (int i = 0; i < searchAfterList.size(); i++)
