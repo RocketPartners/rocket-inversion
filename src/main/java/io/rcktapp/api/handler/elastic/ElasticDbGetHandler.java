@@ -424,6 +424,8 @@ public class ElasticDbGetHandler implements Handler
          {
             // the start values for the 'next' search should be pulled from the lastHit object using the sort order to obtain the correct fields
             String startString = null;
+            String prevStartString = null;
+
             if (sources != null)
                startString = srcObjectFieldsToStringBySortList(sources, sortList, true);
                dsl.setSearchAfter(new ArrayList<>(Arrays.asList(startString.split("\\\\,"))));
@@ -441,8 +443,6 @@ public class ElasticDbGetHandler implements Handler
 
             else
             {
-               String prevStartString = null;
-
                // the start values for the 'previous' search need to be pulled from a separate query.
                if ((size * prevPageNum > (ElasticRql.MAX_NORMAL_ELASTIC_QUERY_SIZE - 1)))
                {
@@ -458,7 +458,16 @@ public class ElasticDbGetHandler implements Handler
                         JSArray hits = jsObj.getObject("hits").getArray("hits");
                         JSObject prevLastHit = hits.getObject(hits.length() - 1);
 
-                        prevStartString = srcObjectFieldsToStringBySortList(prevLastHit.getObject("_source"), sortList, true);
+                        JSObject prevSource = prevLastHit.getObject("_source");
+                        JSObject.Property prevJsonProperty = prevSource.getProperty("json");
+
+                        String prevStart = srcObjectFieldsToStringBySortList(prevJsonProperty.getValue(), sortList, true);
+                        
+                        try {
+                           prevStartString = URLEncoder.encode(prevStart, StandardCharsets.UTF_8.toString());
+                        } catch (UnsupportedEncodingException e) {
+                           prevStartString = prevStart;
+                        }
 
                         meta.put("prev", (pageNum == 1) ? null : url + "&pageNum=" + prevPageNum + "&start=" + prevStartString);
                      }
@@ -479,16 +488,7 @@ public class ElasticDbGetHandler implements Handler
                   start = startString;
                }
 
-               String prevStart = dsl.getSearchAfterAsString();
-               try {
-                  prevStart = URLEncoder.encode(prevStart, StandardCharsets.UTF_8.toString());
-               } catch (UnsupportedEncodingException e) {
-                  prevStart = dsl.getSearchAfterAsString();
-               }
-
-
-
-               meta.put("next", url + "&pageNum=" + nextPageNum + "&start=" + start + "&prevStart=" + prevStart);
+               meta.put("next", url + "&pageNum=" + nextPageNum + "&start=" + start + "&prevStart=" + prevStartString);
             }
          }
 
