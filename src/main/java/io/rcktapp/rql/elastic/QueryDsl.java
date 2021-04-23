@@ -215,7 +215,7 @@ public class QueryDsl extends ElasticQuery
    @JsonIgnore
    public String getSearchAfterAsString()
    {
-      return this.searchAfter.stream().map(String::valueOf).collect(Collectors.joining(","));
+      return this.searchAfter.stream().map(String::valueOf).collect(Collectors.joining("\\,"));
    }
 
    /**

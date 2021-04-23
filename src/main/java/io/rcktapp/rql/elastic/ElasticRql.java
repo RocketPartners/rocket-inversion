@@ -71,21 +71,11 @@ public class ElasticRql extends Rql
       // will come from a row index > 10k.  
       if (params.containsKey("start"))
       {
-         List<String> searchAfterList = Arrays.stream(params.remove("start").split(","))
-                 .map(s -> {
-                    try {
-                       //return URLDecoder.decode(s, StandardCharsets.UTF_8.toString());
-                       return s;
-                    } catch (IllegalArgumentException e) { // | UnsupportedEncodingException e) {
-                       // This can be cause because the string s
-                       // didnt need to be decoded, but it will be logged anyways
-                       e.printStackTrace();
-                       return s;
-                    }
-                 })
+         List<String> searchAfterList = Arrays.stream(params.remove("start").split("\\\\,"))
                  .map(s -> {
                     try {
                        // dates have to be converted to unix timestamp.
+                       // if something is convertible to a date it will be assumed that is a date
                        return String.valueOf(ISO8601Util.parse(s.toUpperCase(), new ParsePosition(0)).getTime());
                     } catch (Exception ex) {
                        return s;

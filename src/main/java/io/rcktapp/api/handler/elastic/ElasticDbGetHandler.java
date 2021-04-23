@@ -23,8 +23,6 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
-import java.util.stream.Collectors;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -197,7 +195,7 @@ public class ElasticDbGetHandler implements Handler
             String startStr = srcObjectFieldsToStringBySortList(lastHit, sortList, true);
 
             // update 'search after' starting position on the dsl
-            dsl.setSearchAfter(new ArrayList<String>(Arrays.asList(startStr.split(","))));
+            dsl.setSearchAfter(new ArrayList<String>(Arrays.asList(startStr.split("\\\\,"))));
             json = mapper.writeValueAsString(dsl.toDslMap());
 
             r = Web.post(url, json, headers, 0).get(ElasticDb.maxRequestDuration, TimeUnit.SECONDS);
@@ -428,7 +426,7 @@ public class ElasticDbGetHandler implements Handler
             String startString = null;
             if (sources != null)
                startString = srcObjectFieldsToStringBySortList(sources, sortList, true);
-               dsl.setSearchAfter(new ArrayList<>(Arrays.asList(startString.split(","))));
+               dsl.setSearchAfter(new ArrayList<>(Arrays.asList(startString.split("\\\\,"))));
 
             if (prevPageNum == 1)
                // the first page only requires the original rql query because there is no 'search after' that 
@@ -474,7 +472,23 @@ public class ElasticDbGetHandler implements Handler
 
             if (pages > pageNum)
             {
-               meta.put("next", url + "&pageNum=" + nextPageNum + "&start=" + startString + "&prevStart=" + dsl.getSearchAfterAsString());
+               String start = startString;
+               try {
+                   start = URLEncoder.encode(startString, StandardCharsets.UTF_8.toString());
+               } catch (UnsupportedEncodingException e) {
+                  start = startString;
+               }
+
+               String prevStart = dsl.getSearchAfterAsString();
+               try {
+                  prevStart = URLEncoder.encode(prevStart, StandardCharsets.UTF_8.toString());
+               } catch (UnsupportedEncodingException e) {
+                  prevStart = dsl.getSearchAfterAsString();
+               }
+
+
+
+               meta.put("next", url + "&pageNum=" + nextPageNum + "&start=" + start + "&prevStart=" + prevStart);
             }
          }
 
@@ -507,16 +521,8 @@ public class ElasticDbGetHandler implements Handler
             list.add("[NULL]");
       }
 
-      return String.join(",", list.stream()
-              .map(s -> {
-                 try {
-                    return URLEncoder.encode(s, StandardCharsets.UTF_8.toString());
-                 } catch (UnsupportedEncodingException e) {
-                    e.printStackTrace();
-                 }
-                 return s;
-              })
-              .collect(Collectors.toList()));
+      String result = String.join("\\,", list);
+      return result;
 }
 
    private JSArray createDataJsArray(boolean isAll, boolean isOneSrcArr, JSArray hits, QueryDsl dsl)
