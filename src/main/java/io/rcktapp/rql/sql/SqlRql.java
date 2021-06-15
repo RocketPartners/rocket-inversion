@@ -285,7 +285,14 @@ public class SqlRql extends Rql
          }
          else
          {
-            sql.append(term1).append(" = ").append(term2);
+            if (caseInsensitive)
+            {
+               sql.append("LOWER(").append(term1).append(") = LOWER(").append(term2).append(")");
+            }
+            else
+            {
+               sql.append(term1).append(" = ").append(term2);
+            }
          }
       }
       else if ("w".equalsIgnoreCase(token) || "sw".equalsIgnoreCase(token) || "ew".equalsIgnoreCase(token))
