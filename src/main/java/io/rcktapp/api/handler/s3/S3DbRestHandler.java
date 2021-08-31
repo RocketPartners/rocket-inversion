@@ -17,6 +17,7 @@ package io.rcktapp.api.handler.s3;
 
 import java.security.DigestInputStream;
 import java.security.MessageDigest;
+import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.List;
 import java.util.Map;
@@ -83,6 +84,7 @@ public class S3DbRestHandler implements Handler
    Logger       log     = LoggerFactory.getLogger(S3DbRestHandler.class);
 
    int          maxRows = 100;
+   String       s3DatePath = null;
 
    @Override
    public void service(Service service, Api api, Endpoint endpoint, Action action, Chain chain, Request req, Response res) throws Exception
@@ -302,6 +304,14 @@ public class S3DbRestHandler implements Handler
       S3Db db = (S3Db) table.getDb();
 
       S3Rql rql = (S3Rql) Rql.getRql(db.getType());
+
+      if (s3DatePath != null)
+      {
+         String datePath = new SimpleDateFormat(s3DatePath).format(new Date());
+         String newPath = req.getSubpath() + datePath;
+         req.setSubpath(newPath);
+      }
+
       S3Request s3Req = rql.buildS3Request(req, table, null);
 
       String key = s3Req.getKey();
