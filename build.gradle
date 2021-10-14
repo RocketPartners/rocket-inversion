@@ -48,7 +48,7 @@ dependencies {
       compile("com.github.wellsb1:fort_s:release-1.1.x-SNAPSHOT") { changing = true }
    }
    
-   compile("com.github.wellsb1:fort_fusion_vtl:master-SNAPSHOT") { changing = true }
+   compile("com.github.wellsb1:fort_fusion_vtl:66afa082b5") { changing = true }
 
    compile group: 'org.bouncycastle', name: 'bcprov-jdk15on', version: '1.55'
 
