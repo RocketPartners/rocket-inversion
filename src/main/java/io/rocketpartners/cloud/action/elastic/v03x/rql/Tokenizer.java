@@ -47,6 +47,7 @@ public class Tokenizer
                next.append(c);
                if (escape || doubleQuote || singleQuote)
                {
+                  escape = false;
                   continue;
                }
                done = true;
@@ -72,6 +73,7 @@ public class Tokenizer
                if (escape)
                {
                   next.append(c);
+                  escape = false;
                   continue;
                }
 
@@ -90,6 +92,7 @@ public class Tokenizer
                if (escape || singleQuote)
                {
                   next.append(c);
+                  escape = false;
                   continue;
                }
 
