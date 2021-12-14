@@ -101,7 +101,7 @@ public class QueryDsl extends ElasticQuery
 
       // Sorting - very basic 
       if (order != null)
-         dslMap.put("sort", order.getOrderList());
+         dslMap.put("sort", order.getOrderListWithEmptySorting());
 
       return dslMap;
    }
