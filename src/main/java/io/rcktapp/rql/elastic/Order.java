@@ -91,4 +91,36 @@ public class Order
       return list;
    }
 
+   /**
+    * @return the orderList with empty sorting
+    * [
+    *     {
+    *       "fieldName": {
+    *         "order": "asc",
+    *         "missing": "_last"
+    *       }
+    *     }, ...
+    *   ]
+    */
+
+   public List<Map<String, Map>> getOrderListWithEmptySorting()
+   {
+      List<Map<String, Map>> result = new ArrayList<>();
+      for (Map<String, String> sortEntry : getOrderList())
+      {
+         for (String property: sortEntry.keySet()) {
+            String order = sortEntry.get(property);
+
+            Map<String, String> newEntry = new HashMap();
+            newEntry.put("order", order);
+            newEntry.put("missing", "desc".equalsIgnoreCase(order) ? "_last": "_first");
+
+            Map<String, Map> newOrderEntry = new HashMap<>();
+            newOrderEntry.put(property, newEntry);
+
+            result.add(newOrderEntry);
+         }
+      }
+      return result;
+   }
 }
