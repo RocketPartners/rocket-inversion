@@ -76,7 +76,8 @@ public class ElasticsearchGetAction extends Action<ElasticsearchGetAction>
       }
       else
       {
-         handleRqlRequest(req, res, paths, req.getApiUrl() + req.getPath(), db, table);
+         final String apiUrl = req.getApiUrl().replaceAll("/$", "") + "/" + req.getPath().replaceAll("^/", "");
+         handleRqlRequest(req, res, paths, apiUrl, db, table);
       }
 
    }
