@@ -466,7 +466,12 @@ public class ElasticDbGetAction extends Action
 
             if (pages > pageNum)
             {
-               meta.put("next", url + "&pageNum=" + nextPageNum + "&start=" + startString + "&prevStart=" + dsl.getSearchAfterAsString());
+               String queryStringSuffix = "";
+               if (!dsl.isSearchAfterNull())
+               {
+                  queryStringSuffix = "&prevStart=" + dsl.getSearchAfterAsString();
+               }
+               meta.put("next", url + "&pageNum=" + nextPageNum + "&start=" + startString + queryStringSuffix);
             }
          }
 
