@@ -40,3 +40,4 @@ snooze99.properties
 .*.md.html
 /inversion.properties
 /inversion.properties.merged
+.idea
