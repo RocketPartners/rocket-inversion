@@ -59,6 +59,8 @@ public class ElasticDbGetAction extends Action
    int     maxRows       = 100;
    String  defaultSource = null;
    boolean isOneSrcArray = true;
+   
+   private static final ObjectMapper mapper = new ObjectMapper();
 
    @Override
    public void run(Service service, Api api, Endpoint endpoint, Chain chain, Request req, Response res) throws Exception
@@ -143,8 +145,6 @@ public class ElasticDbGetAction extends Action
             }
          }
       }
-
-      ObjectMapper mapper = new ObjectMapper();
 
       String json = mapper.writeValueAsString(dsl.toDslMap());
 
