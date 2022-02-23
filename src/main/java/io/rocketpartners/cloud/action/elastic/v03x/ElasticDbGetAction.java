@@ -442,14 +442,13 @@ public class ElasticDbGetAction extends Action
                   try
                   {
                      dsl.getOrder().reverseOrdering();
-                     ObjectMapper mapper = new ObjectMapper();
                      String json = mapper.writeValueAsString(dsl.toDslMap());
                      Response r = HttpUtils.rest("POST", elasticUrl, json, headers, -1).get(ElasticDb.maxRequestDuration, TimeUnit.SECONDS);
 
                      if (r.isSuccess())
                      {
                         ObjectNode jsObj = r.getJson();
-                        ArrayNode hits = jsObj.getArray("hits.hits");
+                        ArrayNode hits = jsObj.getNode("hits").getArray("hits");
                         ObjectNode prevLastHit = hits.getObject(hits.length() - 1);
 
                         prevStartString = srcObjectFieldsToStringBySortList(prevLastHit.getNode("_source"), sortList);
