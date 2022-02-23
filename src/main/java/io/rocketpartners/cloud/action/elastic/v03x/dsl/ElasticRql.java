@@ -79,6 +79,8 @@ public class ElasticRql extends Rql
          // use this value if wantedpage was not set; prevents having to lookup the prev value...of course.
          query.setPreviousStart(caseInsensitiveParams.remove("prevstart"));
       }
+      //if prevstart is there when buildStmt is called, it will be (incorrectly)
+      //treated as a filter
       caseInsensitiveParams.remove("prevstart");
       
       // create the QDSL from the statement
