@@ -64,6 +64,7 @@ import javax.xml.bind.annotation.adapters.HexBinaryAdapter;
 import com.fasterxml.jackson.core.JsonFactory;
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.core.JsonParseException;
+import com.fasterxml.jackson.core.io.JsonStringEncoder;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.util.ISO8601Utils;
@@ -81,20 +82,26 @@ import io.rocketpartners.cloud.model.Response;
  */
 public class Utils
 {
-   public static final int         KB                 = 1048;
-   public static final int         MB                 = 1048576;
-   public static final long        GB                 = 1073741824;
-   public static final int         K64                = 65536;
+   public static final int           KB                 = 1048;
+   public static final int           MB                 = 1048576;
+   public static final long          GB                 = 1073741824;
+   public static final int           K64                = 65536;
 
-   public static final long        HOUR               = 1000 * 60 * 60;
-   public static final long        DAY                = 1000 * 60 * 60 * 24;
-   public static final long        MONTH              = 1000 * 60 * 60 * 24 * 31;
-   public static final long        WEEK               = 1000 * 60 * 60 * 24 * 7;
-   public static final long        YEAR               = 1000 * 60 * 60 * 24 * 365;
+   public static final long          HOUR               = 1000 * 60 * 60;
+   public static final long          DAY                = 1000 * 60 * 60 * 24;
+   public static final long          MONTH              = 1000 * 60 * 60 * 24 * 31;
+   public static final long          WEEK               = 1000 * 60 * 60 * 24 * 7;
+   public static final long          YEAR               = 1000 * 60 * 60 * 24 * 365;
 
-   protected static final String   NEW_LINE           = System.getProperty("line.separator");
+   protected static final String     NEW_LINE           = System.getProperty("line.separator");
 
-   protected static final String[] EMPTY_STRING_ARRAY = new String[0];
+   protected static final String[]   EMPTY_STRING_ARRAY = new String[0];
+   
+   private static final ObjectMapper mapper             = new ObjectMapper();
+   private static final JsonFactory  jsonFactory        = new JsonFactory();
+   
+   private static final Pattern      encodeJsonPattern  = Pattern.compile("[\\p{Cntrl}\\p{Cc}\\p{Cf}\\p{Co}\\p{Cn}\u00A0&&[^\r\n\t]]");
+   
 
    public static String toJson(ObjectNode node)
    {
@@ -106,7 +113,7 @@ public class Utils
       try
       {
          ByteArrayOutputStream baos = new ByteArrayOutputStream();
-         JsonGenerator json = new JsonFactory().createGenerator(baos);
+         JsonGenerator json = jsonFactory.createGenerator(baos);
          if (pretty)
             json.useDefaultPrettyPrinter();
 
@@ -114,7 +121,7 @@ public class Utils
          json.flush();
          baos.flush();
 
-         return new String(baos.toByteArray());
+         return baos.toString();
       }
       catch (Exception ex)
       {
@@ -239,7 +246,6 @@ public class Utils
    {
       try
       {
-         ObjectMapper mapper = new ObjectMapper();
          JsonNode rootNode = mapper.readValue(json, JsonNode.class);
 
          Object parsed = map(rootNode);
@@ -257,7 +263,7 @@ public class Utils
          throw new RuntimeException("400 Bad Request: '" + json + "'");
       }
    }
-
+   
    /**
     * @see https://stackoverflow.com/questions/14028716/how-to-remove-control-characters-from-java-string
     * @param str
@@ -268,7 +274,7 @@ public class Utils
       if (str == null)
          return null;
 
-      str = str.replaceAll("[\\p{Cntrl}\\p{Cc}\\p{Cf}\\p{Co}\\p{Cn}\u00A0&&[^\r\n\t]]", " ");
+      str = encodeJsonPattern.matcher(str).replaceAll("");
       return str;
    }
 

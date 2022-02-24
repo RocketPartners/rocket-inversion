@@ -1,10 +1,7 @@
 package io.rocketpartners.cloud.action.elastic.v03x.dsl;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
+import java.util.stream.Collectors;
 
 import io.rocketpartners.cloud.action.elastic.v03x.rql.Parser;
 import io.rocketpartners.cloud.action.elastic.v03x.rql.Predicate;
@@ -32,29 +29,33 @@ public class ElasticRql extends Rql
 
    public QueryDsl toQueryDsl(Map<String, String> params) throws Exception
    {
+      final Map<String, String> caseInsensitiveParams = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
+      caseInsensitiveParams.putAll(params);
+      
       QueryDsl query = new QueryDsl();
       List<ElasticQuery> elasticList = new ArrayList<ElasticQuery>();
 
       // If a 'source' parameter is sent, remove it and add it's value to the DSL.
       // This must be done before the Stmt object is created.
-      if (params.containsKey("source"))
+      if (caseInsensitiveParams.containsKey("source"))
       {
-         query.addSources(params.remove("source").split(","));
+         query.addSources(caseInsensitiveParams.remove("source").split(","));
       }
 
-      if (params.containsKey("excludes"))
+      if (caseInsensitiveParams.containsKey("excludes"))
       {
-         query.addExcludes(params.remove("excludes").split(","));
+         query.addExcludes(caseInsensitiveParams.remove("excludes").split(","));
       }
 
       Stmt stmt = new Stmt(this, null, null, null);
 
       // pageNum and pagesize can be used to determine if an 'search_after' query should occur 
-      String sizeStr = params.get("pagesize"); // if no pagesize is specified, assume max_limit
+      String sizeStr = caseInsensitiveParams.get("pagesize"); // if no pagesize is specified, assume max_limit
+      
       int size = stmt.getMaxRows();
       if (sizeStr != null)
          size = toInt("pagesize", sizeStr);
-      String pageStr = params.get("pagenum");
+      String pageStr = caseInsensitiveParams.get("pagenum");
       int pageNum = 1;
       if (pageStr != null)
          pageNum = toInt("pageNum", pageStr);
@@ -62,9 +63,9 @@ public class ElasticRql extends Rql
       // A 'start' param indicates an elastic 'search after' query should be used.
       // 'search after' queries should ONLY be used if it is believe the result 
       // will come from a row index > 10k.  
-      if (params.containsKey("start"))
+      if (caseInsensitiveParams.containsKey("start"))
       {
-         List<String> searchAfterList = Arrays.asList(params.remove("start").split(","));
+         List<String> searchAfterList = Arrays.asList(caseInsensitiveParams.remove("start").split(","));
          if (pageNum * size > MAX_NORMAL_ELASTIC_QUERY_SIZE - 1)
          {
             for (int i = 0; i < searchAfterList.size(); i++)
@@ -76,11 +77,14 @@ public class ElasticRql extends Rql
          }
 
          // use this value if wantedpage was not set; prevents having to lookup the prev value...of course.
-         params.remove("prevstart");
+         query.setPreviousStart(caseInsensitiveParams.remove("prevstart"));
       }
-
+      //if prevstart is there when buildStmt is called, it will be (incorrectly)
+      //treated as a filter
+      caseInsensitiveParams.remove("prevstart");
+      
       // create the QDSL from the statement
-      buildStmt(stmt, null, params, null);
+      buildStmt(stmt, null, caseInsensitiveParams, null);
       query.setStmt(stmt);
 
       // use 'stmt.where' to create the elastic search json. 

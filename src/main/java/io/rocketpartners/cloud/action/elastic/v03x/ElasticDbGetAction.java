@@ -59,6 +59,8 @@ public class ElasticDbGetAction extends Action
    int     maxRows       = 100;
    String  defaultSource = null;
    boolean isOneSrcArray = true;
+   
+   private static final ObjectMapper mapper = new ObjectMapper();
 
    @Override
    public void run(Service service, Api api, Endpoint endpoint, Chain chain, Request req, Response res) throws Exception
@@ -143,8 +145,6 @@ public class ElasticDbGetAction extends Action
             }
          }
       }
-
-      ObjectMapper mapper = new ObjectMapper();
 
       String json = mapper.writeValueAsString(dsl.toDslMap());
 
@@ -442,14 +442,13 @@ public class ElasticDbGetAction extends Action
                   try
                   {
                      dsl.getOrder().reverseOrdering();
-                     ObjectMapper mapper = new ObjectMapper();
                      String json = mapper.writeValueAsString(dsl.toDslMap());
                      Response r = HttpUtils.rest("POST", elasticUrl, json, headers, -1).get(ElasticDb.maxRequestDuration, TimeUnit.SECONDS);
 
                      if (r.isSuccess())
                      {
                         ObjectNode jsObj = r.getJson();
-                        ArrayNode hits = jsObj.getArray("hits.hits");
+                        ArrayNode hits = jsObj.getNode("hits").getArray("hits");
                         ObjectNode prevLastHit = hits.getObject(hits.length() - 1);
 
                         prevStartString = srcObjectFieldsToStringBySortList(prevLastHit.getNode("_source"), sortList);
