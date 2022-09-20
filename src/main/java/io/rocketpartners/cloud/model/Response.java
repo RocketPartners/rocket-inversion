@@ -285,10 +285,11 @@ public class Response
       return headers;
    }
 
-   public void withHeader(String key, String value)
+   public Response withHeader(String key, String value)
    {
       if (!headers.containsMapping(key, value))
          headers.put(key, value);
+      return this;
    }
 
    /**

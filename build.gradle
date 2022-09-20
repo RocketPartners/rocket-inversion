@@ -40,6 +40,8 @@ repositories {
 
 dependencies {
 
+    implementation 'com.sun.xml.bind:jaxb-impl:4.0.0'
+    implementation 'jakarta.xml.bind:jakarta.xml.bind-api:2.3.3'
 	compile 'org.springframework.boot:spring-boot-starter-web'
 	compile 'org.springframework.boot:spring-boot-starter-actuator'
 	compile 'org.springframework.boot:spring-boot-starter-jdbc'

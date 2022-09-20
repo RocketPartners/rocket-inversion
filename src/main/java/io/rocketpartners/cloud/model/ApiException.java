@@ -15,53 +15,42 @@
  */
 package io.rocketpartners.cloud.model;
 
-public class ApiException extends RuntimeException
-{
-   protected String status = SC.SC_500_INTERNAL_SERVER_ERROR;
+public class ApiException extends RuntimeException {
+  protected String status = SC.SC_500_INTERNAL_SERVER_ERROR;
 
-   //   public static void main(String[] args)
-   //   {
-   //      System.out.println("401 Unauthorized".matches("\\d\\d\\d *"));
-   //   }
+  //   public static void main(String[] args)
+  //   {
+  //      System.out.println("401 Unauthorized".matches("\\d\\d\\d *"));
+  //   }
 
-   public ApiException(String status)
-   {
-      super(status);
-      if (status.matches("\\d\\d\\d .*"))
-         withStatus(status);
-   }
+  public ApiException(String status) {
+    super(status);
+    if (status.matches("\\d\\d\\d .*")) withStatus(status);
+  }
 
-   public ApiException(String status, String message)
-   {
-      super(message);
-      withStatus(status);
-   }
+  public ApiException(String status, String message) {
+    super(message);
+    withStatus(status);
+  }
 
-   public ApiException(String status, String message, Throwable t)
-   {
-      super(message, t);
-      withStatus(status);
-   }
+  public ApiException(String status, String message, Throwable t) {
+    super(message, t);
+    withStatus(status);
+  }
 
-   public String getStatus()
-   {
-      return status;
-   }
+  public String getStatus() {
+    return status;
+  }
 
-   public ApiException withStatus(String status)
-   {
-      this.status = status;
-      return this;
-   }
+  public ApiException withStatus(String status) {
+    this.status = status;
+    return this;
+  }
 
-   public boolean hasStatus(int... statusCodes)
-   {
-      for (int statusCode : statusCodes)
-      {
-         if (status.startsWith(statusCode + " "))
-            return true;
-      }
-      return false;
-   }
-
+  public boolean hasStatus(int... statusCodes) {
+    for (int statusCode : statusCodes) {
+      if (status.startsWith(statusCode + " ")) return true;
+    }
+    return false;
+  }
 }

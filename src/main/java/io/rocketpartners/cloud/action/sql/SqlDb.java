@@ -15,27 +15,9 @@
  */
 package io.rocketpartners.cloud.action.sql;
 
-import java.lang.reflect.Field;
-import java.sql.Connection;
-import java.sql.DatabaseMetaData;
-import java.sql.ResultSet;
-import java.sql.Types;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-
-import javax.sql.DataSource;
-
-import org.apache.commons.lang3.StringUtils;
-
+import ch.qos.logback.classic.Level;
 import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
-
-import ch.qos.logback.classic.Level;
 import io.rocketpartners.cloud.model.ApiException;
 import io.rocketpartners.cloud.model.Attribute;
 import io.rocketpartners.cloud.model.Collection;
@@ -53,1014 +35,880 @@ import io.rocketpartners.cloud.utils.Rows.Row;
 import io.rocketpartners.cloud.utils.SqlUtils;
 import io.rocketpartners.cloud.utils.SqlUtils.SqlListener;
 import io.rocketpartners.cloud.utils.Utils;
+import java.lang.reflect.Field;
+import java.sql.Connection;
+import java.sql.DatabaseMetaData;
+import java.sql.ResultSet;
+import java.sql.Types;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import javax.sql.DataSource;
+import org.apache.commons.lang3.StringUtils;
 
-public class SqlDb extends Db<SqlDb>
-{
-   protected char                 stringQuote              = '\'';
-   protected char                 columnQuote              = '"';
+public class SqlDb extends Db<SqlDb> {
+  public static final int MIN_POOL_SIZE = 3;
+  public static final int MAX_POOL_SIZE = 10;
+  static Map<String, DataSource> pools = new HashMap();
 
-   static Map<String, DataSource> pools                    = new HashMap();
+  static {
+    ch.qos.logback.classic.Logger logger =
+        (ch.qos.logback.classic.Logger) org.slf4j.LoggerFactory.getLogger("ROOT");
+    logger.setLevel(Level.WARN);
+    //      ch.qos.logback.classic.Logger logger = (ch.qos.logback.classic.Logger)
+    // org.slf4j.LoggerFactory.getLogger("com.zaxxer.hikari.pool.PoolBase");
+    //      logger.setLevel(Level.INFO);
 
-   public static final int        MIN_POOL_SIZE            = 3;
-   public static final int        MAX_POOL_SIZE            = 10;
-
-   protected String               driver                   = null;
-   protected String               url                      = null;
-   protected String               user                     = null;
-   protected String               pass                     = null;
-   protected int                  poolMin                  = 3;
-   protected int                  poolMax                  = 10;
-   protected int                  idleConnectionTestPeriod = 3600;         // in seconds
-
-   // set this to false to turn off SQL_CALC_FOUND_ROWS and SELECT FOUND_ROWS()
-   // Only impacts 'mysql' types
-   protected boolean              calcRowsFound            = true;
-
-   protected int                  relatedMax               = 500;
-
-   static
-   {
-      ch.qos.logback.classic.Logger logger = (ch.qos.logback.classic.Logger) org.slf4j.LoggerFactory.getLogger("ROOT");
-      logger.setLevel(Level.WARN);
-      //      ch.qos.logback.classic.Logger logger = (ch.qos.logback.classic.Logger) org.slf4j.LoggerFactory.getLogger("com.zaxxer.hikari.pool.PoolBase");
-      //      logger.setLevel(Level.INFO);
-
-      SqlUtils.addSqlListener(new SqlListener()
-         {
-            @Override
-            public void onError(String method, String sql, Object args, Exception ex)
-            {
-               if (method != null && method.equals("selectRows"))
-               {
-                  logger.error("SQL error in '" + method + "' [" + sql.replace("\r\n", "") + "] " + ex.getMessage());
-               }
-               else
-               {
-                  ex.printStackTrace();
-               }
+    SqlUtils.addSqlListener(
+        new SqlListener() {
+          @Override
+          public void onError(String method, String sql, Object args, Exception ex) {
+            if (method != null && method.equals("selectRows")) {
+              logger.error(
+                  "SQL error in '"
+                      + method
+                      + "' ["
+                      + sql.replace("\r\n", "")
+                      + "] "
+                      + ex.getMessage());
+            } else {
+              ex.printStackTrace();
             }
+          }
 
-            @Override
-            public void beforeStmt(String method, String sql, Object args)
-            {
+          @Override
+          public void beforeStmt(String method, String sql, Object args) {}
+
+          @Override
+          public void afterStmt(
+              String method, String sql, Object args, Exception ex, Object result) {
+            String debugPrefix = "sql ";
+
+            String debugType = "unknown";
+
+            if (Chain.peek() != null) {
+              Collection coll = Chain.peek().getRequest().getCollection();
+              if (coll != null && coll.getDb() != null) {
+                Db db = coll.getDb();
+                debugType = db.getType().toLowerCase();
+              }
             }
+            debugPrefix += debugType;
 
-            @Override
-            public void afterStmt(String method, String sql, Object args, Exception ex, Object result)
-            {
-               String debugPrefix = "sql ";
+            args =
+                (args != null && args.getClass().isArray() ? Arrays.asList((Object[]) args) : args);
 
-               String debugType = "unknown";
+            sql = sql.replaceAll("\r", "");
+            sql = sql.replaceAll("\n", " ");
+            sql = sql.trim().replaceAll(" +", " ");
+            StringBuffer buff = new StringBuffer("");
+            buff.append(debugPrefix)
+                .append(" -> '")
+                .append(sql)
+                .append("'")
+                .append(" args=")
+                .append(args)
+                .append(" error='")
+                .append(ex != null ? ex.getMessage() : "")
+                .append("'");
+            String msg = buff.toString();
+            Chain.debug(msg);
+          }
+        });
+  }
 
-               if (Chain.peek() != null)
-               {
-                  Collection coll = Chain.peek().getRequest().getCollection();
-                  if (coll != null && coll.getDb() != null)
-                  {
-                     Db db = coll.getDb();
-                     debugType = db.getType().toLowerCase();
-                  }
-               }
-               debugPrefix += debugType;
+  protected char stringQuote = '\'';
+  protected char columnQuote = '"';
+  protected String driver = null;
+  protected String url = null;
+  protected String user = null;
+  protected String pass = null;
+  protected int poolMin = 3;
+  protected int poolMax = 10;
+  protected int idleConnectionTestPeriod = 3600; // in seconds
+  // set this to false to turn off SQL_CALC_FOUND_ROWS and SELECT FOUND_ROWS()
+  // Only impacts 'mysql' types
+  protected boolean calcRowsFound = true;
+  protected int relatedMax = 500;
 
-               args = (args != null && args.getClass().isArray() ? Arrays.asList((Object[]) args) : args);
+  public SqlDb() {
+    // System.out.println("SqlDb() <init>");
+  }
 
-               sql = sql.replaceAll("\r", "");
-               sql = sql.replaceAll("\n", " ");
-               sql = sql.trim().replaceAll(" +", " ");
-               StringBuffer buff = new StringBuffer("");
-               buff.append(debugPrefix).append(" -> '").append(sql).append("'").append(" args=").append(args).append(" error='").append(ex != null ? ex.getMessage() : "").append("'");
-               String msg = buff.toString();
-               Chain.debug(msg);
+  public SqlDb(String name) {
+    withName(name);
+  }
+
+  @Override
+  public String getType() {
+    if (type != null) return type;
+
+    String driver = getDriver();
+    if (driver != null) {
+      if (driver.indexOf("mysql") >= 0) return "mysql";
+
+      if (driver.indexOf("postgres") >= 0) return "postgres";
+
+      if (driver.indexOf("redshift") >= 0) return "redshift";
+
+      if (driver.indexOf("h2") >= 0) return "h2";
+    }
+
+    return null;
+  }
+
+  protected void shutdown0() {
+    // pool.close();
+  }
+
+  @Override
+  public Results<Row> select(Table table, List<Term> columnMappedTerms) throws Exception {
+    SqlDb db = null;
+    if (table == null) {
+      db = this;
+    } else {
+      db = (SqlDb) table.getDb();
+    }
+
+    String selectKey = (table != null ? table.getKeyName() + "." : "") + "select";
+
+    String selectSql = (String) Chain.peek().remove(selectKey);
+    //      if (Utils.empty(sql))
+    //      {
+    //         if (table == null)
+    //            throw new ApiException(SC.SC_400_BAD_REQUEST, "Table missing");
+    //         sql = " SELECT * FROM " + quoteCol(table.getName());
+    //      }
+
+    SqlQuery query = new SqlQuery(table, columnMappedTerms);
+    query.withDb(db);
+    if (selectSql != null) {
+      query.withSelectSql(selectSql);
+    }
+
+    return query.doSelect();
+  }
+
+  @Override
+  public String upsert(Table table, Map<String, Object> row) throws Exception {
+    if (isType("h2")) {
+      return h2Upsert(table, row);
+    } else if (isType("mysql")) {
+      return StringUtils.join(mysqlUpsert(table, row), ',');
+    } else {
+      throw new ApiException(
+          SC.SC_500_INTERNAL_SERVER_ERROR,
+          "Need to implement SqlDb.upsert for db type '" + getType() + "'");
+    }
+  }
+
+  public List<String> mysqlUpsert(Table table, Map<String, Object> row) throws Exception {
+    return mysqlUpsert(table, Arrays.asList(row));
+  }
+
+  public List<String> mysqlUpsert(Table table, List<Map<String, Object>> rows) throws Exception {
+    return SqlUtils.mysqlUpsert(getConnection(), table.getName(), rows);
+  }
+
+  public String h2Upsert(Table table, Map<String, Object> row) throws Exception {
+    Object key = table.encodeKey(row);
+
+    if (key == null) // this must be an insert
+    {
+      SqlUtils.insertMap(getConnection(), table.getName(), row);
+    } else {
+      String keyCol = table.getKeyName();
+      SqlUtils.upsert(getConnection(), table.getName(), keyCol, row);
+    }
+
+    if (key == null) {
+      key = SqlUtils.selectInt(getConnection(), "SELECT SCOPE_IDENTITY()");
+    }
+
+    if (key == null)
+      throw new ApiException(
+          SC.SC_500_INTERNAL_SERVER_ERROR, "Unable to determine key of upserted row: " + row);
+
+    return key.toString();
+  }
+
+  public void delete(Table table, List<String> entityKeys) throws Exception {
+    Index pk = table.getPrimaryIndex();
+
+    if (pk.getColumns().size() == 1) {
+      List castKeys = new ArrayList();
+      for (String key : entityKeys) castKeys.add(cast(pk.getColumn(0), key));
+
+      String sql = "";
+      sql += " DELETE FROM " + quoteCol(table.getName());
+      sql +=
+          " WHERE "
+              + quoteCol(pk.getColumn(0).getName())
+              + " IN ("
+              + SqlUtils.getQuestionMarkStr(entityKeys.size())
+              + ")";
+      SqlUtils.execute(getConnection(), sql, castKeys.toArray());
+    } else {
+      String sql = "";
+      sql += " DELETE FROM " + quoteCol(table.getName());
+      sql += " WHERE ";
+
+      List values = new ArrayList();
+      for (String entityKey : entityKeys) {
+        if (values.size() > 0) sql += " OR ";
+        sql += "(";
+        Row row = table.decodeKey(entityKey);
+        int i = 0;
+        for (String key : row.keySet()) {
+          i++;
+          if (i > 1) sql += "AND ";
+          sql += quoteCol(key) + " = ? ";
+          values.add(row.get(key));
+        }
+        sql += ")";
+      }
+      SqlUtils.execute(getConnection(), sql, values.toArray());
+    }
+  }
+
+  @Override
+  public void delete(Table table, String entityKey) throws Exception {
+    delete(table, Arrays.asList(entityKey));
+  }
+
+  public Connection getConnection() throws ApiException {
+    try {
+      Connection conn = ConnectionLocal.getConnection(this);
+      if (conn == null && !isShutdown()) {
+        String dsKey = getName() + getUrl() + getUser() + getPass();
+
+        DataSource pool = pools.get(dsKey);
+
+        if (pool == null) {
+          synchronized (pools) {
+            pool = pools.get(getName());
+
+            if (pool == null && !isShutdown()) {
+              // System.out.println("CREATING NEW POOL: " + getUrl());
+              // pool = JdbcConnectionPool.create("jdbc:h2:./northwind", "sa", "");
+
+              HikariConfig config = new HikariConfig();
+              String driver = getDriver();
+              config.setDriverClassName(driver);
+              config.setJdbcUrl(getUrl());
+              config.setUsername(getUser());
+              config.setPassword(getPass());
+              config.setMaximumPoolSize(Math.min(getPoolMax(), MAX_POOL_SIZE));
+              pool = new HikariDataSource(config);
+
+              pools.put(dsKey, pool);
             }
-         });
-   }
+          }
+        }
 
-   public SqlDb()
-   {
-      //System.out.println("SqlDb() <init>");
-   }
+        conn = pool.getConnection();
+        conn.setAutoCommit(false);
 
-   public SqlDb(String name)
-   {
-      withName(name);
-   }
-
-   @Override
-   public String getType()
-   {
-      if (type != null)
-         return type;
-
-      String driver = getDriver();
-      if (driver != null)
-      {
-         if (driver.indexOf("mysql") >= 0)
-            return "mysql";
-
-         if (driver.indexOf("postgres") >= 0)
-            return "postgres";
-
-         if (driver.indexOf("redshift") >= 0)
-            return "redshift";
-
-         if (driver.indexOf("h2") >= 0)
-            return "h2";
+        ConnectionLocal.putConnection(this, conn);
       }
 
-      return null;
-   }
+      //         String res = "TABLE NOT FOUND";
+      //         try
+      //         {
+      //            res = SqlUtils.selectRows(conn, "SELECT CUSTOMERID FROM CUSTOMERS LIMIT
+      // 1").toString();
+      //         }
+      //         catch(Exception ex)
+      //         {
+      //
+      //         }
+      // System.out.println("GETTING CONNECTION: " + getUrl() + " - " + res);
 
-   protected void shutdown0()
-   {
-      //pool.close();
-   }
+      return conn;
+    } catch (Exception ex) {
+      log.error("Unable to get DB connection", ex);
+      throw new ApiException(SC.SC_500_INTERNAL_SERVER_ERROR, "Unable to get DB connection", ex);
+    }
+  }
 
-   @Override
-   public Results<Row> select(Table table, List<Term> columnMappedTerms) throws Exception
-   {
-      SqlDb db = null;
-      if (table == null)
-      {
-         db = this;
+  @Override
+  protected void startup0() {
+    try {
+      if (isType("mysql")) withColumnQuote('`');
+
+      if (isBootstrap() && getTables().size() == 0) {
+        reflectDb();
+        configApi();
       }
-      else
-      {
-         db = (SqlDb) table.getDb();
-      }
+    } catch (Exception ex) {
+      Utils.rethrow(ex);
+    }
+  }
 
-      String selectKey = (table != null ? table.getKeyName() + "." : "") + "select";
+  public void reflectDb() throws Exception {
+    if (!isBootstrap()) {
+      return;
+    }
 
-      String selectSql = (String) Chain.peek().remove(selectKey);
-      //      if (Utils.empty(sql))
-      //      {
-      //         if (table == null)
-      //            throw new ApiException(SC.SC_400_BAD_REQUEST, "Table missing");
-      //         sql = " SELECT * FROM " + quoteCol(table.getName());
-      //      }
+    Connection conn = getConnection();
 
-      SqlQuery query = new SqlQuery(table, columnMappedTerms);
-      query.withDb(db);
-      if (selectSql != null)
-      {
-         query.withSelectSql(selectSql);
-      }
+    DatabaseMetaData dbmd = conn.getMetaData();
 
-      return query.doSelect();
-   }
+    // -- only here to map jdbc type integer codes to strings ex "4" to "BIGINT" or whatever it is
+    Map<String, String> types = new HashMap<String, String>();
+    for (Field field : Types.class.getFields()) {
+      types.put(field.get(null) + "", field.getName());
+    }
+    // --
 
-   @Override
-   public String upsert(Table table, Map<String, Object> row) throws Exception
-   {
-      if (isType("h2"))
-      {
-         return h2Upsert(table, row);
-      }
-      else if (isType("mysql"))
-      {
-         return StringUtils.join(mysqlUpsert(table, row), ',');
-      }
-      else
-      {
-         throw new ApiException(SC.SC_500_INTERNAL_SERVER_ERROR, "Need to implement SqlDb.upsert for db type '" + getType() + "'");
-      }
-   }
-
-   public List<String> mysqlUpsert(Table table, Map<String, Object> row) throws Exception
-   {
-      return mysqlUpsert(table, Arrays.asList(row));
-   }
-
-   public List<String> mysqlUpsert(Table table, List<Map<String, Object>> rows) throws Exception
-   {
-      return SqlUtils.mysqlUpsert(getConnection(), table.getName(), rows);
-   }
-
-   public String h2Upsert(Table table, Map<String, Object> row) throws Exception
-   {
-      Object key = table.encodeKey(row);
-
-      if (key == null)//this must be an insert
-      {
-         SqlUtils.insertMap(getConnection(), table.getName(), row);
-      }
-      else
-      {
-         String keyCol = table.getKeyName();
-         SqlUtils.upsert(getConnection(), table.getName(), keyCol, row);
-      }
-
-      if (key == null)
-      {
-         key = SqlUtils.selectInt(getConnection(), "SELECT SCOPE_IDENTITY()");
-      }
-
-      if (key == null)
-         throw new ApiException(SC.SC_500_INTERNAL_SERVER_ERROR, "Unable to determine key of upserted row: " + row);
-
-      return key.toString();
-   }
-
-   public void delete(Table table, List<String> entityKeys) throws Exception
-   {
-      Index pk = table.getPrimaryIndex();
-
-      if (pk.getColumns().size() == 1)
-      {
-         List castKeys = new ArrayList();
-         for (String key : entityKeys)
-            castKeys.add(cast(pk.getColumn(0), key));
-
-         String sql = "";
-         sql += " DELETE FROM " + quoteCol(table.getName());
-         sql += " WHERE " + quoteCol(pk.getColumn(0).getName()) + " IN (" + SqlUtils.getQuestionMarkStr(entityKeys.size()) + ")";
-         SqlUtils.execute(getConnection(), sql, castKeys.toArray());
-      }
-      else
-      {
-         String sql = "";
-         sql += " DELETE FROM " + quoteCol(table.getName());
-         sql += " WHERE ";
-
-         List values = new ArrayList();
-         for (String entityKey : entityKeys)
-         {
-            if (values.size() > 0)
-               sql += " OR ";
-            sql += "(";
-            Row row = table.decodeKey(entityKey);
-            int i = 0;
-            for (String key : row.keySet())
-            {
-               i++;
-               if (i > 1)
-                  sql += "AND ";
-               sql += quoteCol(key) + " = ? ";
-               values.add(row.get(key));
-            }
-            sql += ")";
-         }
-         SqlUtils.execute(getConnection(), sql, values.toArray());
-      }
-   }
-
-   @Override
-   public void delete(Table table, String entityKey) throws Exception
-   {
-      delete(table, Arrays.asList(entityKey));
-   }
-
-   public Connection getConnection() throws ApiException
-   {
-      try
-      {
-         Connection conn = ConnectionLocal.getConnection(this);
-         if (conn == null && !isShutdown())
-         {
-            String dsKey = getName() + getUrl() + getUser() + getPass();
-
-            DataSource pool = pools.get(dsKey);
-
-            if (pool == null)
-            {
-               synchronized (pools)
-               {
-                  pool = pools.get(getName());
-
-                  if (pool == null && !isShutdown())
-                  {
-                     //System.out.println("CREATING NEW POOL: " + getUrl());
-                     //pool = JdbcConnectionPool.create("jdbc:h2:./northwind", "sa", "");
-
-                     HikariConfig config = new HikariConfig();
-                     String driver = getDriver();
-                     config.setDriverClassName(driver);
-                     config.setJdbcUrl(getUrl());
-                     config.setUsername(getUser());
-                     config.setPassword(getPass());
-                     config.setMaximumPoolSize(Math.min(getPoolMax(), MAX_POOL_SIZE));
-                     pool = new HikariDataSource(config);
-
-                     pools.put(dsKey, pool);
-                  }
-               }
-            }
-
-            conn = pool.getConnection();
-            conn.setAutoCommit(false);
-
-            ConnectionLocal.putConnection(this, conn);
-         }
-
-         //         String res = "TABLE NOT FOUND";
-         //         try
-         //         {
-         //            res = SqlUtils.selectRows(conn, "SELECT CUSTOMERID FROM CUSTOMERS LIMIT 1").toString();
-         //         }
-         //         catch(Exception ex)
-         //         {
-         //            
-         //         }
-         //System.out.println("GETTING CONNECTION: " + getUrl() + " - " + res);         
-
-         return conn;
-      }
-      catch (Exception ex)
-      {
-         log.error("Unable to get DB connection", ex);
-         throw new ApiException(SC.SC_500_INTERNAL_SERVER_ERROR, "Unable to get DB connection", ex);
-      }
-   }
-
-   public static class ConnectionLocal
-   {
-      static ThreadLocal<Map<Db, Connection>> connections = new ThreadLocal();
-
-      public static Map<Db, Connection> getConnections()
-      {
-         return connections.get();
-      }
-
-      public static Connection getConnection(Db db)
-      {
-         Map<Db, Connection> conns = connections.get();
-         if (conns == null)
-         {
-            conns = new HashMap();
-            connections.set(conns);
-         }
-
-         return conns.get(db);
-      }
-
-      public static void putConnection(Db db, Connection connection)
-      {
-         Map<Db, Connection> conns = connections.get();
-         if (conns == null)
-         {
-            conns = new HashMap();
-            connections.set(conns);
-         }
-         conns.put(db, connection);
-      }
-
-      public static void commit() throws Exception
-      {
-         Exception toThrow = null;
-         Map<Db, Connection> conns = connections.get();
-         if (conns != null)
-         {
-            for (Db db : (List<Db>) new ArrayList(conns.keySet()))
-            {
-               try
-               {
-                  Connection conn = conns.get(db);
-                  if (!conn.isClosed() && !conn.getAutoCommit())
-                  {
-                     conn.commit();
-                  }
-               }
-               catch (Exception ex)
-               {
-                  String msg = (ex.getMessage() + "").toLowerCase();
-                  if (msg.indexOf("connection is closed") > -1)
-                     continue;
-
-                  if (toThrow != null)
-                     toThrow = ex;
-               }
-            }
-         }
-
-         if (toThrow != null)
-            throw toThrow;
-      }
-
-      public static void rollback() throws Exception
-      {
-         Exception toThrow = null;
-         Map<Db, Connection> conns = connections.get();
-         if (conns != null)
-         {
-            for (Db db : (List<Db>) new ArrayList(conns.keySet()))
-            {
-               Connection conn = conns.get(db);
-               try
-               {
-                  conn.rollback();
-               }
-               catch (Exception ex)
-               {
-                  if (toThrow != null)
-                     toThrow = ex;
-               }
-            }
-         }
-
-         if (toThrow != null)
-            throw toThrow;
-      }
-
-      public static void close() throws Exception
-      {
-         Exception toThrow = null;
-         Map<Db, Connection> conns = connections.get();
-         if (conns != null)
-         {
-            for (Db db : (List<Db>) new ArrayList(conns.keySet()))
-            {
-               Connection conn = conns.get(db);
-               try
-               {
-                  conn.close();
-               }
-               catch (Exception ex)
-               {
-                  if (toThrow != null)
-                     toThrow = ex;
-               }
-            }
-         }
-
-         connections.remove();
-
-         if (toThrow != null)
-            throw toThrow;
-      }
-   }
-
-   @Override
-   protected void startup0()
-   {
-      try
-      {
-         if (isType("mysql"))
-            withColumnQuote('`');
-
-         if (isBootstrap() && getTables().size() == 0)
-         {
-            reflectDb();
-            configApi();
-         }
-      }
-      catch (Exception ex)
-      {
-         Utils.rethrow(ex);
-      }
-   }
-
-   public void reflectDb() throws Exception
-   {
-      if (!isBootstrap())
-      {
-         return;
-      }
-
-      Connection conn = getConnection();
-
-      DatabaseMetaData dbmd = conn.getMetaData();
-
-      //-- only here to map jdbc type integer codes to strings ex "4" to "BIGINT" or whatever it is
-      Map<String, String> types = new HashMap<String, String>();
-      for (Field field : Types.class.getFields())
-      {
-         types.put(field.get(null) + "", field.getName());
-      }
-      //--
-
-      //-- the first loop through is going to construct all of the
-      //-- Tbl and Col objects.  There will be a second loop through
-      //-- that caputres all of the foreign key relationships.  You
-      //-- have to do the fk loop second becuase the reference pk
-      //-- object needs to exist so that it can be set on the fk Col
-      ResultSet rs = dbmd.getTables(null, "public", "%", new String[]{"TABLE", "VIEW"});
-      boolean hasNext = rs.next();
-      if (!hasNext)
-      {
-         rs = dbmd.getTables(null, null, "%", new String[]{"TABLE", "VIEW"});
-         hasNext = rs.next();
-      }
-      if (hasNext)
-         do
-         {
-            String tableCat = rs.getString("TABLE_CAT");
-            String tableSchem = rs.getString("TABLE_SCHEM");
-            String tableName = rs.getString("TABLE_NAME");
-            //String tableType = rs.getString("TABLE_TYPE");
-
-            //System.out.println(tableName);
-
-            Table table = new Table(this, tableName);
-            withTable(table);
-
-            ResultSet colsRs = dbmd.getColumns(tableCat, tableSchem, tableName, "%");
-
-            int columnNumber = 0;
-            while (colsRs.next())
-            {
-               columnNumber += 1;
-               String colName = colsRs.getString("COLUMN_NAME");
-               Object type = colsRs.getString("DATA_TYPE");
-               String colType = types.get(type);
-
-               boolean nullable = colsRs.getInt("NULLABLE") == DatabaseMetaData.columnNullable;
-
-               Column column = new Column(table, columnNumber, colName, colType, nullable);
-               table.withColumn(column);
-
-               //               if (DELETED_FLAGS.contains(colName.toLowerCase()))
-               //               {
-               //                  table.setDeletedFlag(column);
-               //               }
-            }
-            colsRs.close();
-
-            ResultSet indexMd = dbmd.getIndexInfo(conn.getCatalog(), null, tableName, true, false);
-            while (indexMd.next())
-            {
-               String idxName = indexMd.getString("INDEX_NAME");
-               String idxType = "Other";
-               String colName = indexMd.getString("COLUMN_NAME");
-
-               switch (indexMd.getInt("TYPE"))
-               {
-                  case DatabaseMetaData.tableIndexClustered:
-                     idxType = "Clustered";
-                  case DatabaseMetaData.tableIndexHashed:
-                     idxType = "Hashed";
-                  case DatabaseMetaData.tableIndexOther:
-                     idxType = "Other";
-                  case DatabaseMetaData.tableIndexStatistic:
-                     idxType = "Statistic";
-               }
-
-               Object nonUnique = indexMd.getObject("NON_UNIQUE") + "";
-               boolean unique = !(nonUnique.equals("true") || nonUnique.equals("1"));
-
-               Column column = table.getColumn(colName);
-
-               if (unique)
-               {
-                  column.withUnique(unique);
-               }
-
-               table.makeIndex(column, idxName, idxType, unique);
-
-            }
-            indexMd.close();
-
-         }
-         while (rs.next());
-      rs.close();
-
-      //-- now link all of the fks to pks
-      //-- this is done after the first loop
-      //-- so that all of the tbls/cols are
-      //-- created first and are there to
-      //-- be connected
-      rs = dbmd.getTables(null, "public", "%", new String[]{"TABLE"});
+    // -- the first loop through is going to construct all of the
+    // -- Tbl and Col objects.  There will be a second loop through
+    // -- that caputres all of the foreign key relationships.  You
+    // -- have to do the fk loop second becuase the reference pk
+    // -- object needs to exist so that it can be set on the fk Col
+    ResultSet rs = dbmd.getTables(null, "public", "%", new String[] {"TABLE", "VIEW"});
+    boolean hasNext = rs.next();
+    if (!hasNext) {
+      rs = dbmd.getTables(null, null, "%", new String[] {"TABLE", "VIEW"});
       hasNext = rs.next();
-      if (!hasNext)
-      {
-         rs = dbmd.getTables(null, null, "%", new String[]{"TABLE"});
-         hasNext = rs.next();
-      }
-      if (hasNext)
-         do
-         {
-            String tableName = rs.getString("TABLE_NAME");
-            ResultSet keyMd = dbmd.getImportedKeys(conn.getCatalog(), null, tableName);
-            while (keyMd.next())
-            {
-               String pkName = keyMd.getString("PK_NAME");
-               String fkName = keyMd.getString("FK_NAME");
+    }
+    if (hasNext)
+      do {
+        String tableCat = rs.getString("TABLE_CAT");
+        String tableSchem = rs.getString("TABLE_SCHEM");
+        String tableName = rs.getString("TABLE_NAME");
+        // String tableType = rs.getString("TABLE_TYPE");
 
-               String fkTableName = keyMd.getString("FKTABLE_NAME");
-               String fkColumnName = keyMd.getString("FKCOLUMN_NAME");
-               String pkTableName = keyMd.getString("PKTABLE_NAME");
-               String pkColumnName = keyMd.getString("PKCOLUMN_NAME");
+        // System.out.println(tableName);
 
-               Column fk = getColumn(fkTableName, fkColumnName);
-               Column pk = getColumn(pkTableName, pkColumnName);
-               fk.withPk(pk);
+        Table table = new Table(this, tableName);
+        withTable(table);
 
-               getTable(fkTableName).makeIndex(fk, fkName, "FOREIGN_KEY", false);
+        ResultSet colsRs = dbmd.getColumns(tableCat, tableSchem, tableName, "%");
 
-               //System.out.println("FOREIGN_KEY: " + tableName + " - " + pkName + " - " + fkName + "- " + fkTableName + "." + fkColumnName + " -> " + pkTableName + "." + pkColumnName);
-            }
-            keyMd.close();
-         }
-         while (rs.next());
+        int columnNumber = 0;
+        while (colsRs.next()) {
+          columnNumber += 1;
+          String colName = colsRs.getString("COLUMN_NAME");
+          Object type = colsRs.getString("DATA_TYPE");
+          String colType = types.get(type);
 
-      rs.close();
+          boolean nullable = colsRs.getInt("NULLABLE") == DatabaseMetaData.columnNullable;
 
-      //2019-02-11 WB - moved below code into Table.isLinkTable
-      //      
-      //      -- if a table has two columns and both are foreign keys
-      //      -- then it is a relationship table for MANY_TO_MANY relationships
-      //            for (Table table : getTables())
-      //            {
-      //               List<Column> cols = table.getColumns();
-      //               if (cols.size() == 2 && cols.get(0).isFk() && cols.get(1).isFk())
-      //               {
-      //                  table.withLinkTbl(true);
-      //               }
-      //            }
+          Column column = new Column(table, columnNumber, colName, colType, nullable);
+          table.withColumn(column);
 
-   }
+          //               if (DELETED_FLAGS.contains(colName.toLowerCase()))
+          //               {
+          //                  table.setDeletedFlag(column);
+          //               }
+        }
+        colsRs.close();
 
-   public void configApi() throws Exception
-   {
-      List<String> relationshipStrs = new ArrayList();
+        ResultSet indexMd = dbmd.getIndexInfo(conn.getCatalog(), null, tableName, true, false);
+        while (indexMd.next()) {
+          String idxName = indexMd.getString("INDEX_NAME");
+          String idxType = "Other";
+          String colName = indexMd.getString("COLUMN_NAME");
 
-      for (Table table : getTables())
-      {
-         if (table.isLinkTbl())
-            continue;
+          switch (indexMd.getInt("TYPE")) {
+            case DatabaseMetaData.tableIndexClustered:
+              idxType = "Clustered";
+            case DatabaseMetaData.tableIndexHashed:
+              idxType = "Hashed";
+            case DatabaseMetaData.tableIndexOther:
+              idxType = "Other";
+            case DatabaseMetaData.tableIndexStatistic:
+              idxType = "Statistic";
+          }
 
-         List<Column> cols = table.getColumns();
-         String name = beautifyCollectionName(table.getName());
+          Object nonUnique = indexMd.getObject("NON_UNIQUE") + "";
+          boolean unique = !(nonUnique.equals("true") || nonUnique.equals("1"));
 
-         Collection collection = api.makeCollection(table, name);
-         if (getCollectionPath() != null)
-            collection.withIncludePaths(getCollectionPath());
+          Column column = table.getColumn(colName);
 
-         Entity entity = collection.getEntity();
+          if (unique) {
+            column.withUnique(unique);
+          }
 
-         for (Attribute attr : entity.getAttributes())
-         {
-            attr.withName(beautifyAttributeName(attr.getName()));
-         }
+          table.makeIndex(column, idxName, idxType, unique);
+        }
+        indexMd.close();
 
-         String debug = getCollectionPath();
-         debug = (debug == null ? "" : (debug + collection));
-         //System.out.println("CREATING COLLECTION: " + debug);
-      }
+      } while (rs.next());
+    rs.close();
 
-      //-- Now go back through and create relationships for all foreign keys
-      //-- two relationships objects are created for every relationship type
-      //-- representing both sides of the relationship...ONE_TO_MANY also
-      //-- creates a MANY_TO_ONE and there are always two for a MANY_TO_MANY.
-      //-- API designers may want to represent one or both directions of the
-      //-- relationship in their API and/or the names of the JSON properties
-      //-- for the relationships will probably be different
-      for (Table t : getTables())
-      {
-         if (t.isLinkTbl())
-         {
-            //create reciprocal pairs for of MANY_TO_MANY relationships
-            //for each pair combination in the link table.
-            List<Index> indexes = t.getIndexes();
-            for (int i = 0; i < indexes.size(); i++)
-            {
-               for (int j = 0; j < indexes.size(); j++)
-               {
-                  Index idx1 = indexes.get(i);
-                  Index idx2 = indexes.get(j);
+    // -- now link all of the fks to pks
+    // -- this is done after the first loop
+    // -- so that all of the tbls/cols are
+    // -- created first and are there to
+    // -- be connected
+    rs = dbmd.getTables(null, "public", "%", new String[] {"TABLE"});
+    hasNext = rs.next();
+    if (!hasNext) {
+      rs = dbmd.getTables(null, null, "%", new String[] {"TABLE"});
+      hasNext = rs.next();
+    }
+    if (hasNext)
+      do {
+        String tableName = rs.getString("TABLE_NAME");
+        ResultSet keyMd = dbmd.getImportedKeys(conn.getCatalog(), null, tableName);
+        while (keyMd.next()) {
+          String pkName = keyMd.getString("PK_NAME");
+          String fkName = keyMd.getString("FK_NAME");
 
-                  if (i == j || !idx1.getType().equals("FOREIGN_KEY") || !idx2.getType().equals("FOREIGN_KEY"))
-                     continue;
+          String fkTableName = keyMd.getString("FKTABLE_NAME");
+          String fkColumnName = keyMd.getString("FKCOLUMN_NAME");
+          String pkTableName = keyMd.getString("PKTABLE_NAME");
+          String pkColumnName = keyMd.getString("PKCOLUMN_NAME");
 
-                  Entity entity1 = api.getEntity(idx1.getColumn(0).getPk().getTable());
-                  Entity entity2 = api.getEntity(idx2.getColumn(0).getPk().getTable());
+          Column fk = getColumn(fkTableName, fkColumnName);
+          Column pk = getColumn(pkTableName, pkColumnName);
+          fk.withPk(pk);
 
-                  Relationship r = new Relationship();
-                  r.withType(Relationship.REL_MANY_TO_MANY);
+          getTable(fkTableName).makeIndex(fk, fkName, "FOREIGN_KEY", false);
 
-                  r.withRelated(entity2);
-                  r.withFkIndex1(idx1);
-                  r.withFkIndex2(idx2);
-                  r.withName(makeRelationshipName(entity1, r));
-                  r.withEntity(entity1);
-                  relationshipStrs.add(r.toString());
-               }
-            }
-         }
-         else
-         {
-            for (Index fkIdx : t.getIndexes())
-            {
-               try
-               {
-                  if (!fkIdx.getType().equals("FOREIGN_KEY"))
-                     continue;
+          // System.out.println("FOREIGN_KEY: " + tableName + " - " + pkName + " - " + fkName + "- "
+          // + fkTableName + "." + fkColumnName + " -> " + pkTableName + "." + pkColumnName);
+        }
+        keyMd.close();
+      } while (rs.next());
 
-                  Entity pkEntity = api.getEntity(fkIdx.getColumn(0).getPk().getTable());
-                  Entity fkEntity = api.getEntity(fkIdx.getColumn(0).getTable());
+    rs.close();
 
-                  //ONE_TO_MANY
-                  {
-                     Relationship r = new Relationship();
-                     //TODO:this name may not be specific enough or certain types
-                     //of relationships. For example where an entity is related
-                     //to another entity twice
-                     r.withType(Relationship.REL_MANY_TO_ONE);
-                     r.withFkIndex1(fkIdx);
-                     r.withRelated(fkEntity);
-                     r.withName(makeRelationshipName(pkEntity, r));
-                     r.withEntity(pkEntity);
-                     relationshipStrs.add(r.toString());
-                  }
+    // 2019-02-11 WB - moved below code into Table.isLinkTable
+    //
+    //      -- if a table has two columns and both are foreign keys
+    //      -- then it is a relationship table for MANY_TO_MANY relationships
+    //            for (Table table : getTables())
+    //            {
+    //               List<Column> cols = table.getColumns();
+    //               if (cols.size() == 2 && cols.get(0).isFk() && cols.get(1).isFk())
+    //               {
+    //                  table.withLinkTbl(true);
+    //               }
+    //            }
 
-                  //MANY_TO_ONE
-                  {
-                     Relationship r = new Relationship();
-                     r.withType(Relationship.REL_ONE_TO_MANY);
-                     r.withFkIndex1(fkIdx);
-                     r.withRelated(pkEntity);
-                     r.withName(makeRelationshipName(fkEntity, r));
-                     r.withEntity(fkEntity);
-                     relationshipStrs.add(r.toString());
-                  }
-               }
-               catch (Exception ex)
-               {
-                  throw new ApiException(SC.SC_500_INTERNAL_SERVER_ERROR, "Error creating relationship for index: " + fkIdx, ex);
-               }
-            }
-         }
+  }
+
+  public void configApi() throws Exception {
+    List<String> relationshipStrs = new ArrayList();
+
+    for (Table table : getTables()) {
+      if (table.isLinkTbl()) continue;
+
+      List<Column> cols = table.getColumns();
+      String name = beautifyCollectionName(table.getName());
+
+      Collection collection = api.makeCollection(table, name);
+      if (getCollectionPath() != null) collection.withIncludePaths(getCollectionPath());
+
+      Entity entity = collection.getEntity();
+
+      for (Attribute attr : entity.getAttributes()) {
+        attr.withName(beautifyAttributeName(attr.getName()));
       }
 
-      //now we need to see if any relationship names conflict and need to be made unique
-      for (Collection coll : api.getCollections())
-      {
-         Entity entity = coll.getEntity();
+      String debug = getCollectionPath();
+      debug = (debug == null ? "" : (debug + collection));
+      // System.out.println("CREATING COLLECTION: " + debug);
+    }
 
-         List<Relationship> relationships = entity.getRelationships();
+    // -- Now go back through and create relationships for all foreign keys
+    // -- two relationships objects are created for every relationship type
+    // -- representing both sides of the relationship...ONE_TO_MANY also
+    // -- creates a MANY_TO_ONE and there are always two for a MANY_TO_MANY.
+    // -- API designers may want to represent one or both directions of the
+    // -- relationship in their API and/or the names of the JSON properties
+    // -- for the relationships will probably be different
+    for (Table t : getTables()) {
+      if (t.isLinkTbl()) {
+        // create reciprocal pairs for of MANY_TO_MANY relationships
+        // for each pair combination in the link table.
+        List<Index> indexes = t.getIndexes();
+        for (int i = 0; i < indexes.size(); i++) {
+          for (int j = 0; j < indexes.size(); j++) {
+            Index idx1 = indexes.get(i);
+            Index idx2 = indexes.get(j);
 
-         for (int i = 0; i < relationships.size(); i++)
-         {
-            String nameA = relationships.get(i).getName();
+            if (i == j
+                || !idx1.getType().equals("FOREIGN_KEY")
+                || !idx2.getType().equals("FOREIGN_KEY")) continue;
 
-            for (int j = i + 1; j < relationships.size(); j++)
+            Entity entity1 = api.getEntity(idx1.getColumn(0).getPk().getTable());
+            Entity entity2 = api.getEntity(idx2.getColumn(0).getPk().getTable());
+
+            Relationship r = new Relationship();
+            r.withType(Relationship.REL_MANY_TO_MANY);
+
+            r.withRelated(entity2);
+            r.withFkIndex1(idx1);
+            r.withFkIndex2(idx2);
+            r.withName(makeRelationshipName(entity1, r));
+            r.withEntity(entity1);
+            relationshipStrs.add(r.toString());
+          }
+        }
+      } else {
+        for (Index fkIdx : t.getIndexes()) {
+          try {
+            if (!fkIdx.getType().equals("FOREIGN_KEY")) continue;
+
+            Entity pkEntity = api.getEntity(fkIdx.getColumn(0).getPk().getTable());
+            Entity fkEntity = api.getEntity(fkIdx.getColumn(0).getTable());
+
+            // ONE_TO_MANY
             {
-               String nameB = relationships.get(j).getName();
-
-               if (nameA.equalsIgnoreCase(nameB))
-               {
-                  String uniqueName = makeRelationshipUniqueName(entity, relationships.get(j));
-                  relationships.get(j).withName(uniqueName);
-               }
+              Relationship r = new Relationship();
+              // TODO:this name may not be specific enough or certain types
+              // of relationships. For example where an entity is related
+              // to another entity twice
+              r.withType(Relationship.REL_MANY_TO_ONE);
+              r.withFkIndex1(fkIdx);
+              r.withRelated(fkEntity);
+              r.withName(makeRelationshipName(pkEntity, r));
+              r.withEntity(pkEntity);
+              relationshipStrs.add(r.toString());
             }
-         }
+
+            // MANY_TO_ONE
+            {
+              Relationship r = new Relationship();
+              r.withType(Relationship.REL_ONE_TO_MANY);
+              r.withFkIndex1(fkIdx);
+              r.withRelated(pkEntity);
+              r.withName(makeRelationshipName(fkEntity, r));
+              r.withEntity(fkEntity);
+              relationshipStrs.add(r.toString());
+            }
+          } catch (Exception ex) {
+            throw new ApiException(
+                SC.SC_500_INTERNAL_SERVER_ERROR,
+                "Error creating relationship for index: " + fkIdx,
+                ex);
+          }
+        }
       }
-   }
+    }
 
-   public Set<Term> mapToColumns(Collection collection, Term term)
-   {
-      Set terms = new HashSet();
+    // now we need to see if any relationship names conflict and need to be made unique
+    for (Collection coll : api.getCollections()) {
+      Entity entity = coll.getEntity();
 
-      if (term.getParent() == null)
-         terms.add(term);
+      List<Relationship> relationships = entity.getRelationships();
 
-      if (collection == null)
-         return terms;
+      for (int i = 0; i < relationships.size(); i++) {
+        String nameA = relationships.get(i).getName();
 
-      if (term.isLeaf() && !term.isQuoted())
-      {
-         String token = term.getToken();
+        for (int j = i + 1; j < relationships.size(); j++) {
+          String nameB = relationships.get(j).getName();
 
-         while (token.startsWith("-") || token.startsWith("+"))
-            token = token.substring(1, token.length());
+          if (nameA.equalsIgnoreCase(nameB)) {
+            String uniqueName = makeRelationshipUniqueName(entity, relationships.get(j));
+            relationships.get(j).withName(uniqueName);
+          }
+        }
+      }
+    }
+  }
 
-         String name = "";
-         String[] parts = token.split("\\.");
+  public Set<Term> mapToColumns(Collection collection, Term term) {
+    Set terms = new HashSet();
 
-         //         if (parts.length > 2)//this could be a literal
-         //            throw new ApiException("You can only specify a single level of relationship in dotted attributes: '" + token + "'");
+    if (term.getParent() == null) terms.add(term);
 
-         for (int i = 0; i < parts.length; i++)
-         {
-            String part = parts[i];
+    if (collection == null) return terms;
 
-            if (i == parts.length - 1)
-            {
-               Attribute attr = collection.getAttribute(parts[i]);
+    if (term.isLeaf() && !term.isQuoted()) {
+      String token = term.getToken();
 
-               if (attr == null)
-                  break;
-               //throw new ApiException("Unable to identify related column for dotted attribute name: '" + token + "'");
+      while (token.startsWith("-") || token.startsWith("+"))
+        token = token.substring(1, token.length());
 
-               name += attr.getColumn().getName();
-               break;
-            }
-            else
-            {
-               Relationship rel = collection.getRelationship(part);
+      String name = "";
+      String[] parts = token.split("\\.");
 
-               if (rel == null)
-                  break;
+      //         if (parts.length > 2)//this could be a literal
+      //            throw new ApiException("You can only specify a single level of relationship in
+      // dotted attributes: '" + token + "'");
 
-               //               if (rel == null)
-               //                  throw new ApiException("Unable to identify relationship for dotted attribute name: '" + token + "'");
+      for (int i = 0; i < parts.length; i++) {
+        String part = parts[i];
 
-               String aliasPrefix = "_join_" + rel.getEntity().getCollection().getName() + "_" + part + "_";
+        if (i == parts.length - 1) {
+          Attribute attr = collection.getAttribute(parts[i]);
 
-               Term join = null;
-               for (int j = 0; j < 2; j++)
-               {
-                  String relatedTable = rel.getRelated().getTable().getName();
+          if (attr == null) break;
+          // throw new ApiException("Unable to identify related column for dotted attribute name: '"
+          // + token + "'");
 
-                  if (rel.isManyToMany() && j == 0)
-                     relatedTable = rel.getFk1Col1().getTable().getName();
+          name += attr.getColumn().getName();
+          break;
+        } else {
+          Relationship rel = collection.getRelationship(part);
 
-                  String tableAlias = aliasPrefix + (j + 1);
+          if (rel == null) break;
 
-                  List joinTerms = new ArrayList();
-                  joinTerms.add(relatedTable);
+          //               if (rel == null)
+          //                  throw new ApiException("Unable to identify relationship for dotted
+          // attribute name: '" + token + "'");
+
+          String aliasPrefix =
+              "_join_" + rel.getEntity().getCollection().getName() + "_" + part + "_";
+
+          Term join = null;
+          for (int j = 0; j < 2; j++) {
+            String relatedTable = rel.getRelated().getTable().getName();
+
+            if (rel.isManyToMany() && j == 0) relatedTable = rel.getFk1Col1().getTable().getName();
+
+            String tableAlias = aliasPrefix + (j + 1);
+
+            List joinTerms = new ArrayList();
+            joinTerms.add(relatedTable);
+            joinTerms.add(tableAlias);
+
+            Index idx = j == 0 ? rel.getFkIndex1() : rel.getFkIndex2();
+            if (idx == null) break; // will NOT be null only for M2M relationships
+
+            name = tableAlias + ".";
+
+            if (rel.isOneToMany()) {
+              for (Column col : idx.getColumns()) {
+                joinTerms.add(col.getTable().getName());
+                joinTerms.add(col.getName());
+                joinTerms.add(tableAlias);
+                joinTerms.add(col.getPk().getName());
+              }
+            } else {
+              if (j == 0) {
+                for (Column col : idx.getColumns()) {
+                  joinTerms.add(col.getPk().getTable().getName());
+                  joinTerms.add(col.getPk().getName());
                   joinTerms.add(tableAlias);
+                  joinTerms.add(col.getName());
+                }
+              } else // second time through on M2M
+              {
+                for (Column col : idx.getColumns()) {
+                  String m2mTbl = join.getToken(1);
 
-                  Index idx = j == 0 ? rel.getFkIndex1() : rel.getFkIndex2();
-                  if (idx == null)
-                     break;//will NOT be null only for M2M relationships
-
-                  name = tableAlias + ".";
-
-                  if (rel.isOneToMany())
-                  {
-                     for (Column col : idx.getColumns())
-                     {
-                        joinTerms.add(col.getTable().getName());
-                        joinTerms.add(col.getName());
-                        joinTerms.add(tableAlias);
-                        joinTerms.add(col.getPk().getName());
-                     }
-                  }
-                  else
-                  {
-                     if (j == 0)
-                     {
-                        for (Column col : idx.getColumns())
-                        {
-                           joinTerms.add(col.getPk().getTable().getName());
-                           joinTerms.add(col.getPk().getName());
-                           joinTerms.add(tableAlias);
-                           joinTerms.add(col.getName());
-                        }
-                     }
-                     else//second time through on M2M
-                     {
-                        for (Column col : idx.getColumns())
-                        {
-                           String m2mTbl = join.getToken(1);
-
-                           joinTerms.add(m2mTbl);
-                           joinTerms.add(col.getName());
-                           joinTerms.add(tableAlias);
-                           joinTerms.add(col.getPk().getName());
-                        }
-                     }
-                  }
-
-                  join = Term.term(null, "join", joinTerms);
-                  terms.add(join);
-               }
-
-               collection = rel.getRelated().getCollection();
-
+                  joinTerms.add(m2mTbl);
+                  joinTerms.add(col.getName());
+                  joinTerms.add(tableAlias);
+                  joinTerms.add(col.getPk().getName());
+                }
+              }
             }
-         }
 
-         if (!Utils.empty(name))
-         {
-            if (term.getToken().startsWith("-"))
-               name = "-" + name;
-            term.withToken(name);
-         }
-      }
-      else
-      {
-         for (Term child : term.getTerms())
-         {
-            terms.addAll(mapToColumns(collection, child));
-         }
+            join = Term.term(null, "join", joinTerms);
+            terms.add(join);
+          }
+
+          collection = rel.getRelated().getCollection();
+        }
       }
 
-      return terms;
-   }
+      if (!Utils.empty(name)) {
+        if (term.getToken().startsWith("-")) name = "-" + name;
+        term.withToken(name);
+      }
+    } else {
+      for (Term child : term.getTerms()) {
+        terms.addAll(mapToColumns(collection, child));
+      }
+    }
 
-   public SqlDb withType(String type)
-   {
-      if ("mysql".equals(type))
-         withStringQuote('`');
+    return terms;
+  }
 
-      return super.withType(type);
-   }
+  public SqlDb withType(String type) {
+    if ("mysql".equals(type)) withStringQuote('`');
 
-   public SqlDb withConfig(String driver, String url, String user, String pass)
-   {
-      withDriver(driver);
-      withUrl(url);
-      withUser(user);
-      withPass(pass);
-      return this;
-   }
+    return super.withType(type);
+  }
 
-   public String getDriver()
-   {
-      return Utils.findSysEnvPropStr(getName() + ".driver", driver);
-   }
+  public SqlDb withConfig(String driver, String url, String user, String pass) {
+    withDriver(driver);
+    withUrl(url);
+    withUser(user);
+    withPass(pass);
+    return this;
+  }
 
-   public SqlDb withDriver(String driver)
-   {
-      this.driver = driver;
-      return this;
-   }
+  public String getDriver() {
+    return Utils.findSysEnvPropStr(getName() + ".driver", driver);
+  }
 
-   public String getUrl()
-   {
-      return Utils.findSysEnvPropStr(getName() + ".url", url);
-   }
+  public SqlDb withDriver(String driver) {
+    this.driver = driver;
+    return this;
+  }
 
-   public SqlDb withUrl(String url)
-   {
-      this.url = url;
-      return this;
-   }
+  public String getUrl() {
+    return Utils.findSysEnvPropStr(getName() + ".url", url);
+  }
 
-   public String getUser()
-   {
-      return Utils.findSysEnvPropStr(getName() + ".user", user);
-   }
+  public SqlDb withUrl(String url) {
+    this.url = url;
+    return this;
+  }
 
-   public SqlDb withUser(String user)
-   {
-      this.user = user;
-      return this;
-   }
+  public String getUser() {
+    return Utils.findSysEnvPropStr(getName() + ".user", user);
+  }
 
-   public String getPass()
-   {
-      return Utils.findSysEnvPropStr(getName() + ".pass", pass);
-   }
+  public SqlDb withUser(String user) {
+    this.user = user;
+    return this;
+  }
 
-   public SqlDb withPass(String pass)
-   {
-      this.pass = pass;
-      return this;
-   }
+  public String getPass() {
+    return Utils.findSysEnvPropStr(getName() + ".pass", pass);
+  }
 
-   public int getPoolMin()
-   {
-      return poolMin;
-   }
+  public SqlDb withPass(String pass) {
+    this.pass = pass;
+    return this;
+  }
 
-   public void setPoolMin(int poolMin)
-   {
-      this.poolMin = poolMin;
-   }
+  public int getPoolMin() {
+    return poolMin;
+  }
 
-   public int getPoolMax()
-   {
-      return poolMax;
-   }
+  public void setPoolMin(int poolMin) {
+    this.poolMin = poolMin;
+  }
 
-   public void setPoolMax(int poolMax)
-   {
-      this.poolMax = poolMax;
-   }
+  public int getPoolMax() {
+    return poolMax;
+  }
 
-   public int getIdleConnectionTestPeriod()
-   {
-      return idleConnectionTestPeriod;
-   }
+  public void setPoolMax(int poolMax) {
+    this.poolMax = poolMax;
+  }
 
-   public void setIdleConnectionTestPeriod(int idleConnectionTestPeriod)
-   {
-      this.idleConnectionTestPeriod = idleConnectionTestPeriod;
-   }
+  public int getIdleConnectionTestPeriod() {
+    return idleConnectionTestPeriod;
+  }
 
-   public SqlDb withStringQuote(char stringQuote)
-   {
-      this.stringQuote = stringQuote;
-      return this;
-   }
+  public void setIdleConnectionTestPeriod(int idleConnectionTestPeriod) {
+    this.idleConnectionTestPeriod = idleConnectionTestPeriod;
+  }
 
-   public SqlDb withColumnQuote(char columnQuote)
-   {
-      this.columnQuote = columnQuote;
-      return this;
-   }
+  public SqlDb withStringQuote(char stringQuote) {
+    this.stringQuote = stringQuote;
+    return this;
+  }
 
-   public String quoteCol(String columnName)
-   {
-      return columnQuote + columnName + columnQuote;
-   }
+  public SqlDb withColumnQuote(char columnQuote) {
+    this.columnQuote = columnQuote;
+    return this;
+  }
 
-   public String quoteStr(String string)
-   {
-      return stringQuote + string + stringQuote;
-   }
+  public String quoteCol(String columnName) {
+    return columnQuote + columnName + columnQuote;
+  }
 
-   public int getRelatedMax()
-   {
-      return relatedMax;
-   }
+  public String quoteStr(String string) {
+    return stringQuote + string + stringQuote;
+  }
 
-   public SqlDb withRelatedMax(int relatedMax)
-   {
-      this.relatedMax = relatedMax;
-      return this;
-   }
+  public int getRelatedMax() {
+    return relatedMax;
+  }
 
+  public SqlDb withRelatedMax(int relatedMax) {
+    this.relatedMax = relatedMax;
+    return this;
+  }
+
+  public static class ConnectionLocal {
+    static ThreadLocal<Map<Db, Connection>> connections = new ThreadLocal();
+
+    public static Map<Db, Connection> getConnections() {
+      return connections.get();
+    }
+
+    public static Connection getConnection(Db db) {
+      Map<Db, Connection> conns = connections.get();
+      if (conns == null) {
+        conns = new HashMap();
+        connections.set(conns);
+      }
+
+      return conns.get(db);
+    }
+
+    public static void putConnection(Db db, Connection connection) {
+      Map<Db, Connection> conns = connections.get();
+      if (conns == null) {
+        conns = new HashMap();
+        connections.set(conns);
+      }
+      conns.put(db, connection);
+    }
+
+    public static void commit() throws Exception {
+      Exception toThrow = null;
+      Map<Db, Connection> conns = connections.get();
+      if (conns != null) {
+        for (Db db : (List<Db>) new ArrayList(conns.keySet())) {
+          try {
+            Connection conn = conns.get(db);
+            if (!conn.isClosed() && !conn.getAutoCommit()) {
+              conn.commit();
+            }
+          } catch (Exception ex) {
+            String msg = (ex.getMessage() + "").toLowerCase();
+            if (msg.indexOf("connection is closed") > -1) continue;
+
+            if (toThrow != null) toThrow = ex;
+          }
+        }
+      }
+
+      if (toThrow != null) throw toThrow;
+    }
+
+    public static void rollback() throws Exception {
+      Exception toThrow = null;
+      Map<Db, Connection> conns = connections.get();
+      if (conns != null) {
+        for (Db db : (List<Db>) new ArrayList(conns.keySet())) {
+          Connection conn = conns.get(db);
+          try {
+            conn.rollback();
+          } catch (Exception ex) {
+            if (toThrow != null) toThrow = ex;
+          }
+        }
+      }
+
+      if (toThrow != null) throw toThrow;
+    }
+
+    public static void close() throws Exception {
+      Exception toThrow = null;
+      Map<Db, Connection> conns = connections.get();
+      if (conns != null) {
+        for (Db db : (List<Db>) new ArrayList(conns.keySet())) {
+          Connection conn = conns.get(db);
+          try {
+            conn.close();
+          } catch (Exception ex) {
+            if (toThrow != null) toThrow = ex;
+          }
+        }
+      }
+
+      connections.remove();
+
+      if (toThrow != null) throw toThrow;
+    }
+  }
 }
