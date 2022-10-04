@@ -63,7 +63,7 @@ public class S3Rql extends Rql
          // TODO check for a prefix to add to the key if it exists.
          String prefix = determinePrefixFromPath(req.getCollectionKey(), req.getSubpath());
          String key = prefix == null ? req.getUploads().get(0).getFileName() : prefix + "/" + req.getUploads().get(0).getFileName();
-         s3Req = new S3Request(table.getName(), null, key, null, false, false, null);
+         s3Req = new S3Request(table.getName(), null, key, null, false, false, null, req.getHeader("If-None-Match"));
       }
 
       if (s3Req == null)
@@ -76,20 +76,21 @@ public class S3Rql extends Rql
          if (req.getParams().size() == 1 && req.getParam("tenantid") != null)
          {
             String prefix = determinePrefixFromPath(req.getCollectionKey(), URLDecoder.decode(req.getSubpath(), StandardCharsets.UTF_8.name()));
-            s3Req = new S3Request(stmt.table.getName(), null, prefix, stmt.pagesize, isDownloadRequest, isMetaRequest, marker);
+            s3Req = new S3Request(stmt.table.getName(), null, prefix, stmt.pagesize, isDownloadRequest, isMetaRequest, marker, req.getHeader("If-None-Match"));
          }
          else
          {
-            s3Req = decipherStmt(stmt, isDownloadRequest, isMetaRequest, marker);
+            s3Req = decipherStmt(stmt, isDownloadRequest, isMetaRequest, marker, req.getHeader("If-None-Match"));
          }
       }
       return s3Req;
    }
 
-   private S3Request decipherStmt(Stmt stmt, boolean isDownload, boolean isMetaRequest, String marker)
+   private S3Request decipherStmt(Stmt stmt, boolean isDownload, boolean isMetaRequest, String marker, String etag)
    {
       String prefix = null;
       String key = null;
+      String termetag = etag;
 
       for (Predicate pred : stmt.where)
       {
@@ -117,12 +118,24 @@ public class S3Rql extends Rql
                      break;
                }
                break;
+           case "inm":
+             String inmTerm = pred.getTerms().get(0).toString();
+             switch (inmTerm)
+             {
+               case "key":
+                 if (termetag == null)
+                   termetag = pred.getTerms().get(1).toString();
+                 else
+                   throw new ApiException(SC.SC_500_INTERNAL_SERVER_ERROR, "S3 RQL has already set a 'inm' value.");
+                 break;
+             }
+             break;
             default :
                throw new ApiException(SC.SC_500_INTERNAL_SERVER_ERROR, "S3 RQL does not know how to handle the function: " + pred.getToken());
          }
       }
 
-      return new S3Request(stmt.table.getName(), prefix, key, stmt.maxRows, isDownload, isMetaRequest, marker);
+      return new S3Request(stmt.table.getName(), prefix, key, stmt.maxRows, isDownload, isMetaRequest, marker, termetag);
    }
 
    private String determinePrefixFromPath(String tableName, String path)
