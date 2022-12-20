@@ -244,4 +244,9 @@ public class Response
    {
       return in;
    }
+
+    public void withContentLength(int length)
+    {
+        addHeader("Content-Length", length + "");
+    }
 }

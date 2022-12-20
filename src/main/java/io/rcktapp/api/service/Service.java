@@ -282,6 +282,7 @@ public class Service
          res.debug(res.getStatusCode());
 
          String output = res.getText();
+         res.withContentLength(output.length());
          if (output != null)
          {
             if (res.getContentType() == null)
