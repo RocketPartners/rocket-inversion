@@ -85,7 +85,7 @@ public class Response
    }
 
    /**
-    * @param statusCode - one of the SC constants ex "200 OK"
+    * @param status - one of the SC constants ex "200 OK"
     */
    public void setStatus(String status)
    {

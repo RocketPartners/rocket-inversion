@@ -1,5 +1,8 @@
 package io.rcktapp.api.handler.firehose;
 
+import com.amazonaws.services.kinesisfirehose.AmazonKinesisFirehoseAsync;
+import com.amazonaws.services.kinesisfirehose.AmazonKinesisFirehoseAsyncClient;
+import com.amazonaws.services.kinesisfirehose.AmazonKinesisFirehoseAsyncClientBuilder;
 import org.atteo.evo.inflector.English;
 
 import com.amazonaws.auth.AWSStaticCredentialsProvider;
@@ -31,7 +34,7 @@ public class FirehoseDb extends Db
     */
    protected String      includeStreams;
 
-   AmazonKinesisFirehose firehoseClient = null;
+   AmazonKinesisFirehoseAsync firehoseClient = null;
 
    @Override
    public void bootstrapApi() throws Exception
@@ -78,7 +81,7 @@ public class FirehoseDb extends Db
       }
    }
 
-   public AmazonKinesisFirehose getFirehoseClient()
+   public AmazonKinesisFirehoseAsync getFirehoseClient()
    {
       if (this.firehoseClient == null)
       {
@@ -86,7 +89,7 @@ public class FirehoseDb extends Db
          {
             if (this.firehoseClient == null)
             {
-               AmazonKinesisFirehoseClientBuilder builder = AmazonKinesisFirehoseClientBuilder.standard();
+               AmazonKinesisFirehoseAsyncClientBuilder builder = AmazonKinesisFirehoseAsyncClientBuilder.standard();
                if (!J.empty(awsRegion))
                   builder.withRegion(awsRegion);
 
