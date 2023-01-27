@@ -14,7 +14,7 @@ project.docsDirName='../docs/0.3.x/'
 configurations.all { resolutionStrategy.cacheChangingModulesFor 0, 'seconds' }
 
 
-version = '0.3.x'
+version = '0.3.3'
 group = 'com.github.RocketPartners'
 sourceCompatibility = 1.8
 
