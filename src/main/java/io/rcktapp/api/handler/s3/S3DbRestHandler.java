@@ -147,13 +147,19 @@ public class S3DbRestHandler implements Handler
          // If a prefix exists, it must be tacked onto the key.
          S3Object s3File = db.getDownload(s3Req);
 
-         // relies on Servlet to close the stream.
-         res.setInputStream(s3File.getObjectContent());
-         res.setContentType(s3File.getObjectMetadata().getContentType());
+         // This is how the aws api reacts to downloading something that doesn't match its constraint.
+         if (s3File == null) {
+           res.setStatus(SC.SC_204_NO_CONTENT);
+           return;
+         } else {
 
-         res.addHeader("Content-Type", s3File.getObjectMetadata().getContentType());
-         res.addHeader("Content-Length", Long.toString(s3File.getObjectMetadata().getContentLength()));
+           // relies on Servlet to close the stream.
+           res.setInputStream(s3File.getObjectContent());
+           res.setContentType(s3File.getObjectMetadata().getContentType());
 
+           res.addHeader("Content-Type", s3File.getObjectMetadata().getContentType());
+           res.addHeader("Content-Length", Long.toString(s3File.getObjectMetadata().getContentLength()));
+         }
       }
       else if (s3Req.getKey() != null)
       {
@@ -193,7 +199,7 @@ public class S3DbRestHandler implements Handler
             // that start with this prefix...meaning, NO inner directories or files will be returned.
             // To work around this limitation, if the user wants to specify a directory & file prefix, the 'sw' function should 
             // be used.  ex: sw(key,media/c) will return all files/directories that are within the media folder and start with 'c'
-            getObjectsList(req, res, new S3Request(s3Req.getBucket(), s3Req.getKey() + "/", null, s3Req.getSize(), false, s3Req.isMeta(), s3Req.getMarker()), db, mapper);
+            getObjectsList(req, res, new S3Request(s3Req.getBucket(), s3Req.getKey() + "/", null, s3Req.getSize(), false, s3Req.isMeta(), s3Req.getMarker(), req.getHeader("If-None-Match")), db, mapper);
          }
 
       }

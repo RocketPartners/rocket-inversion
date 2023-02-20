@@ -169,7 +169,9 @@ public class S3Db extends Db
    public S3Object getDownload(S3Request req)
    {
       client = getS3Client();
-      return client.getObject(new GetObjectRequest(req.getBucket(), req.getKey()));
+      GetObjectRequest gor = new GetObjectRequest(req.getBucket(), req.getKey());
+      if (req.getEtag() != null) gor.withNonmatchingETagConstraint(req.getEtag());
+      return client.getObject(gor);
    }
 
    public ObjectMetadata getExtendedMetaData(S3Request req)
@@ -189,9 +191,7 @@ public class S3Db extends Db
 
    /**
     * 
-    * @param bucketName
-    * @param size - number of files returned in the listing
-    * @param startFile - the starting point in which the list begins after.
+    * @param s3Req - the s3 request
     * @return
     */
    public ObjectListing getCoreMetaData(S3Request s3Req)
