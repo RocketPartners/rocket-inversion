@@ -28,6 +28,7 @@ output/
 /.settings/
 /.classpath
 /.project
+.idea
 /build/
 /logs/
 

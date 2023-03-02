@@ -10,11 +10,14 @@ buildscript {
 	}
 }
 
+plugins {
+	id 'maven-publish'
+}
+
 apply plugin: 'eclipse'
 apply plugin: 'maven'
 apply plugin: 'java'
 apply plugin: 'org.springframework.boot'
-
 
 //README uncomment the line below to use 'gradle build' to package a war.
 //This file is shipped as a java plugin project not a war plugin project because
@@ -38,6 +41,17 @@ repositories {
    maven { url "http://redshift-maven-repository.s3-website-us-east-1.amazonaws.com/release" }
 }
 
+publishing {
+	repositories {
+		maven {
+			url = 'https://maven.pkg.github.com/RocketPartners/artifacts'
+			credentials {
+				username = System.env.GHP_USER
+				password = System.env.GHP_PASSWORD
+			}
+		}
+	}
+}
 dependencies {
 
 	compile 'org.springframework.boot:spring-boot-starter-web'
