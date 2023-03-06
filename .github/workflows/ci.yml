@@ -1,8 +1,6 @@
 on:
   push: true,
   workflow_dispatch: true,
-  release:
-    types: [ created ]
 jobs:
   CI:
     runs-on: ubuntu-latest
