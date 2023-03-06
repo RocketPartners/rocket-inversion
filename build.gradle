@@ -27,10 +27,16 @@ project.docsDirName='../docs/master/'
 
 configurations.all { resolutionStrategy.cacheChangingModulesFor 0, 'seconds' }
 
-
-version = 'master'
+version = '0.3.4'
 group = 'com.github.RocketPartners'
 sourceCompatibility = 1.8
+
+ext {
+   archiveRepo = "https://maven.pkg.github.com/RocketPartners/artifacts"
+   archiveRepoUser = System.env.GHP_USER
+   archiveRepoPassword = System.env.GHP_PASSWORD
+   junitVersion = '5.8.1'
+}
 
 repositories {
    mavenLocal()
@@ -83,8 +89,59 @@ dependencies {
 
 	//scripting with velocity engine
 	compile group: 'org.apache.velocity', name: 'velocity-engine-core', version: '2.0'
+   compile group: 'commons-codec', name: 'commons-codec', version: '1.10'
+   compile group: 'commons-collections', name: 'commons-collections', version: '3.2.1'
+   compile group: 'org.apache.commons', name: 'commons-csv', version: '1.4'
+   compile group: 'commons-httpclient', name: 'commons-httpclient', version: '3.1'
+   compile group: 'org.apache.commons', name: 'commons-lang3', version: '3.4'
+
+
+   // required for the Redis client
+   compile group: 'redis.clients', name: 'jedis', version: '3.1.0'
+
+   compile 'com.amazonaws:aws-java-sdk-s3:1.11.390'
+   compile 'com.amazonaws:aws-java-sdk-dynamodb:1.11.390'
+   compile 'com.amazonaws:aws-java-sdk-kinesis:1.11.390'
+
+   //drivers for supportd DBs
+   compile group: 'mysql', name: 'mysql-connector-java', version: '5.1.34'
+   compile 'org.postgresql:postgresql:42.1.4'
+
+   // Beware of changing the redshift driver version. Newer versions of this driver are not thread-safe
+   // Version 1.2.10.1009 is thread-safe
+   // https://stackoverflow.com/questions/52884036/java-sql-sqlnontransientexception-amazonjdbc10900-not-all-parameters-have
+   compile group: 'com.amazon.redshift', name: 'redshift-jdbc42-no-awssdk', version: '1.2.10.1009'
+
+   compile group: 'com.auth0', name: 'java-jwt', version: '3.1.0'
+
+   compile group: 'ch.qos.logback', name: 'logback-classic', version: '1.1.11'
+
+   compile "javax.servlet:javax.servlet-api:3.1.0"
+
+   compile 'net.jodah:expiringmap:0.5.8'
+   compile group: 'org.graalvm', name: 'graal-sdk', version: '1.0.0-rc7'
+   compile group: 'com.oracle.truffle', name: 'truffle-api', version: '1.0.0-rc7'
+   compile files('libs/graaljs.jar')
+   compile files('libs/tregex.jar')
+
+
+   compile group: 'org.apache.velocity', name: 'velocity-engine-core', version: '2.0'
+   //	compile group: 'org.apache.velocity', name: 'velocity-engine-scripting', version: '2.0'
+
+    testImplementation group: 'org.hamcrest', name: 'hamcrest-all', version: '1.3'
+    testImplementation group: 'org.hamcrest', name: 'hamcrest', version: '2.2'
+    testImplementation group: 'com.github.tomakehurst', name: 'wiremock', version: '2.27.2'
+    testImplementation "org.junit.jupiter:junit-jupiter:$junitVersion"
+    testImplementation group: 'org.junit.jupiter', name: 'junit-jupiter-api', version: '5.9.2'
+    testImplementation 'org.mockito:mockito-junit-jupiter:4.3.1'
+    testImplementation 'org.mockito:mockito-inline:4.3.1'
+    testRuntimeOnly "org.junit.jupiter:junit-jupiter-engine:$junitVersion"
 
 	testCompile 'junit:junit:4.12'
+}
+
+test {
+    useJUnitPlatform()
 }
 
 

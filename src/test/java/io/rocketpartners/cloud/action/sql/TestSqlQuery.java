@@ -20,9 +20,14 @@ import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
 
+<<<<<<< HEAD:src/test/java/io/rocketpartners/cloud/action/sql/TestSqlQuery.java
 import org.junit.Test;
 
 import junit.framework.TestCase;
+=======
+import io.rcktapp.rql.sql.SqlRql;
+import org.junit.jupiter.api.Test;
+>>>>>>> 5e8a99b (this is now 0.3.4):src/test/java/io/rcktapp/rql/TestSqlRql.java
 
 public class TestSqlQuery extends TestCase
 {
@@ -34,13 +39,11 @@ public class TestSqlQuery extends TestCase
    @Test
    public void test1() throws Exception
    {
-      List<RqlTest> tests = new ArrayList();
+      List<RqlTest> tests = new ArrayList<>();
 
       String rql = null;
       String select = null;
       String dynamicSql = null;
-      String preprdStmt = null;
-      String[] params = null;
 
       //these tests are run in reverse order so that you can test your most recently added tests
       //first (by adding them to the bottom of the list) and keep the comment lines referencing
@@ -561,16 +564,15 @@ public class TestSqlQuery extends TestCase
             }
             System.out.println(" ");
 
-            String err = "failed test: " + str1 + " != " + str2;
             return false;
          }
       }
       return true;
    }
 
-   static LinkedHashMap split(String queryString)
+   static LinkedHashMap<String, String> split(String queryString)
    {
-      LinkedHashMap map = new LinkedHashMap();
+      LinkedHashMap<String, String> map = new LinkedHashMap<>();
 
       String[] terms = queryString.split("&");
       for (String term : terms)
@@ -582,7 +584,7 @@ public class TestSqlQuery extends TestCase
          }
          else
          {
-            String value = term.substring(eqIdx + 1, term.length());
+            String value = term.substring(eqIdx + 1);
             term = term.substring(0, eqIdx);
             map.put(term, value);
          }
