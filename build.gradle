@@ -176,3 +176,9 @@ uploadArchives {
    }
    dependsOn assemble
 }
+
+tasks.register("getVersion") {
+    doLast {
+        println(project.version)
+    }
+}
