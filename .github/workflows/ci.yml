@@ -1,4 +1,8 @@
-on: [push, workflow_dispatch]
+on:
+  push: true,
+  workflow_dispatch: true,
+  release:
+    types: [ created ]
 jobs:
   CI:
     runs-on: ubuntu-latest
@@ -50,18 +54,13 @@ jobs:
           path: "build/test-results/test/TEST-*.xml"
           reporter: java-junit
 
-      - name: Build and Tag Docker image
-        id: build-image
-        env:
-          TAG_VERSION: ${{ steps.image_name.outputs.image }}
-        run: |
-          echo "Log in as $GHP_USER to ghcr.io"
-          echo "$GHP_PASSWORD" | docker login ghcr.io -u $GHP_USER --password-stdin
-          echo "Image will be tagged as $TAG_VERSION"
-          docker build --build-arg BUILD_DATE=$(date -u +'%Y-%m-%dT%H:%M:%SZ') -t ghcr.io/rocketpartners/snooze:$TAG_VERSION .
-          docker push ghcr.io/rocketpartners/snooze:$TAG_VERSION
-          echo "image=ghcr.io/rocketpartners/snooze:$TAG_VERSION" >> $GITHUB_OUTPUT
-          
+      - name: Validate Gradle wrapper
+        uses: gradle/wrapper-validation-action@e6e38bacfdf1a337459f332974bb2327a31aaf4b
+      - name: Publish package
+        uses: gradle/gradle-build-action@67421db6bd0bf253fb4bd25b31ebb98943c375e1
+        with:
+          arguments: uploadArchives
+
       - name: Update Slack
         if: always()
         continue-on-error: true
