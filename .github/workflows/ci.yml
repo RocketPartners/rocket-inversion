@@ -1,0 +1,83 @@
+on: [push, workflow_dispatch]
+jobs:
+  CI:
+    runs-on: ubuntu-latest
+    env:
+      GHP_USER: ${{ secrets.GHP_USER }}
+      GHP_PASSWORD: ${{ secrets.GHP_PASSWORD }}
+      SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Extract version
+        run: echo "##[set-output name=version;]$(./gradlew -q getVersion | tail -n 1)"
+        id: extract_version
+
+      - name: Extract branch name
+        shell: bash
+        run: echo "##[set-output name=branch;]$(echo ${GITHUB_REF#refs/heads/})"
+        id: extract_branch
+
+      - name: Extract image name
+        shell: bash
+        run: |
+          if [ ${{ steps.extract_branch.outputs.branch }} == 'main' ]
+          then
+            echo "##[set-output name=image;]${{ steps.extract_version.outputs.version }}"
+          else
+            echo "##[set-output name=image;]${{ steps.extract_version.outputs.version }}-${{ steps.extract_branch.outputs.branch }}-SNAPSHOT"
+          fi
+        id: image_name
+
+      - name: Setup Java
+        uses: actions/setup-java@v3
+        with:
+          distribution: corretto
+          java-version: '11'
+
+      - name: Assemble
+        run: ./gradlew clean assemble
+
+      - name: Test
+        run: ./gradlew test -x assemble
+
+      - name: Test Report
+        if: always()
+        uses: dorny/test-reporter@v1
+        with:
+          name: Test Report
+          path: "build/test-results/test/TEST-*.xml"
+          reporter: java-junit
+
+      - name: Build and Tag Docker image
+        id: build-image
+        env:
+          TAG_VERSION: ${{ steps.image_name.outputs.image }}
+        run: |
+          echo "Log in as $GHP_USER to ghcr.io"
+          echo "$GHP_PASSWORD" | docker login ghcr.io -u $GHP_USER --password-stdin
+          echo "Image will be tagged as $TAG_VERSION"
+          docker build --build-arg BUILD_DATE=$(date -u +'%Y-%m-%dT%H:%M:%SZ') -t ghcr.io/rocketpartners/snooze:$TAG_VERSION .
+          docker push ghcr.io/rocketpartners/snooze:$TAG_VERSION
+          echo "image=ghcr.io/rocketpartners/snooze:$TAG_VERSION" >> $GITHUB_OUTPUT
+          
+      - name: Update Slack
+        if: always()
+        continue-on-error: true
+        uses: slackapi/slack-github-action@v1.23.0
+        with:
+          channel-id: '#lift-build'
+          payload: |
+            {
+              "text": "${{ job.status == 'success' && ':large_green_circle:' || ':red_circle:' }} Push to GitHub ${{ github.repository }} result = ${{ job.status }}: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}",
+              "blocks": [
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "${{ job.status == 'success' && ':large_green_circle:' || ':red_circle:' }} Push to GitHub ${{ github.repository }} result = ${{ job.status }}: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+                  }
+                }
+              ]
+            }
