@@ -25,20 +25,20 @@ import java.util.TreeSet;
 
 public class Api extends Dto
 {
-    protected String name = null;
-    protected String  apiCode     = null;
-    protected String  accountCode = null;
-    protected boolean multiTenant = false;
-    protected String  url         = null;
-    protected List<Db>      dbs       = new ArrayList<>();
-    protected Set<Endpoint> endpoints = new TreeSet<>(Comparator.comparingInt(Rule::getOrder));
-    protected List<Action>  actions   = new ArrayList<>();
-    protected List<AclRule> aclRules  = new ArrayList<>();
+    protected String           name        = null;
+    protected String           apiCode     = null;
+    protected String           accountCode = null;
+    protected boolean          multiTenant = false;
+    protected String           url         = null;
+    protected List<Db>         dbs         = new ArrayList<>();
+    protected Set<Endpoint>    endpoints   = new TreeSet<>(Comparator.comparingInt(Rule::getOrder));
+    protected List<Action>     actions     = new ArrayList<>();
+    protected List<AclRule>    aclRules    = new ArrayList<>();
     protected List<Collection> collections = new ArrayList<>();
-    protected String hash     = null;
+    protected String           hash        = null;
     boolean debug = false;
-    transient long   loadTime = 0;
-    transient Hashtable<String, Integer> cache = new Hashtable<>();
+    transient long                       loadTime = 0;
+    transient Hashtable<String, Integer> cache    = new Hashtable<>();
 
     public Api()
     {
