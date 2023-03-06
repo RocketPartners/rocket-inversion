@@ -1,6 +1,4 @@
-on:
-  push: true,
-  workflow_dispatch: true,
+on: [ push, workflow_dispatch ]
 jobs:
   CI:
     runs-on: ubuntu-latest
