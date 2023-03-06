@@ -15,13 +15,12 @@
  */
 package io.rcktapp.rql;
 
+import io.rcktapp.rql.sql.SqlRql;
+import org.junit.jupiter.api.Test;
+
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
-
-import org.junit.Test;
-
-import io.rcktapp.rql.sql.SqlRql;
 
 public class TestParser
 {
@@ -48,7 +47,7 @@ public class TestParser
 
       Rql rql = Rql.getRql("postgres");
       Parser parser = new Parser(rql);
-      LinkedHashMap<String, String> preds = new LinkedHashMap();
+      LinkedHashMap<String, String> preds = new LinkedHashMap<>();
 
       preds.put("col=val", "eq(\"col\",'val')");
       preds.put("col=eq=val", "eq(\"col\",'val')");
@@ -61,11 +60,9 @@ public class TestParser
       preds.put("firstname=in=fred,george,john", "in(\"firstname\",'fred','george','john')");
       preds.put("eq('string','string')", "eq('string','string')");
 
-      preds.put("eq('string','string')", "eq('string','string')");
-
       //
 
-      List<String> keys = new ArrayList(preds.keySet());
+      List<String> keys = new ArrayList<>(preds.keySet());
 
       for (int i = keys.size() - 1; i >= 0; i--)
       {

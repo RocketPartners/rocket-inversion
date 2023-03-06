@@ -1,10 +1,10 @@
 package io.rcktapp.rql;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNull;
-import static org.junit.Assert.assertTrue;
+import org.junit.jupiter.api.Test;
 
-import org.junit.Test;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 public class TestParts
 {
@@ -70,30 +70,26 @@ public class TestParts
 
       if (!str1.equals(str2))
       {
-         if (!str1.equals(str2))
-         {
-            System.out.println("\r\n");
-            System.out.println("\r\n");
-            System.out.println(str1);
-            System.out.println(str2);
+          System.out.println("\r\n");
+          System.out.println("\r\n");
+          System.out.println(str1);
+          System.out.println(str2);
 
-            for (int i = 0; i < str1.length() && i < str2.length(); i++)
-            {
-               if (str1.charAt(i) == str2.charAt(i))
-               {
-                  System.out.print(" ");
-               }
-               else
-               {
-                  System.out.println("X");
-                  break;
-               }
-            }
-            System.out.println(" ");
+          for (int i = 0; i < str1.length() && i < str2.length(); i++)
+          {
+             if (str1.charAt(i) == str2.charAt(i))
+             {
+                System.out.print(" ");
+             }
+             else
+             {
+                System.out.println("X");
+                break;
+             }
+          }
+          System.out.println(" ");
 
-            String err = "failed test: " + str1 + " != " + str2;
-            return false;
-         }
+          return false;
       }
       return true;
    }

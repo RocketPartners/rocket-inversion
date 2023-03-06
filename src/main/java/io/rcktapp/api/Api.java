@@ -17,394 +17,368 @@ package io.rcktapp.api;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.Hashtable;
 import java.util.List;
+import java.util.Set;
+import java.util.TreeSet;
 
 public class Api extends Dto
 {
-   protected String           name        = null;
-   boolean                    debug       = false;
+    protected String name = null;
+    protected String  apiCode     = null;
+    protected String  accountCode = null;
+    protected boolean multiTenant = false;
+    protected String  url         = null;
+    protected List<Db>      dbs       = new ArrayList<>();
+    protected Set<Endpoint> endpoints = new TreeSet<>(Comparator.comparingInt(Rule::getOrder));
+    protected List<Action>  actions   = new ArrayList<>();
+    protected List<AclRule> aclRules  = new ArrayList<>();
+    protected List<Collection> collections = new ArrayList<>();
+    protected String hash     = null;
+    boolean debug = false;
+    transient long   loadTime = 0;
+    transient Hashtable<String, Integer> cache = new Hashtable<>();
 
-   protected String           apiCode     = null;
-   protected String           accountCode = null;
-   protected boolean          multiTenant = false;
-   protected String           url         = null;
+    public Api()
+    {
+    }
 
-   protected List<Db>         dbs         = new ArrayList();
-   protected List<Endpoint>   endpoints   = new ArrayList();
-   protected List<Action>     actions     = new ArrayList();
-   protected List<AclRule>    aclRules    = new ArrayList();
+    public Api(String name)
+    {
+        this.name = name;
+    }
 
-   protected List<Collection> collections = new ArrayList();
+    public void startup()
+    {
+        for (Db db : dbs)
+        {
+            db.startup();
+        }
+    }
 
-   transient long             loadTime    = 0;
-   protected String           hash        = null;
+    public void shutdown()
+    {
+        for (Db db : dbs)
+        {
+            db.shutdown();
+        }
+    }
 
-   transient Hashtable        cache       = new Hashtable();
+    public String getName()
+    {
+        return name;
+    }
 
-   public Api()
-   {
-   }
+    public void setName(String name)
+    {
+        this.name = name;
+    }
 
-   public Api(String name)
-   {
-      this.name = name;
-   }
+    public String getHash()
+    {
+        return hash;
+    }
 
-   public void startup()
-   {
-      for (Db db : dbs)
-      {
-         db.startup();
-      }
-   }
+    public void setHash(String hash)
+    {
+        this.hash = hash;
+    }
 
-   public void shutdown()
-   {
-      for (Db db : dbs)
-      {
-         db.shutdown();
-      }
-   }
+    public Table findTable(String name)
+    {
+        for (Db db : dbs)
+        {
+            Table t = db.getTable(name);
+            if (t != null)
+                return t;
+        }
+        return null;
+    }
 
-   public String getName()
-   {
-      return name;
-   }
+    public Db findDb(String collection, Class<?> dbClass)
+    {
+        Collection c = getCollection(collection, dbClass);
+        if (c != null)
+            return c.getEntity().getTable().getDb();
 
-   public void setName(String name)
-   {
-      this.name = name;
-   }
+        return null;
+    }
 
-   public String getHash()
-   {
-      return hash;
-   }
+    public Collection getCollection(String name)
+    {
+        return getCollection(name, null);
+    }
 
-   public void setHash(String hash)
-   {
-      this.hash = hash;
-   }
-
-   public Table findTable(String name)
-   {
-      for (Db db : dbs)
-      {
-         Table t = db.getTable(name);
-         if (t != null)
-            return t;
-      }
-      return null;
-   }
-
-   public Db findDb(String collection, Class dbClass)
-   {
-      Collection c = getCollection(collection, dbClass);
-      if (c != null)
-         return c.getEntity().getTable().getDb();
-
-      return null;
-   }
-
-   public Collection getCollection(String name)
-   {
-      return getCollection(name, null);
-   }
-
-   public Collection getCollection(String name, Class dbClass) throws ApiException
-   {
-      for (Collection collection : collections)
-      {
-         if (collection.getName().equalsIgnoreCase(name))
-         {
-            if (dbClass == null || dbClass.isAssignableFrom(collection.getEntity().getTable().getDb().getClass()))
-               return collection;
-         }
-      }
-
-      for (Collection collection : collections)
-      {
-         // This loop is done separately from the one above to allow 
-         // collections to have precedence over aliases
-         for (String alias : collection.getAliases())
-         {
-            if (name.equalsIgnoreCase(alias))
+    public Collection getCollection(String name, Class<?> dbClass) throws ApiException
+    {
+        for (Collection collection : collections)
+        {
+            if (collection.getName().equalsIgnoreCase(name))
             {
-               if (dbClass == null || dbClass.isAssignableFrom(collection.getEntity().getTable().getDb().getClass()))
-                  return collection;
+                if (dbClass == null || dbClass.isAssignableFrom(collection.getEntity().getTable().getDb().getClass()))
+                    return collection;
             }
-         }
-      }
+        }
 
-      if (dbClass != null)
-      {
-         throw new ApiException(SC.SC_404_NOT_FOUND, "Collection '" + name + "' configured with Db class '" + dbClass.getSimpleName() + "' could not be found");
-      }
-      else
-      {
-         throw new ApiException(SC.SC_404_NOT_FOUND, "Collection '" + name + "' could not be found");
-      }
-   }
+        for (Collection collection : collections)
+        {
+            // This loop is done separately from the one above to allow
+            // collections to have precedence over aliases
+            for (String alias : collection.getAliases())
+            {
+                if (name.equalsIgnoreCase(alias))
+                {
+                    if (dbClass == null || dbClass.isAssignableFrom(collection.getEntity().getTable().getDb().getClass()))
+                        return collection;
+                }
+            }
+        }
 
-   public Collection getCollection(Table tbl)
-   {
-      for (Collection collection : collections)
-      {
-         if (collection.getEntity().getTable() == tbl)
-            return collection;
-      }
-      return null;
-   }
+        if (dbClass != null)
+        {
+            throw new ApiException(SC.SC_404_NOT_FOUND, "Collection '" + name + "' configured with Db class '" + dbClass.getSimpleName() + "' could not be found");
+        }
+        else
+        {
+            throw new ApiException(SC.SC_404_NOT_FOUND, "Collection '" + name + "' could not be found");
+        }
+    }
 
-   public Collection getCollection(Entity entity)
-   {
-      for (Collection collection : collections)
-      {
-         if (collection.getEntity() == entity)
-            return collection;
-      }
-      return null;
-   }
+    public Collection getCollection(Table tbl)
+    {
+        for (Collection collection : collections)
+        {
+            if (collection.getEntity().getTable() == tbl)
+                return collection;
+        }
+        return null;
+    }
 
-   public Entity getEntity(Table table)
-   {
-      for (Collection collection : collections)
-      {
-         if (collection.getEntity().getTable() == table)
-            return collection.getEntity();
-      }
+    public Collection getCollection(Entity entity)
+    {
+        for (Collection collection : collections)
+        {
+            if (collection.getEntity() == entity)
+                return collection;
+        }
+        return null;
+    }
 
-      return null;
-   }
+    public Entity getEntity(Table table)
+    {
+        for (Collection collection : collections)
+        {
+            if (collection.getEntity().getTable() == table)
+                return collection.getEntity();
+        }
 
-   public List<Collection> getCollections()
-   {
-      return new ArrayList(collections);
-   }
+        return null;
+    }
 
-   public void setCollections(List<Collection> collections)
-   {
-      this.collections.clear();
-      for (Collection collection : collections)
-         addCollection(collection);
-   }
+    public List<Collection> getCollections()
+    {
+        return new ArrayList<>(collections);
+    }
 
-   /**
-    * Bi-directional method also sets 'this' api on the collection
-    * @param collection
-    */
-   public void addCollection(Collection collection)
-   {
-      if (!collections.contains(collection))
-         collections.add(collection);
+    public void setCollections(List<Collection> collections)
+    {
+        this.collections.clear();
+        for (Collection collection : collections)
+            addCollection(collection);
+    }
 
-      if (collection.getApi() != this)
-         collection.setApi(this);
-   }
+    /**
+     * Bidirectional method also sets 'this' api on the collection
+     *
+     * @param collection the collection to add to the collections list
+     */
+    public void addCollection(Collection collection)
+    {
+        if (!collections.contains(collection))
+            collections.add(collection);
 
-   public void removeCollection(Collection collection)
-   {
-      collections.remove(collection);
-   }
+        if (collection.getApi() != this)
+            collection.setApi(this);
+    }
 
-   public Db getDb(String name)
-   {
-      if (name == null)
-         return null;
+    public void removeCollection(Collection collection)
+    {
+        collections.remove(collection);
+    }
 
-      for (Db db : dbs)
-      {
-         if (name.equalsIgnoreCase(db.getName()))
-            return db;
-      }
-      return null;
-   }
+    public Db getDb(String name)
+    {
+        if (name == null)
+            return null;
 
-   /**
-    * @return the dbs
-    */
-   public List<Db> getDbs()
-   {
-      return new ArrayList(dbs);
-   }
+        for (Db db : dbs)
+        {
+            if (name.equalsIgnoreCase(db.getName()))
+                return db;
+        }
+        return null;
+    }
 
-   /**
-       * @param dbs the dbs to set
-       */
-   public void setDbs(List<Db> dbs)
-   {
-      for (Db db : dbs)
-         addDb(db);
-   }
+    /**
+     * @return the dbs
+     */
+    public List<Db> getDbs()
+    {
+        return new ArrayList<>(dbs);
+    }
 
-   public void addDb(Db db)
-   {
-      if (!dbs.contains(db))
-         dbs.add(db);
+    /**
+     * @param dbs the dbs to set
+     */
+    public void setDbs(List<Db> dbs)
+    {
+        for (Db db : dbs)
+            addDb(db);
+    }
 
-      if (db.getApi() != this)
-         db.setApi(this);
-   }
+    public void addDb(Db db)
+    {
+        if (!dbs.contains(db))
+            dbs.add(db);
 
-   // public void addHandler(String name, String clazz)
-   // {
-   //    try
-   //    {
-   //       handlers.put(name.toLowerCase(), clazz);
-   //    }
-   //    catch (Exception ex)
-   //    {
-   //       throw new ApiException("Unable to add handler \"" + clazz + "\". Reason: " + J.getShortCause(ex));
-   //    }
-   // }
-   //
-   // public void setHandlers(String handlers)
-   // {
-   //    if (handlers == null)
-   //       return;
-   //
-   //    String[] parts = handlers.split(",");
-   //    for (int i = 0; i < parts.length - 1; i += 2)
-   //    {
-   //       addHandler(parts[i].trim(), parts[i + 1].trim());
-   //    }
-   // }
+        if (db.getApi() != this)
+            db.setApi(this);
+    }
 
-   public long getLoadTime()
-   {
-      return loadTime;
-   }
+    public long getLoadTime()
+    {
+        return loadTime;
+    }
 
-   public void setLoadTime(long loadTime)
-   {
-      this.loadTime = loadTime;
-   }
+    public void setLoadTime(long loadTime)
+    {
+        this.loadTime = loadTime;
+    }
 
-   public List<Endpoint> getEndpoints()
-   {
-      return new ArrayList(endpoints);
-   }
+    public List<Endpoint> getEndpoints()
+    {
+        return new ArrayList<>(endpoints);
+    }
 
-   public void setEndpoints(List<Endpoint> endpoints)
-   {
-      this.endpoints.clear();
-      for (Endpoint endpoint : endpoints)
-         addEndpoint(endpoint);
-   }
+    public void setEndpoints(List<Endpoint> endpoints)
+    {
+        this.endpoints.clear();
+        for (Endpoint endpoint : endpoints)
+            addEndpoint(endpoint);
+    }
 
-   public void addEndpoint(Endpoint endpoint)
-   {
-      if (!endpoints.contains(endpoint))
-         endpoints.add(endpoint);
+    public void addEndpoint(Endpoint endpoint)
+    {
+        endpoints.add(endpoint);
 
-      if (endpoint.getApi() != this)
-         endpoint.setApi(this);
-   }
+        if (endpoint.getApi() != this)
+            endpoint.setApi(this);
+    }
 
-   public List<Action> getActions()
-   {
-      return new ArrayList(actions);
-   }
+    public List<Action> getActions()
+    {
+        return new ArrayList<>(actions);
+    }
 
-   public void setActions(List<Action> actions)
-   {
-      this.actions.clear();
-      for (Action action : actions)
-         addAction(action);
-   }
+    public void setActions(List<Action> actions)
+    {
+        this.actions.clear();
+        for (Action action : actions)
+            addAction(action);
+    }
 
-   public void addAction(Action action)
-   {
-      if (!actions.contains(action))
-         actions.add(action);
+    public void addAction(Action action)
+    {
+        if (!actions.contains(action))
+            actions.add(action);
 
-      if (action.getApi() != this)
-         action.setApi(this);
-   }
+        if (action.getApi() != this)
+            action.setApi(this);
+    }
 
-   public void addAclRule(AclRule acl)
-   {
-      if (!aclRules.contains(acl))
-      {
-         aclRules.add(acl);
-         Collections.sort(aclRules);
-      }
+    public void addAclRule(AclRule acl)
+    {
+        if (!aclRules.contains(acl))
+        {
+            aclRules.add(acl);
+            Collections.sort(aclRules);
+        }
 
-      if (acl.getApi() != this)
-         acl.setApi(this);
-   }
+        if (acl.getApi() != this)
+            acl.setApi(this);
+    }
 
-   public void setAclRules(List<AclRule> acls)
-   {
-      this.aclRules.clear();
-      for (AclRule acl : acls)
-         addAclRule(acl);
-   }
+    public List<AclRule> getAclRules()
+    {
+        return new ArrayList<>(aclRules);
+    }
 
-   public List<AclRule> getAclRules()
-   {
-      return new ArrayList(aclRules);
-   }
+    public void setAclRules(List<AclRule> acls)
+    {
+        this.aclRules.clear();
+        for (AclRule acl : acls)
+            addAclRule(acl);
+    }
 
-   public boolean isDebug()
-   {
-      return debug;
-   }
+    public boolean isDebug()
+    {
+        return debug;
+    }
 
-   public void setDebug(boolean debug)
-   {
-      this.debug = debug;
-   }
+    public void setDebug(boolean debug)
+    {
+        this.debug = debug;
+    }
 
-   public String getApiCode()
-   {
-      return apiCode;
-   }
+    public String getApiCode()
+    {
+        return apiCode;
+    }
 
-   public void setApiCode(String apiCode)
-   {
-      this.apiCode = apiCode;
-   }
+    public void setApiCode(String apiCode)
+    {
+        this.apiCode = apiCode;
+    }
 
-   public String getAccountCode()
-   {
-      return accountCode;
-   }
+    public String getAccountCode()
+    {
+        return accountCode;
+    }
 
-   public void setAccountCode(String accountCode)
-   {
-      this.accountCode = accountCode;
-   }
+    public void setAccountCode(String accountCode)
+    {
+        this.accountCode = accountCode;
+    }
 
-   public boolean isMultiTenant()
-   {
-      return multiTenant;
-   }
+    public boolean isMultiTenant()
+    {
+        return multiTenant;
+    }
 
-   public void setMultiTenant(boolean multiTenant)
-   {
-      this.multiTenant = multiTenant;
-   }
+    public void setMultiTenant(boolean multiTenant)
+    {
+        this.multiTenant = multiTenant;
+    }
 
-   public Object putCache(Object key, Object value)
-   {
-      return cache.put(key, value);
-   }
+    public void putCache(String key, Integer value)
+    {
+        cache.put(key, value);
+    }
 
-   public Object getCache(Object key)
-   {
-      return cache.get(key);
-   }
+    public Integer getCache(String key)
+    {
+        return cache.get(key);
+    }
 
-   public String getUrl()
-   {
-      return url;
-   }
+    public String getUrl()
+    {
+        return url;
+    }
 
-   public void setUrl(String url)
-   {
-      this.url = url;
-   }
+    public void setUrl(String url)
+    {
+        this.url = url;
+    }
 
 }
