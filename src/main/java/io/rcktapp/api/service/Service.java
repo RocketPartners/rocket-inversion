@@ -282,9 +282,9 @@ public class Service
          res.debug(res.getStatusCode());
 
          String output = res.getText();
-         res.withContentLength(output.length());
          if (output != null)
          {
+            res.withContentLength(output.length());
             if (res.getContentType() == null)
             {
                if (output.indexOf("<html") > -1)

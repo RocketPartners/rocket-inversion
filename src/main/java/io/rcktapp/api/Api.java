@@ -23,6 +23,17 @@ import java.util.List;
 import java.util.Set;
 import java.util.TreeSet;
 
+class RuleComparator implements Comparator<Rule>
+{
+   public int compare(Rule r1, Rule r2)
+   {
+       if (r1 == null || r2 == null) return 0;
+       int diff = r1.getOrder() - r2.getOrder();
+       if (diff == 0)
+           return r1.getName().compareTo(r2.getName());
+       return diff;
+   }
+}
 public class Api extends Dto
 {
    protected String           name        = null;
@@ -34,7 +45,7 @@ public class Api extends Dto
    protected String           url         = null;
 
    protected  List<Db>      dbs       = new ArrayList();
-   protected Set<Endpoint> endpoints = new TreeSet<>(Comparator.comparingInt(Rule::getOrder));
+   protected Set<Endpoint> endpoints = new TreeSet<>(new RuleComparator());
    protected  List<Action>  actions   = new ArrayList();
    protected List<AclRule>    aclRules    = new ArrayList();
 
