@@ -1,17 +1,17 @@
 package io.rcktapp.rql;
 
-import java.util.Arrays;
-import java.util.HashSet;
-
-import org.junit.Test;
-
 import io.forty11.web.js.JS;
 import io.forty11.web.js.JSArray;
 import io.forty11.web.js.JSObject;
 import io.rcktapp.api.handler.sql.SqlPostHandler;
-import junit.framework.TestCase;
+import org.junit.jupiter.api.Test;
 
-public class TestCollapse extends TestCase
+import java.util.Collections;
+import java.util.HashSet;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+
+public class TestCollapse
 {
    public static void main(String[] args)
    {
@@ -40,14 +40,14 @@ public class TestCollapse extends TestCase
 
       JSObject collapsed = JS.toJSObject(parent.toString());
 
-      SqlPostHandler.collapse(collapsed, false, new HashSet(Arrays.asList("child2")), "");
+      SqlPostHandler.collapse(collapsed, false, new HashSet<>(Collections.singletonList("child2")), "");
 
       JSObject benchmark = JS.toJSObject(parent.toString());
       benchmark = JS.toJSObject(parent.toString());
       benchmark.remove("child2");
       benchmark.put("child2", new JSObject("href", "http://child2"));
 
-      assertTrue(benchmark.toString().equals(collapsed.toString()));
+       assertEquals(benchmark.toString(), collapsed.toString());
 
    }
 
@@ -72,7 +72,7 @@ public class TestCollapse extends TestCase
 
       JSObject collapsed = JS.toJSObject(parent.toString());
 
-      SqlPostHandler.collapse(collapsed, false, new HashSet(Arrays.asList("arrChildren")), "");
+      SqlPostHandler.collapse(collapsed, false, new HashSet<>(Collections.singletonList("arrChildren")), "");
 
       JSObject benchmark = JS.toJSObject(parent.toString());
       benchmark = JS.toJSObject(parent.toString());
@@ -84,7 +84,7 @@ public class TestCollapse extends TestCase
       }
       benchmark.put("arrChildren", arrChildren);
 
-      assertTrue(benchmark.toString().equals(collapsed.toString()));
+       assertEquals(benchmark.toString(), collapsed.toString());
 
    }
 
@@ -111,13 +111,13 @@ public class TestCollapse extends TestCase
 
       JSObject collapsed = JS.toJSObject(parent.toString());
 
-      SqlPostHandler.collapse(collapsed, false, new HashSet(Arrays.asList("child2.child3")), "");
+      SqlPostHandler.collapse(collapsed, false, new HashSet<>(Collections.singletonList("child2.child3")), "");
 
       JSObject benchmark = JS.toJSObject(parent.toString());
       benchmark = JS.toJSObject(parent.toString());
       benchmark.getObject("child2").getObject("child3").remove("name");
 
-      assertTrue(benchmark.toString().equals(collapsed.toString()));
+       assertEquals(benchmark.toString(), collapsed.toString());
 
    }
 

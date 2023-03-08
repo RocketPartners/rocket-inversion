@@ -1,0 +1,68 @@
+name: CI for pull request
+
+on:
+  pull_request:
+    branches: [ main, develop ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    env:
+      GHP_USER: ${{ secrets.GHP_USER }}
+      GHP_PASSWORD: ${{ secrets.GHP_PASSWORD }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Set up JDK 8
+        uses: actions/setup-java@v3
+        with:
+          distribution: corretto
+          java-version: '8'
+
+      - name: Validate code formatting
+        uses: gradle/gradle-build-action@v2.1.4
+        with:
+          arguments: check -x test
+  test:
+    runs-on: ubuntu-latest
+    env:
+      GHP_USER: ${{ secrets.GHP_USER }}
+      GHP_PASSWORD: ${{ secrets.GHP_PASSWORD }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Set up JDK 8
+        uses: actions/setup-java@v3
+        with:
+          distribution: corretto
+          java-version: '8'
+
+      - name: Validate tests pass
+        uses: gradle/gradle-build-action@v2.1.4
+        with:
+          arguments: test
+  build:
+    runs-on: ubuntu-latest
+    env:
+      GHP_USER: ${{ secrets.GHP_USER }}
+      GHP_PASSWORD: ${{ secrets.GHP_PASSWORD }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Set up JDK 8
+        uses: actions/setup-java@v3
+        with:
+          distribution: corretto
+          java-version: '8'
+
+      - name: Build jar and Docker image
+        uses: gradle/gradle-build-action@v2.1.4
+        with:
+          arguments: build

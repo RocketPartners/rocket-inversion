@@ -17,8 +17,11 @@ package io.rcktapp.api;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.Hashtable;
 import java.util.List;
+import java.util.Set;
+import java.util.TreeSet;
 
 public class Api extends Dto
 {
@@ -30,9 +33,9 @@ public class Api extends Dto
    protected boolean          multiTenant = false;
    protected String           url         = null;
 
-   protected List<Db>         dbs         = new ArrayList();
-   protected List<Endpoint>   endpoints   = new ArrayList();
-   protected List<Action>     actions     = new ArrayList();
+   protected  List<Db>      dbs       = new ArrayList();
+   protected Set<Endpoint> endpoints = new TreeSet<>(Comparator.comparingInt(Rule::getOrder));
+   protected  List<Action>  actions   = new ArrayList();
    protected List<AclRule>    aclRules    = new ArrayList();
 
    protected List<Collection> collections = new ArrayList();

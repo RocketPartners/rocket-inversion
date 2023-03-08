@@ -15,17 +15,11 @@
  */
 package io.rcktapp.rql;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertNull;
-import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
-
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -39,6 +33,12 @@ import io.rcktapp.rql.elastic.QueryDsl;
 import io.rcktapp.rql.elastic.Range;
 import io.rcktapp.rql.elastic.Term;
 import io.rcktapp.rql.elastic.Wildcard;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.fail;
 
 /**
  * @author kfrankic
@@ -149,7 +149,7 @@ public class TestElasticRql
          ObjectMapper mapper = new ObjectMapper();
          String json = mapper.writeValueAsString(dsl);
 
-         assertNotNull("json should not be empty.", json);
+         assertNotNull(json, "json should not be empty.");
          assertEquals("{\"bool\":{\"should\":[{\"wildcard\":{\"city\":\"*andl*\"}}]}}", json);
 
       }
@@ -456,7 +456,8 @@ public class TestElasticRql
          String json = mapper.writeValueAsString(dsl.toDslMap());
 
          assertNotNull("json should not be empty.", json);
-         assertEquals("{\"size\":100,\"query\":{\"bool\":{}},\"from\":0,\"sort\":[{\"test\":\"ASC\"},{\"id\":\"asc\"}]}", json);
+         assertEquals("{\"size\":100,\"query\":{\"bool\":{}},\"from\":0,\"sort\":[{\"test\":{\"missing\":\"_first\",\"order\":\"ASC\"}},{\"id\":{\"missing\":\"_first\",\"order\":\"asc\"}}]}", json);
+
 
          io.rcktapp.rql.elastic.Order order = dsl.getOrder();
          assertNotNull(order);
@@ -482,7 +483,7 @@ public class TestElasticRql
          String json = mapper.writeValueAsString(dsl.toDslMap());
 
          assertNotNull("json should not be empty.", json);
-         assertEquals("{\"size\":100,\"query\":{\"bool\":{}},\"from\":0,\"sort\":[{\"test\":\"ASC\"},{\"test2\":\"DESC\"},{\"test3\":\"ASC\"},{\"id\":\"asc\"}]}", json);
+         assertEquals("{\"size\":100,\"query\":{\"bool\":{}},\"from\":0,\"sort\":[{\"test\":{\"missing\":\"_first\",\"order\":\"ASC\"}},{\"test2\":{\"missing\":\"_last\",\"order\":\"DESC\"}},{\"test3\":{\"missing\":\"_first\",\"order\":\"ASC\"}},{\"id\":{\"missing\":\"_first\",\"order\":\"asc\"}}]}", json);
 
          io.rcktapp.rql.elastic.Order order = dsl.getOrder();
          assertNotNull(order);

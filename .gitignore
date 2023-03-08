@@ -30,5 +30,5 @@ output/
 /.project
 /build/
 /logs/
-
+.idea/
 snooze99.properties

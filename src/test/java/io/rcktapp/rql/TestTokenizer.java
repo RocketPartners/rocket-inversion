@@ -15,12 +15,12 @@
  */
 package io.rcktapp.rql;
 
+import org.junit.jupiter.api.Test;
+
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
-
-import org.junit.Test;
 
 public class TestTokenizer
 {
@@ -33,7 +33,7 @@ public class TestTokenizer
    public void test1() throws Exception
 
    {
-      LinkedHashMap<String, List<String>> tokensTests = new LinkedHashMap();
+      LinkedHashMap<String, List<String>> tokensTests = new LinkedHashMap<>();
 
       tokensTests.put("\"string\"", lst("\"string\""));
       tokensTests.put("'string'", lst("'string'"));
@@ -50,7 +50,7 @@ public class TestTokenizer
 
       tokensTests.put("firstname=in=fred,george,john", lst("firstname", "=", "in", "=", "fred", "george", "john"));
 
-      List<String> keys = new ArrayList(tokensTests.keySet());
+      List<String> keys = new ArrayList<>(tokensTests.keySet());
 
       for (int i = keys.size() - 1; i >= 0; i--)
       {
@@ -59,8 +59,8 @@ public class TestTokenizer
 
          Tokenizer tokenizer = new Tokenizer(src);
 
-         List toked = new ArrayList();
-         String tok = null;
+         List<String> toked = new ArrayList<>();
+         String tok;
 
          while ((tok = tokenizer.next()) != null)
          {
@@ -71,7 +71,10 @@ public class TestTokenizer
          for (int j = 0; !failed && j < tokens.size(); j++)
          {
             if (!tokens.get(j).equals(toked.get(j)))
-               failed = true;
+            {
+                failed = true;
+                break;
+            }
          }
 
          if (failed)

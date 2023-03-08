@@ -1,0 +1,103 @@
+name: CD from main to production environment
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment'
+        required: true
+        default: dev
+        type: choice
+        options:
+          - dev
+          - prod
+      imageTag:
+        description: 'Image Tag (version)'
+        required: true
+        type: string
+      rolePrefix:
+        description: 'rolePrefix'
+        required: true
+        type: choice
+        options:
+          - cirk
+          - cirkEu
+      region:
+        description: 'Target AWS Region'
+        required: true
+        type: choice
+        options:
+          - us-east-1
+          - eu-central-1
+
+
+jobs:
+  Deploy:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        service:
+          - [ event-api, player]
+          - [ file-api, player]
+          - [ api, player]
+          - [ punchcard, player]
+          - [ ngrp-proxy, player]
+          - [ api, portal]
+    environment: ${{ inputs.environment }}
+    env:
+      GHP_USER: ${{ secrets.GHP_USER }}
+      GHP_PASSWORD: ${{ secrets.GHP_PASSWORD }}
+      SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+    steps:
+
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Compute secret names
+        shell: bash
+        run: echo "ENV_NAME=$(echo ${{ inputs.environment }} | tr '[:lower:]' '[:upper:]')" >>$GITHUB_ENV
+
+      - name: Set up AWS credentials
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          aws-access-key-id: ${{ secrets[format('AWS_ACCESS_KEY_ID_{0}', env.ENV_NAME)] }}
+          aws-secret-access-key: ${{ secrets[format('AWS_SECRET_ACCESS_KEY_{0}', env.ENV_NAME)] }}
+          aws-region: ${{ inputs.region }}
+
+      - name: Show identity
+        shell: bash
+        run: aws sts get-caller-identity
+
+      - name: Deploy to AWS CloudFormation
+        uses: aws-actions/aws-cloudformation-github-deploy@v1
+        with:
+          name: ${{ matrix.service[1] }}-${{ matrix.service[0] }}-stack
+          template: .aws/cf-resources.yml
+          no-fail-on-empty-changeset: "1"
+          capabilities: 'CAPABILITY_IAM,CAPABILITY_NAMED_IAM'
+          parameter-overrides: >-
+            imageTag=${{ inputs.imageTag }},
+            runtimeEnvironment=${{ inputs.region }}-${{ inputs.environment }},
+            region=${{ inputs.region }},
+            rolePrefix=${{ inputs.rolePrefix }},
+            ecsCluster=${{ matrix.service[1] }},
+            ecsService=${{ matrix.service[0] }},
+            springProfile=${{ matrix.service[1] }}-${{ matrix.service[0] }}
+            
+      - name: Update Slack
+        if: always()
+        continue-on-error: true
+        uses: slackapi/slack-github-action@v1.23.0
+        with:
+          channel-id: '#lift-deploy'
+          payload: |
+            {
+              "text": "${{ job.status }} for deploy from branch ${{ github.ref_name }}: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}",
+              "blocks": [{
+                "type": "section",
+                "text": {
+                  "type": "mrkdwn",
+                  "text": "${{ job.status == 'success' && ':large_green_circle:' || ':red_circle:' }} ${{ job.status }} for deploy from branch ${{ github.ref_name }}: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+                }
+              }]
+            }
