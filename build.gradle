@@ -5,9 +5,9 @@ buildscript {
     repositories {
         mavenCentral()
     }
-    dependencies {
-        classpath("org.springframework.boot:spring-boot-gradle-plugin:${springBootVersion}")
-    }
+//    dependencies {
+//        classpath("org.springframework.boot:spring-boot-gradle-plugin:${springBootVersion}")
+//    }
 }
 
 plugins {
@@ -17,7 +17,7 @@ plugins {
 apply plugin: 'eclipse'
 apply plugin: 'maven'
 apply plugin: 'java'
-apply plugin: 'org.springframework.boot'
+//apply plugin: 'org.springframework.boot'
 
 //README uncomment the line below to use 'gradle build' to package a war.
 //This file is shipped as a java plugin project not a war plugin project because
@@ -64,12 +64,11 @@ publishing {
 
 dependencies {
 
-    compile 'org.springframework.boot:spring-boot-starter-web'
-    compile 'org.springframework.boot:spring-boot-starter-actuator'
-    compile 'org.springframework.boot:spring-boot-starter-jdbc'
-    compile 'org.springframework.boot:spring-boot-starter-test'
+    compile group: 'org.springframework.boot', name: 'spring-boot-starter-web', version: '2.7.1'
+    compile group: 'org.springframework.boot', name: 'spring-boot-starter-actuator', version: '2.7.1'
+    compile group: 'org.springframework.boot', name: 'spring-boot-starter-jdbc', version: '2.7.1'
+    compile group: 'org.springframework.boot', name: 'spring-boot-starter-test', version: '2.7.1'
     compile 'net.rakugakibox.spring.boot:logback-access-spring-boot-starter:2.6.0'
-
     implementation 'com.sun.xml.bind:jaxb-impl:4.0.0'
     implementation 'jakarta.xml.bind:jakarta.xml.bind-api:2.3.3'
 
@@ -113,7 +112,7 @@ dependencies {
     //scripting with velocity engine
     compile group: 'org.apache.velocity', name: 'velocity-engine-core', version: '2.0'
 
-    testCompile 'junit:junit:4.12'
+    compile 'junit:junit:4.12'  // used in SpringBoot class implementation!
 }
 
 
