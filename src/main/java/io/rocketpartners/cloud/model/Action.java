@@ -15,146 +15,111 @@
  */
 package io.rocketpartners.cloud.model;
 
-import java.util.ArrayList;
-import java.util.LinkedHashSet;
-import java.util.List;
-import java.util.Set;
-
 import io.rocketpartners.cloud.service.Chain;
 import io.rocketpartners.cloud.service.Service;
 import io.rocketpartners.cloud.utils.Utils;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * @author wells
  */
-public abstract class Action<A extends Action> extends Rule<A>
-{
-   protected String comment = null;
+public abstract class Action<A extends Action> extends Rule<A> {
+  protected String comment = null;
 
-   public Action()
-   {
+  public Action() {}
 
-   }
+  public Action(String includePaths, String excludePaths, String config) {
+    withConfig(config);
+    withIncludePaths(includePaths);
+    withExcludePaths(excludePaths);
+  }
 
-   public Action(String includePaths, String excludePaths, String config)
-   {
-      withConfig(config);
-      withIncludePaths(includePaths);
-      withExcludePaths(excludePaths);
-   }
-
-   public void run(Service service, Api api, Endpoint endpoint, Chain chain, Request req, Response res) throws Exception
-   {
-
-   }
-
-   @Override
-   public A withApi(Api api)
-   {
-      if (this.api != api)
-      {
-         this.api = api;
-         //intentionally not bidirectional 
-         // api.withAction(this);
+  public static List<ObjectNode> find(Object parent, String... paths) {
+    List<ObjectNode> found = new ArrayList<>();
+    for (String apath : paths) {
+      for (String path : (List<String>) Utils.explode(",", apath)) {
+        find(parent, found, path, ".");
       }
-      return (A) this;
-   }
+    }
+    return found;
+  }
 
-   public String getComment()
-   {
-      return comment;
-   }
-
-   public A withComment(String comment)
-   {
-      this.comment = comment;
-      return (A) this;
-   }
-
-   public static List<ObjectNode> find(Object parent, String... paths)
-   {
-      List<ObjectNode> found = new ArrayList();
-      for (String apath : paths)
-      {
-         for (String path : (List<String>) Utils.explode(",", apath))
-         {
-            find(parent, found, path, ".");
-         }
+  public static void find(
+      Object parent, List<ObjectNode> found, String targetPath, String currentPath) {
+    if (parent instanceof ArrayNode) {
+      for (Object child : (ArrayNode) parent) {
+        if (child instanceof ObjectNode) find(child, found, targetPath, currentPath);
       }
-      return found;
-   }
-
-   public static void find(Object parent, List<ObjectNode> found, String targetPath, String currentPath)
-   {
-      if (parent instanceof ArrayNode)
-      {
-         for (Object child : (ArrayNode) parent)
-         {
-            if (child instanceof ObjectNode)
-               find(child, found, targetPath, currentPath);
-         }
-      }
-      else if (parent instanceof ObjectNode)
-      {
-         if (!found.contains(parent) && Utils.wildcardMatch(targetPath, currentPath))
-         {
-            found.add((ObjectNode) parent);
-         }
-
-         for (String key : ((ObjectNode) parent).keySet())
-         {
-            Object child = ((ObjectNode) parent).get(key);
-            String nextPath = currentPath == null || currentPath.length() == 0 ? key : currentPath + key.toLowerCase() + ".";
-            find(child, found, targetPath, nextPath);
-         }
-      }
-   }
-
-   public static String getValue(Chain chain, String key)
-   {
-      //      if ("apiId".equalsIgnoreCase(key))
-      //      {
-      //         return chain.getRequest().getApi().getId() + "";
-      //      }
-      //      else 
-      if ("apiCode".equalsIgnoreCase(key))
-      {
-         return chain.getRequest().getApi().getApiCode();
-      }
-      //      else if ("accountId".equalsIgnoreCase(key))
-      //      {
-      //         return chain.getRequest().getApi().getAccountId() + "";
-      //      }
-      else if ("tenantId".equalsIgnoreCase(key))
-      {
-         if (chain.getRequest().getUser() != null)
-            return chain.getRequest().getUser().getTenantId() + "";
-      }
-      else if ("tenantCode".equalsIgnoreCase(key))
-      {
-         if (chain.getRequest().getUser() != null)
-            return chain.getRequest().getUser().getTenantCode();
-      }
-      else if ("userId".equalsIgnoreCase(key))
-      {
-         if (chain.getRequest().getUser() != null)
-            return chain.getRequest().getUser().getId() + "";
-      }
-      else if ("username".equalsIgnoreCase(key))
-      {
-         if (chain.getRequest().getUser() != null)
-            return chain.getRequest().getUser().getUsername();
+    } else if (parent instanceof ObjectNode) {
+      if (!found.contains(parent) && Utils.wildcardMatch(targetPath, currentPath)) {
+        found.add((ObjectNode) parent);
       }
 
-      Object val = chain.get(key);
-      if (val != null)
-         return val.toString();
-      return null;
-   }
+      for (String key : ((ObjectNode) parent).keySet()) {
+        Object child = ((ObjectNode) parent).get(key);
+        String nextPath =
+            currentPath == null || currentPath.length() == 0
+                ? key
+                : currentPath + key.toLowerCase() + ".";
+        find(child, found, targetPath, nextPath);
+      }
+    }
+  }
 
-   public static String nextPath(String path, String next)
-   {
-      return Utils.empty(path) ? next : path + "." + next;
-   }
+  public static String getValue(Chain chain, String key) {
+    //      if ("apiId".equalsIgnoreCase(key))
+    //      {
+    //         return chain.getRequest().getApi().getId() + "";
+    //      }
+    //      else
+    if ("apiCode".equalsIgnoreCase(key)) {
+      return chain.getRequest().getApi().getApiCode();
+    }
+    //      else if ("accountId".equalsIgnoreCase(key))
+    //      {
+    //         return chain.getRequest().getApi().getAccountId() + "";
+    //      }
+    else if ("tenantId".equalsIgnoreCase(key)) {
+      if (chain.getRequest().getUser() != null)
+        return chain.getRequest().getUser().getTenantId() + "";
+    } else if ("tenantCode".equalsIgnoreCase(key)) {
+      if (chain.getRequest().getUser() != null) return chain.getRequest().getUser().getTenantCode();
+    } else if ("userId".equalsIgnoreCase(key)) {
+      if (chain.getRequest().getUser() != null) return chain.getRequest().getUser().getId() + "";
+    } else if ("username".equalsIgnoreCase(key)) {
+      if (chain.getRequest().getUser() != null) return chain.getRequest().getUser().getUsername();
+    }
 
+    Object val = chain.get(key);
+    if (val != null) return val.toString();
+    return null;
+  }
+
+  public static String nextPath(String path, String next) {
+    return Utils.empty(path) ? next : path + "." + next;
+  }
+
+  public void run(
+      Service service, Api api, Endpoint endpoint, Chain chain, Request req, Response res)
+      throws Exception {}
+
+  @Override
+  public A withApi(Api api) {
+    if (this.api != api) {
+      this.api = api;
+      // intentionally not bidirectional
+      // api.withAction(this);
+    }
+    return (A) this;
+  }
+
+  public String getComment() {
+    return comment;
+  }
+
+  public A withComment(String comment) {
+    this.comment = comment;
+    return (A) this;
+  }
 }
