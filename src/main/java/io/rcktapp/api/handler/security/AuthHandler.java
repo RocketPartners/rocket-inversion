@@ -15,18 +15,6 @@
  */
 package io.rcktapp.api.handler.security;
 
-import java.security.MessageDigest;
-import java.sql.Connection;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
-import java.util.UUID;
-
-import javax.xml.bind.annotation.adapters.HexBinaryAdapter;
-
-import org.apache.commons.codec.binary.Base64;
-import org.apache.commons.collections.map.LRUMap;
-
 import io.forty11.j.J;
 import io.forty11.sql.Sql;
 import io.forty11.web.js.JSArray;
@@ -45,6 +33,16 @@ import io.rcktapp.api.SC;
 import io.rcktapp.api.User;
 import io.rcktapp.api.handler.sql.SqlDb;
 import io.rcktapp.api.service.Service;
+import org.apache.commons.codec.binary.Base64;
+import org.apache.commons.codec.binary.Hex;
+import org.apache.commons.collections.map.LRUMap;
+
+import java.security.MessageDigest;
+import java.sql.Connection;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+import java.util.UUID;
 
 public class AuthHandler implements Handler
 {
@@ -457,9 +455,7 @@ public class AuthHandler implements Handler
          digest.update(byteArr);
          byte[] bytes = digest.digest();
 
-         String hex = (new HexBinaryAdapter()).marshal(bytes);
-
-         return hex;
+         return new String(Hex.encodeHex(bytes));
       }
       catch (Exception ex)
       {

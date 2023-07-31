@@ -15,26 +15,6 @@
  */
 package io.rcktapp.api.service;
 
-import java.io.BufferedWriter;
-import java.io.File;
-import java.io.FileWriter;
-import java.io.IOException;
-import java.io.InputStream;
-import java.lang.reflect.Field;
-import java.lang.reflect.ParameterizedType;
-import java.lang.reflect.Type;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.Enumeration;
-import java.util.List;
-import java.util.Map;
-import java.util.Properties;
-import java.util.Vector;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import io.forty11.j.J;
 import io.forty11.j.utils.AutoWire;
 import io.forty11.j.utils.AutoWire.Includer;
@@ -53,6 +33,26 @@ import io.rcktapp.api.Index;
 import io.rcktapp.api.Relationship;
 import io.rcktapp.api.SC;
 import io.rcktapp.api.Table;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.io.BufferedWriter;
+import java.io.File;
+import java.io.FileWriter;
+import java.io.IOException;
+import java.io.InputStream;
+import java.lang.reflect.Field;
+import java.lang.reflect.ParameterizedType;
+import java.lang.reflect.Type;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.Enumeration;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.Properties;
+import java.util.Vector;
 
 public class Configurator
 {
@@ -67,7 +67,7 @@ public class Configurator
       destroyed = true;
    }
 
-   public synchronized void loadConfg(Service service)
+   public synchronized void loadConfg(Service service, Iterator<Map.Entry<Object, Object>> propertySource)
    {
       if (this.service != null)
          return;
@@ -77,7 +77,7 @@ public class Configurator
       try
       {
          log.info("Finding config");
-         Config config = findConfig();
+         Config config = findConfig(propertySource);
          AutoWire w = new AutoWire();
          w.putBean("snooze", service);
          w.load(config.props);
@@ -106,7 +106,7 @@ public class Configurator
                         if (destroyed)
                            return;
 
-                        Config config = findConfig();
+                        Config config = findConfig(propertySource);
                         loadConfig(config, false, false);
                      }
                      catch (Throwable t)
@@ -449,7 +449,7 @@ public class Configurator
       Properties   props = new Properties();
    }
 
-   Config findConfig() throws IOException
+   Config findConfig(Iterator<Map.Entry<Object, Object>> propertySource) throws IOException
    {
       Config config = new Config();
 
@@ -480,6 +480,12 @@ public class Configurator
                config.props.load(is);
             }
          }
+      }
+
+      config.files.add("ADDITIONAL PROPERTIES");
+      while (propertySource.hasNext()) {
+         Map.Entry<Object, Object> entry = propertySource.next();
+         config.props.put(entry.getKey(), entry.getValue());
       }
 
       if (config.files.isEmpty())
