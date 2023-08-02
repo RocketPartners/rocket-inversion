@@ -23,7 +23,6 @@ import java.io.OutputStream;
 import java.util.ArrayList;
 import java.util.Enumeration;
 import java.util.HashMap;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
@@ -45,8 +44,6 @@ import io.rcktapp.api.Request.Uploader;
 import io.rcktapp.api.Response;
 import io.rcktapp.api.SC;
 
-import static java.util.Collections.emptyIterator;
-
 public class Servlet extends HttpServlet
 {
    Service service = new Service();
@@ -56,9 +53,9 @@ public class Servlet extends HttpServlet
       service.destroy();
    }
 
-   public void init(ServletConfig config, Iterator<Map.Entry<Object, Object>> propertySource)
+   public void init(ServletConfig config)
    {
-      service.init(emptyIterator());
+      service.init();
    }
 
    public Service getService()

@@ -42,6 +42,8 @@ import io.rcktapp.api.Response;
 import io.rcktapp.api.SC;
 import io.rcktapp.api.handler.sql.SqlDb.ConnectionLocal;
 
+import static java.util.Collections.emptyIterator;
+
 public class Service
 {
    boolean           inited         = false;
@@ -84,13 +86,16 @@ public class Service
       destroyed = true;
    }
 
+   public synchronized void init()
+   {
+      init(emptyIterator());
+   }
    public synchronized void init(Iterator<Map.Entry<Object, Object>> propertySource)
    {
       if (inited)
          return;
       inited = true;
       configurator.loadConfg(this, propertySource);
-
    }
 
    public Chain service(Request req, Response res)

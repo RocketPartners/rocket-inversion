@@ -33,8 +33,7 @@ import io.rcktapp.api.Index;
 import io.rcktapp.api.Relationship;
 import io.rcktapp.api.SC;
 import io.rcktapp.api.Table;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import lombok.extern.slf4j.Slf4j;
 
 import java.io.BufferedWriter;
 import java.io.File;
@@ -54,10 +53,11 @@ import java.util.Map;
 import java.util.Properties;
 import java.util.Vector;
 
+import static java.util.Collections.emptyIterator;
+
+@Slf4j
 public class Configurator
 {
-   Logger  log       = LoggerFactory.getLogger(Service.class.getName() + ".configuration");
-
    boolean destroyed = false;
 
    Service service   = null;
@@ -65,6 +65,10 @@ public class Configurator
    public void destroy()
    {
       destroyed = true;
+   }
+
+   public synchronized void loadConfg(Service service) {
+      loadConfg(service, emptyIterator());
    }
 
    public synchronized void loadConfg(Service service, Iterator<Map.Entry<Object, Object>> propertySource)
