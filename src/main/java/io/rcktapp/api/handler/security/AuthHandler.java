@@ -455,7 +455,7 @@ public class AuthHandler implements Handler
          digest.update(byteArr);
          byte[] bytes = digest.digest();
 
-         return new String(Hex.encodeHex(bytes));
+         return Hex.encodeHexString( bytes );
       }
       catch (Exception ex)
       {
