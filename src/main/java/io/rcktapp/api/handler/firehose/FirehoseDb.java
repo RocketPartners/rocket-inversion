@@ -1,21 +1,16 @@
 package io.rcktapp.api.handler.firehose;
 
-import com.amazonaws.services.kinesisfirehose.AmazonKinesisFirehoseAsync;
-import com.amazonaws.services.kinesisfirehose.AmazonKinesisFirehoseAsyncClient;
-import com.amazonaws.services.kinesisfirehose.AmazonKinesisFirehoseAsyncClientBuilder;
-import org.atteo.evo.inflector.English;
-
 import com.amazonaws.auth.AWSStaticCredentialsProvider;
 import com.amazonaws.auth.BasicAWSCredentials;
 import com.amazonaws.services.kinesisfirehose.AmazonKinesisFirehose;
-import com.amazonaws.services.kinesisfirehose.AmazonKinesisFirehoseClientBuilder;
-import com.amazonaws.services.s3.AmazonS3ClientBuilder;
-
+import com.amazonaws.services.kinesisfirehose.AmazonKinesisFirehoseAsync;
+import com.amazonaws.services.kinesisfirehose.AmazonKinesisFirehoseAsyncClientBuilder;
 import io.forty11.j.J;
 import io.rcktapp.api.Collection;
 import io.rcktapp.api.Db;
 import io.rcktapp.api.Entity;
 import io.rcktapp.api.Table;
+import org.atteo.evo.inflector.English;
 
 public class FirehoseDb extends Db
 {
@@ -25,11 +20,11 @@ public class FirehoseDb extends Db
 
    /**
     * A CSV of pipe delimited collection name to table name pairs.
-    * 
+    *
     * Example: firehosedb.includeStreams=impression|liftck-player9-impression
-    * 
+    *
     * Or if the collection name is the name as the table name you can just send a the name
-    * 
+    *
     * Example: firehosedb.includeStreams=liftck-player9-impression
     */
    protected String      includeStreams;

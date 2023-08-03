@@ -13,7 +13,7 @@ project.docsDirName='../docs/0.3.x/'
 
 configurations.all { resolutionStrategy.cacheChangingModulesFor 0, 'seconds' }
 
-version = '0.3.6'
+version = '0.3.8'
 group = 'com.github.RocketPartners'
 sourceCompatibility = 1.8
 
@@ -42,6 +42,8 @@ repositories {
 
 dependencies {
 
+   implementation 'org.projectlombok:lombok:1.18.26'
+   annotationProcessor 'org.projectlombok:lombok:1.18.26'
    if (gradle.ext.rckt_snooze['addFortJProjectToClasspath']) {
       compile findProject(":fort_j")
    }
