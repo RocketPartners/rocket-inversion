@@ -96,7 +96,7 @@ public class ElasticsearchDb extends Db<ElasticsearchDb>
          try {
              allResp = HttpUtils.get(allRequestUrl).get(maxRequestDuration, TimeUnit.SECONDS);
          } catch (TimeoutException e) {
-             log.error(String.format("timed out waiting %d seconds for GET %s to complete", maxRequestDuration, allRequestUrl));
+             log.error("timed out waiting {} seconds for GET {} to complete", maxRequestDuration, allRequestUrl);
              throw e;
          }
 

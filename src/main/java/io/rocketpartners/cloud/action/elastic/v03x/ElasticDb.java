@@ -116,7 +116,7 @@ public class ElasticDb extends Db<ElasticDb>
       try {
           allResp = future.get(maxRequestDuration, TimeUnit.SECONDS);
       } catch (TimeoutException e) {
-          log.error(String.format("timed out waiting %d seconds for GET %s to complete", maxRequestDuration, allRequestUrl));
+          log.error("timed out waiting {} seconds for GET {} to complete", maxRequestDuration, allRequestUrl);
           throw e;
       }
 
