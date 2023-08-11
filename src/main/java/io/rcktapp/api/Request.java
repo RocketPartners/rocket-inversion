@@ -16,6 +16,7 @@
 package io.rcktapp.api;
 
 import java.io.InputStream;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -28,6 +29,7 @@ import io.forty11.web.js.JSArray;
 import io.forty11.web.js.JSObject;
 import io.rcktapp.api.service.Service.ApiMatch;
 import io.rcktapp.utils.CaseInsensitiveLookupMap;
+import lombok.Getter;
 
 public class Request
 {
@@ -71,6 +73,9 @@ public class Request
    boolean                  explain          = false;
 
    public Uploader          uploader         = null;
+
+   @Getter
+   private Map<String, Object> memo = new HashMap<>();
 
    public Request(ApiMatch match)
    {
