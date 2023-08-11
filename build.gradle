@@ -15,7 +15,8 @@ configurations.all { resolutionStrategy.cacheChangingModulesFor 0, 'seconds' }
 
 version = '0.3.10'
 group = 'com.github.RocketPartners'
-sourceCompatibility = 1.8
+sourceCompatibility = JavaVersion.VERSION_11
+targetCompatibility = JavaVersion.VERSION_11
 
 ext {
    archiveRepo = "https://maven.pkg.github.com/RocketPartners/artifacts"

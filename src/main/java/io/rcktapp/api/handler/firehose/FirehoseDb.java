@@ -2,16 +2,23 @@ package io.rcktapp.api.handler.firehose;
 
 import com.amazonaws.auth.AWSStaticCredentialsProvider;
 import com.amazonaws.auth.BasicAWSCredentials;
-import com.amazonaws.services.kinesisfirehose.AmazonKinesisFirehose;
 import com.amazonaws.services.kinesisfirehose.AmazonKinesisFirehoseAsync;
 import com.amazonaws.services.kinesisfirehose.AmazonKinesisFirehoseAsyncClientBuilder;
+import com.amazonaws.services.kinesisfirehose.model.ListDeliveryStreamsRequest;
 import io.forty11.j.J;
 import io.rcktapp.api.Collection;
 import io.rcktapp.api.Db;
 import io.rcktapp.api.Entity;
 import io.rcktapp.api.Table;
+import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.tuple.Pair;
 import org.atteo.evo.inflector.English;
 
+import java.util.ArrayList;
+import java.util.List;
+import java.util.stream.Stream;
+
+@Slf4j
 public class FirehoseDb extends Db
 {
    protected String      awsAccessKey   = null;
@@ -31,25 +38,29 @@ public class FirehoseDb extends Db
 
    AmazonKinesisFirehoseAsync firehoseClient = null;
 
+   public FirehoseDb() {
+      super();
+      setType("firehose");
+   }
+
    @Override
    public void bootstrapApi() throws Exception
    {
-      AmazonKinesisFirehose firehoseClient = getFirehoseClient();
+      List<Pair<String, String>> nameActuals = new ArrayList<>();
+      // our local streams
+      getFirehoseClient().listDeliveryStreams(new ListDeliveryStreamsRequest().withDeliveryStreamType("DirectPut")).getDeliveryStreamNames().forEach(name -> nameActuals.add(Pair.of(name.toLowerCase(), name.toLowerCase())));
+      // our defined aliases
+      Stream.of(includeStreams.split(",")).map(part -> part.split("\\|")).forEach(arr -> nameActuals.add(Pair.of(arr[0], arr.length > 1 ? arr[1] : arr[0])));
 
       this.setType("firehose");
 
       if (!J.empty(includeStreams))
       {
-         String[] parts = includeStreams.split(",");
-         for (String part : parts)
+         for (Pair<String, String> stream : nameActuals)
          {
-            String[] arr = part.split("\\|");
-            String collectionName = arr[0];
-            String streamName = collectionName;
-            if (arr.length > 1)
-            {
-               streamName = arr[1];
-            }
+            log.info("bootstrap {} stream {}", getType(), stream);
+            String collectionName = stream.getKey();
+            String streamName = stream.getValue();
 
             Table table = new Table(this, streamName);
             addTable(table);
