@@ -24,6 +24,14 @@ public class FirehoseDb extends Db
    protected String      awsAccessKey   = null;
    protected String      awsSecretKey   = null;
    protected String      awsRegion      = null;
+   /**
+    * If you set a whitelist regex pattern, all of the stream names that we will use MUST match it - even the ones in includeStreams.
+    */
+   protected String    whitelistPattern = null;
+   /**
+    * If you set a blacklist regex pattern, all of the stream names that we will use must NOT match it - even the ones in includeStreams.
+    */
+   protected String    blacklistPattern = null;
 
    /**
     * A CSV of pipe delimited collection name to table name pairs.
@@ -61,6 +69,18 @@ public class FirehoseDb extends Db
             log.info("bootstrap {} stream {}", getType(), stream);
             String collectionName = stream.getKey();
             String streamName = stream.getValue();
+
+            if (!J.empty(whitelistPattern) && !collectionName.matches(whitelistPattern))
+            {
+               log.info("skipping {} stream {} because it doesn't match whitelist pattern {}", getType(), stream, whitelistPattern);
+               continue;
+            }
+
+            if (!J.empty(blacklistPattern) && collectionName.matches(blacklistPattern))
+            {
+               log.info("skipping {} stream {} because it matches blacklist pattern {}", getType(), stream, blacklistPattern);
+               continue;
+            }
 
             Table table = new Table(this, streamName);
             addTable(table);
