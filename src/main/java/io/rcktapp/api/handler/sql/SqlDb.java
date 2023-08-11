@@ -391,17 +391,17 @@ public class SqlDb extends Db
                                     String pkTableName = keyMd.getString("PKTABLE_NAME");
                                     String pkColumnName = keyMd.getString("PKCOLUMN_NAME");
 
-                                    Column fk = getColumn(fkTableName, fkColumnName);
+                                    Column fk = null;
                                     Table fkTable = tableFutures.get(fkTableName).get();
-                                    Column pk = getColumn(pkTableName, pkColumnName);
-                                    Table pkTable = tableFutures.get(pkTableName).get();
                                     for (Column c : fkTable.getColumns())
                                         if (c.getName().equalsIgnoreCase(fkColumnName))
-                                            return c;
-                                    for (Column c : pkTable.getColumns())
-                                        if (c.getName().equalsIgnoreCase(pkColumnName))
-                                            return c;
-                                    fk.setPk(pk);
+                                            fk = c;
+                                    if (fk == null)
+                                        throw new RuntimeException("fk column not found: " + fkTableName + "." + fkColumnName);
+                                   Table pkTable = tableFutures.get(pkTableName).get();
+                                    for (Column pk : pkTable.getColumns())
+                                        if (pk.getName().equalsIgnoreCase(pkColumnName))
+                                            fk.setPk(pk);
 
                                     //log.info(fkTableName + "." + fkColumnName + " -> " + pkTableName + "." + pkColumnName);
                                 }
