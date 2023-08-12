@@ -21,24 +21,32 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Stream;
 
 import com.amazonaws.auth.AWSStaticCredentialsProvider;
 import com.amazonaws.auth.BasicAWSCredentials;
 import com.amazonaws.services.kinesisfirehose.AmazonKinesisFirehose;
 import com.amazonaws.services.kinesisfirehose.AmazonKinesisFirehoseClientBuilder;
+import com.amazonaws.services.kinesisfirehose.model.ListDeliveryStreamsRequest;
 import com.amazonaws.services.kinesisfirehose.model.PutRecordBatchRequest;
 import com.amazonaws.services.kinesisfirehose.model.Record;
 
 import io.rocketpartners.cloud.model.ApiException;
 import io.rocketpartners.cloud.model.Attribute;
+import io.rocketpartners.cloud.model.Collection;
 import io.rocketpartners.cloud.model.Db;
+import io.rocketpartners.cloud.model.Entity;
 import io.rocketpartners.cloud.model.JSNode;
 import io.rocketpartners.cloud.model.Results;
 import io.rocketpartners.cloud.model.SC;
 import io.rocketpartners.cloud.model.Table;
 import io.rocketpartners.cloud.rql.Term;
+import io.rocketpartners.cloud.utils.English;
 import io.rocketpartners.cloud.utils.Rows.Row;
 import io.rocketpartners.cloud.utils.Utils;
+import org.apache.commons.lang3.tuple.Pair;
+
+import static io.rocketpartners.cloud.utils.Utils.empty;
 
 /**
  * Posts records to a mapped AWS Kinesis Firehose stream. 
@@ -63,9 +71,12 @@ import io.rocketpartners.cloud.utils.Utils;
  * If your firehose is Redshift, you probably want to leave <code>jsonLowercaseNames</code>
  * at its default which is true.  Redshift only matches to lowercase names on COPY.
  * 
- * The underlying Firehose stream is mapped to the collection name through
- * the FireshoseDb.includeStreams property.
- * 
+ * The underlying Firehose stream is naturally available, but you can also create an alias with
+ * the FirehoseDb.includeStreams property
+ *
+ * You may also define FirehoseDb.whitelistPattern as a regex to only make available specific matching streams
+ *
+ * You may also define FirehoseDb.blacklistPattern as a regex to exclude sensitive streams from snooze's availability
  * 
  * @author wells
  *
@@ -77,11 +88,21 @@ public class FirehoseDb extends Db<FirehoseDb>
     * 
     * Example: firehosedb.includeStreams=impression|liftck-player9-impression
     * 
-    * Or if the collection name is the name as the table name you can just send a the name
+    * Or if the collection name is the name as the table name you can just send the name
     * 
     * Example: firehosedb.includeStreams=liftck-player9-impression
     */
    protected String                includeStreams     = null;
+   /**
+    * If you set a whitelist regex pattern, all the stream names that we will use MUST match it - even the ones
+    * in includeStreams.
+    */
+   protected String    whitelistPattern = null;
+   /**
+    * If you set a blacklist regex pattern, all the stream names that we will use must NOT match it - even the ones
+    * in includeStreams.
+    */
+   protected String    blacklistPattern = null;
 
    protected String                awsAccessKey       = null;
    protected String                awsSecretKey       = null;
@@ -102,30 +123,54 @@ public class FirehoseDb extends Db<FirehoseDb>
    @Override
    protected void startup0()
    {
-      if (!Utils.empty(includeStreams))
+      List<Pair<String, String>> nameActuals = new ArrayList<>();
+      // our local streams
+      getFirehoseClient().listDeliveryStreams(new ListDeliveryStreamsRequest().withDeliveryStreamType("DirectPut")).getDeliveryStreamNames().forEach(name -> nameActuals.add(Pair.of(name.toLowerCase(), name.toLowerCase())));
+      // our defined aliases
+      Stream.of(includeStreams.split(",")).map(part -> part.split("\\|")).forEach(arr -> nameActuals.add(Pair.of(arr[0], arr.length > 1 ? arr[1] : arr[0])));
+
+      if (!empty(includeStreams))
       {
-         for (String part : Utils.explode(",", includeStreams))
+         for (Pair<String, String> stream : nameActuals)
          {
-            String[] arr = part.split("\\|");
-            String collectionName = arr[0];
-            String streamName = collectionName;
-            if (arr.length > 1)
+            log.info("bootstrap {} stream {}", getType(), stream);
+            String collectionName = stream.getKey();
+            String streamName = stream.getValue();
+
+            if (!empty(whitelistPattern) && !collectionName.matches(whitelistPattern))
             {
-               streamName = arr[1];
+               log.info("skipping {} stream {} because it doesn't match whitelist pattern {}", getType(), stream, whitelistPattern);
+               continue;
+            }
+
+            if (!empty(blacklistPattern) && collectionName.matches(blacklistPattern))
+            {
+               log.info("skipping {} stream {} because it matches blacklist pattern {}", getType(), stream, blacklistPattern);
+               continue;
             }
 
             Table table = new Table(this, streamName);
             withTable(table);
 
-            if (arr.length == 1)//a specific collection name was not supplied by the config
-               collectionName = beautifyCollectionName(collectionName);
+            Collection collection = new Collection();
+            if (!collectionName.endsWith("s"))
+               collectionName = English.plural(collectionName);
 
-            api.makeCollection(table, collectionName);
+            collection.withName(collectionName);
+
+            Entity entity = new Entity();
+            entity.withTable(table);
+            entity.withHint(table.getName());
+            entity.withCollection(collection);
+
+            collection.withEntity(entity);
+
+            api.withCollection(collection);
          }
       }
       else
       {
-         throw new ApiException(SC.SC_500_INTERNAL_SERVER_ERROR, "FirehoseDb must have 'includeStreams' configured to be used");
+         log.warn("FirehoseDb must have 'includeStreams' configured to be used");
       }
    }
 
@@ -198,10 +243,10 @@ public class FirehoseDb extends Db<FirehoseDb>
 
                AmazonKinesisFirehoseClientBuilder builder = AmazonKinesisFirehoseClientBuilder.standard();
 
-               if (!Utils.empty(awsRegion))
+               if (!empty(awsRegion))
                   builder.withRegion(awsRegion);
 
-               if (!Utils.empty(awsAccessKey) && !Utils.empty(awsSecretKey))
+               if (!empty(awsAccessKey) && !empty(awsSecretKey))
                {
                   BasicAWSCredentials creds = new BasicAWSCredentials(awsAccessKey, awsSecretKey);
                   builder.withCredentials(new AWSStaticCredentialsProvider(creds));
