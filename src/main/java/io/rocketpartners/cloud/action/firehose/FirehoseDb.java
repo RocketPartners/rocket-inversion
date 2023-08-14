@@ -78,7 +78,8 @@ import static io.rocketpartners.cloud.utils.Utils.empty;
  *
  * @author wells
  */
-public class FirehoseDb extends Db<FirehoseDb> {
+public class FirehoseDb extends Db<FirehoseDb>
+{
     /**
      * A CSV of pipe delimited collection name to table name pairs.
      * <p>
@@ -111,29 +112,34 @@ public class FirehoseDb extends Db<FirehoseDb> {
     protected boolean jsonPrettyPrint = false;
     protected boolean jsonLowercaseNames = true;
 
-    public FirehoseDb() {
+    public FirehoseDb()
+    {
         this.withType("firehose");
     }
 
     @Override
-    protected void startup0() {
+    protected void startup0()
+    {
         List<Pair<String, String>> nameActualPairList = new ArrayList<>();
         // our local streams
         getFirehoseClient().listDeliveryStreams(new ListDeliveryStreamsRequest().withDeliveryStreamType("DirectPut")).getDeliveryStreamNames().forEach(name -> nameActualPairList.add(Pair.of(name.toLowerCase(), name.toLowerCase())));
         // our defined aliases
         Stream.of(includeStreams.split(",")).map(part -> part.split("\\|")).forEach(arr -> nameActualPairList.add(Pair.of(arr[0], arr.length > 1 ? arr[1] : arr[0])));
 
-        for (Pair<String, String> stream : nameActualPairList) {
+        for (Pair<String, String> stream : nameActualPairList)
+        {
             log.info("bootstrap {} stream {}", getType(), stream);
             String collectionName = stream.getKey();
             String streamName = stream.getValue();
 
-            if (!empty(allowPattern) && !collectionName.matches(allowPattern)) {
+            if (!empty(allowPattern) && !collectionName.matches(allowPattern))
+            {
                 log.info("skipping {} stream {} because it doesn't match allow pattern {}", getType(), stream, allowPattern);
                 continue;
             }
 
-            if (!empty(denyPattern) && collectionName.matches(denyPattern)) {
+            if (!empty(denyPattern) && collectionName.matches(denyPattern))
+            {
                 log.info("skipping {} stream {} because it matches deny pattern {}", getType(), stream, denyPattern);
                 continue;
             }
@@ -159,17 +165,20 @@ public class FirehoseDb extends Db<FirehoseDb> {
     }
 
     @Override
-    public Results<Row> select(Table table, List<Term> columnMappedTerms) throws Exception {
+    public Results<Row> select(Table table, List<Term> columnMappedTerms) throws Exception
+    {
         throw new ApiException(SC.SC_400_BAD_REQUEST, "The Firehose handler only supports PUT/POST operations...GET and DELETE don't make sense.");
     }
 
     @Override
-    public void delete(Table table, String entityKey) throws Exception {
+    public void delete(Table table, String entityKey) throws Exception
+    {
         throw new ApiException(SC.SC_400_BAD_REQUEST, "The Firehose handler only supports PUT/POST operations...GET and DELETE don't make sense.");
     }
 
     @Override
-    public String upsert(Table table, Map<String, Object> row) throws Exception {
+    public String upsert(Table table, Map<String, Object> row) throws Exception
+    {
         List<String> keys = upsert(table, Arrays.asList(row));
         if (keys != null && !keys.isEmpty())
             return keys.get(0);
@@ -178,9 +187,11 @@ public class FirehoseDb extends Db<FirehoseDb> {
     }
 
     @Override
-    public List upsert(Table table, List<Map<String, Object>> rows) throws Exception {
+    public List upsert(Table table, List<Map<String, Object>> rows) throws Exception
+    {
         List<Record> batch = new ArrayList<>();
-        for (int i = 0; i < rows.size(); i++) {
+        for (int i = 0; i < rows.size(); i++)
+        {
             String string = new JSNode(rows.get(i)).toString(jsonPrettyPrint, jsonLowercaseNames);
 
             if (jsonSeparator != null && !string.endsWith(jsonSeparator))
@@ -188,26 +199,32 @@ public class FirehoseDb extends Db<FirehoseDb> {
 
             batch.add(new Record().withData(ByteBuffer.wrap(string.getBytes())));
 
-            if (i > 0 && i % batchMax == 0) {
+            if (i > 0 && i % batchMax == 0)
+            {
                 getFirehoseClient().putRecordBatch(new PutRecordBatchRequest().withDeliveryStreamName(table.getName()).withRecords(batch));
                 batch.clear();
             }
         }
 
-        if (!batch.isEmpty()) {
+        if (!batch.isEmpty())
+        {
             getFirehoseClient().putRecordBatch(new PutRecordBatchRequest().withDeliveryStreamName(table.getName()).withRecords(batch));
         }
 
         return Collections.emptyList();
     }
 
-    public AmazonKinesisFirehose getFirehoseClient() {
+    public AmazonKinesisFirehose getFirehoseClient()
+    {
         return getFirehoseClient(awsRegion, awsAccessKey, awsSecretKey);
     }
 
-    public AmazonKinesisFirehose getFirehoseClient(String awsRegion, String awsAccessKey, String awsSecretKey) {
-        synchronized (this) {
-            if (this.firehoseClient == null) {
+    public AmazonKinesisFirehose getFirehoseClient(String awsRegion, String awsAccessKey, String awsSecretKey)
+    {
+        synchronized (this)
+        {
+            if (this.firehoseClient == null)
+            {
                 awsRegion = Utils.findSysEnvPropStr(getName() + ".awsRegion", awsRegion);
                 awsAccessKey = Utils.findSysEnvPropStr(getName() + ".awsAccessKey", awsAccessKey);
                 awsSecretKey = Utils.findSysEnvPropStr(getName() + ".awsSecretKey", awsSecretKey);
@@ -217,7 +234,8 @@ public class FirehoseDb extends Db<FirehoseDb> {
                 if (!empty(awsRegion))
                     builder.withRegion(awsRegion);
 
-                if (!empty(awsAccessKey) && !empty(awsSecretKey)) {
+                if (!empty(awsAccessKey) && !empty(awsSecretKey))
+                {
                     BasicAWSCredentials creds = new BasicAWSCredentials(awsAccessKey, awsSecretKey);
                     builder.withCredentials(new AWSStaticCredentialsProvider(creds));
                 }
@@ -229,42 +247,50 @@ public class FirehoseDb extends Db<FirehoseDb> {
         return firehoseClient;
     }
 
-    public FirehoseDb withAwsRegion(String awsRegion) {
+    public FirehoseDb withAwsRegion(String awsRegion)
+    {
         this.awsRegion = awsRegion;
         return this;
     }
 
-    public FirehoseDb withAwsAccessKey(String awsAccessKey) {
+    public FirehoseDb withAwsAccessKey(String awsAccessKey)
+    {
         this.awsAccessKey = awsAccessKey;
         return this;
     }
 
-    public FirehoseDb withAwsSecretKey(String awsSecretKey) {
+    public FirehoseDb withAwsSecretKey(String awsSecretKey)
+    {
         this.awsSecretKey = awsSecretKey;
         return this;
     }
 
-    public FirehoseDb withIncludeStreams(String includeStreams) {
+    public FirehoseDb withIncludeStreams(String includeStreams)
+    {
         this.includeStreams = includeStreams;
         return this;
     }
 
-    public FirehoseDb withBatchMax(int batchMax) {
+    public FirehoseDb withBatchMax(int batchMax)
+    {
         this.batchMax = batchMax;
         return this;
     }
 
-    public FirehoseDb withJsonSeparator(String jsonSeparator) {
+    public FirehoseDb withJsonSeparator(String jsonSeparator)
+    {
         this.jsonSeparator = jsonSeparator;
         return this;
     }
 
-    public FirehoseDb withJsonPrettyPrint(boolean jsonPrettyPrint) {
+    public FirehoseDb withJsonPrettyPrint(boolean jsonPrettyPrint)
+    {
         this.jsonPrettyPrint = jsonPrettyPrint;
         return this;
     }
 
-    public FirehoseDb withJsonLowercaseNames(boolean jsonLowercaseNames) {
+    public FirehoseDb withJsonLowercaseNames(boolean jsonLowercaseNames)
+    {
         this.jsonLowercaseNames = jsonLowercaseNames;
         return this;
     }
