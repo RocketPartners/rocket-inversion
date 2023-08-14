@@ -59,7 +59,7 @@ import static io.rocketpartners.cloud.utils.Utils.empty;
  * records are stringified without return characters.
  * <p>
  * All records are always submitted in batches of up to <code>batchMax</code>.
- * You can submit more than <code>batchMax</code> to the handler and it will try to
+ * You can submit more than <code>batchMax</code> to the handler, and it will try to
  * send as many batches as required.
  * <p>
  * If <code>jsonSeparator</code> is not null (it is '\n' by default) and the
@@ -117,13 +117,13 @@ public class FirehoseDb extends Db<FirehoseDb> {
 
     @Override
     protected void startup0() {
-        List<Pair<String, String>> nameActuals = new ArrayList<>();
+        List<Pair<String, String>> nameActualPairList = new ArrayList<>();
         // our local streams
-        getFirehoseClient().listDeliveryStreams(new ListDeliveryStreamsRequest().withDeliveryStreamType("DirectPut")).getDeliveryStreamNames().forEach(name -> nameActuals.add(Pair.of(name.toLowerCase(), name.toLowerCase())));
+        getFirehoseClient().listDeliveryStreams(new ListDeliveryStreamsRequest().withDeliveryStreamType("DirectPut")).getDeliveryStreamNames().forEach(name -> nameActualPairList.add(Pair.of(name.toLowerCase(), name.toLowerCase())));
         // our defined aliases
-        Stream.of(includeStreams.split(",")).map(part -> part.split("\\|")).forEach(arr -> nameActuals.add(Pair.of(arr[0], arr.length > 1 ? arr[1] : arr[0])));
+        Stream.of(includeStreams.split(",")).map(part -> part.split("\\|")).forEach(arr -> nameActualPairList.add(Pair.of(arr[0], arr.length > 1 ? arr[1] : arr[0])));
 
-        for (Pair<String, String> stream : nameActuals) {
+        for (Pair<String, String> stream : nameActualPairList) {
             log.info("bootstrap {} stream {}", getType(), stream);
             String collectionName = stream.getKey();
             String streamName = stream.getValue();
@@ -171,7 +171,7 @@ public class FirehoseDb extends Db<FirehoseDb> {
     @Override
     public String upsert(Table table, Map<String, Object> row) throws Exception {
         List<String> keys = upsert(table, Arrays.asList(row));
-        if (keys != null && keys.size() > 0)
+        if (keys != null && !keys.isEmpty())
             return keys.get(0);
 
         return null;
@@ -179,7 +179,7 @@ public class FirehoseDb extends Db<FirehoseDb> {
 
     @Override
     public List upsert(Table table, List<Map<String, Object>> rows) throws Exception {
-        List<Record> batch = new ArrayList();
+        List<Record> batch = new ArrayList<>();
         for (int i = 0; i < rows.size(); i++) {
             String string = new JSNode(rows.get(i)).toString(jsonPrettyPrint, jsonLowercaseNames);
 
@@ -194,7 +194,7 @@ public class FirehoseDb extends Db<FirehoseDb> {
             }
         }
 
-        if (batch.size() > 0) {
+        if (!batch.isEmpty()) {
             getFirehoseClient().putRecordBatch(new PutRecordBatchRequest().withDeliveryStreamName(table.getName()).withRecords(batch));
         }
 
@@ -206,25 +206,23 @@ public class FirehoseDb extends Db<FirehoseDb> {
     }
 
     public AmazonKinesisFirehose getFirehoseClient(String awsRegion, String awsAccessKey, String awsSecretKey) {
-        if (this.firehoseClient == null) {
-            synchronized (this) {
-                if (this.firehoseClient == null) {
-                    awsRegion = Utils.findSysEnvPropStr(getName() + ".awsRegion", awsRegion);
-                    awsAccessKey = Utils.findSysEnvPropStr(getName() + ".awsAccessKey", awsAccessKey);
-                    awsSecretKey = Utils.findSysEnvPropStr(getName() + ".awsSecretKey", awsSecretKey);
+        synchronized (this) {
+            if (this.firehoseClient == null) {
+                awsRegion = Utils.findSysEnvPropStr(getName() + ".awsRegion", awsRegion);
+                awsAccessKey = Utils.findSysEnvPropStr(getName() + ".awsAccessKey", awsAccessKey);
+                awsSecretKey = Utils.findSysEnvPropStr(getName() + ".awsSecretKey", awsSecretKey);
 
-                    AmazonKinesisFirehoseClientBuilder builder = AmazonKinesisFirehoseClientBuilder.standard();
+                AmazonKinesisFirehoseClientBuilder builder = AmazonKinesisFirehoseClientBuilder.standard();
 
-                    if (!empty(awsRegion))
-                        builder.withRegion(awsRegion);
+                if (!empty(awsRegion))
+                    builder.withRegion(awsRegion);
 
-                    if (!empty(awsAccessKey) && !empty(awsSecretKey)) {
-                        BasicAWSCredentials creds = new BasicAWSCredentials(awsAccessKey, awsSecretKey);
-                        builder.withCredentials(new AWSStaticCredentialsProvider(creds));
-                    }
-
-                    firehoseClient = builder.build();
+                if (!empty(awsAccessKey) && !empty(awsSecretKey)) {
+                    BasicAWSCredentials creds = new BasicAWSCredentials(awsAccessKey, awsSecretKey);
+                    builder.withCredentials(new AWSStaticCredentialsProvider(creds));
                 }
+
+                firehoseClient = builder.build();
             }
         }
 
