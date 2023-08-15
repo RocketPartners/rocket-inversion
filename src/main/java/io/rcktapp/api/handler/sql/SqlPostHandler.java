@@ -65,7 +65,7 @@ public class SqlPostHandler extends SqlHandler
 
       List<Change> changes = new ArrayList();
 
-      Connection conn = ((SqlDb) chain.getService().getDb(req.getApi(), req.getCollectionKey(), SqlDb.class)).getConnection();
+      Connection conn = ((SqlDb) chain.getService().getDb(req.getApi(), req.getCollectionKey(), SqlDb.class)).getConnection(true);
 
       List<String> hrefs = new ArrayList();
 

@@ -72,6 +72,7 @@ public class SqlDb extends Db
 
    protected String        driver                   = null;
    protected String        url                      = null;
+   protected String        roUrl                    = null;
    protected String        user                     = null;
    protected String        pass                     = null;
    protected String        ignoreTablePrefixes      = "";
@@ -114,7 +115,16 @@ public class SqlDb extends Db
       }
    }
 
+   /**
+    * @deprecated  As of release 0.3.12, replaced by {@link #getConnection(boolean)}
+    */
+   @Deprecated(since = "0.3.12", forRemoval = true)
    public Connection getConnection() throws ApiException
+   {
+      return getConnection(true);
+   }
+
+   public Connection getConnection(boolean writable) throws ApiException
    {
       try
       {
@@ -128,7 +138,7 @@ public class SqlDb extends Db
                   if (pool == null && !shutdown)
                   {
                      String driver = getDriver();
-                     String url = getUrl();
+                     String url = writable ? getUrl() : getRoUrl();
                      String user = getUser();
                      String password = getPass();
                      int minPoolSize = getPoolMin();
@@ -292,7 +302,7 @@ public class SqlDb extends Db
       Executor dbMetadataExecutorPool = Executors.newFixedThreadPool(50);
       String driver = getDriver();
       Class.forName(driver);
-      try (Connection apiConn = DriverManager.getConnection(getUrl(), getUser(), getPass()))
+      try (Connection apiConn = DriverManager.getConnection(getRoUrl(), getUser(), getPass()))
       {
 
          DatabaseMetaData dbmd = apiConn.getMetaData();
@@ -323,7 +333,7 @@ public class SqlDb extends Db
 
                     tableFutures.put(tableName, CompletableFuture.supplyAsync(() -> {
                         Table table = new Table(this, tableName);
-                        try (Connection tableConnection = DriverManager.getConnection(getUrl(), getUser(), getPass())) {
+                        try (Connection tableConnection = DriverManager.getConnection(getRoUrl(), getUser(), getPass())) {
                             DatabaseMetaData databaseMetaData = tableConnection.getMetaData();
                             try (ResultSet colsRs = databaseMetaData.getColumns(tableCat, tableSchem, tableName, "%")) {
 
@@ -380,7 +390,7 @@ public class SqlDb extends Db
                     if (Stream.of(ignoreTablePrefixes.split(",")).filter(Predicate.not(String::isEmpty)).anyMatch(tableName::startsWith)) continue;
 
                     keyFutures.add(CompletableFuture.supplyAsync(() -> {
-                        try (Connection keyConnection = DriverManager.getConnection(getUrl(), getUser(), getPass())) {
+                        try (Connection keyConnection = DriverManager.getConnection(getRoUrl(), getUser(), getPass())) {
                             DatabaseMetaData databaseMetaData = keyConnection.getMetaData();
 
                             try (ResultSet keyMd = databaseMetaData.getImportedKeys(keyConnection.getCatalog(), null, tableName)) {
@@ -614,6 +624,12 @@ public class SqlDb extends Db
       this.driver = driver;
    }
 
+   public String getRoUrl(){
+      if (roUrl == null)
+         return getUrl();
+      return roUrl;
+   }
+
    public String getUrl()
    {
       return url;
@@ -678,7 +694,7 @@ public class SqlDb extends Db
    {
       if (driver.indexOf("mysql") < 0)
          return false;
-      
+
       return calcRowsFound;
    }
 

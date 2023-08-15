@@ -21,65 +21,59 @@ import java.util.stream.Stream;
 @Slf4j
 public class FirehoseDb extends Db
 {
-   protected String      awsAccessKey   = null;
-   protected String      awsSecretKey   = null;
-   protected String      awsRegion      = null;
-   /**
-    * If you set a whitelist regex pattern, all of the stream names that we will use MUST match it - even the ones in includeStreams.
-    */
-   protected String    whitelistPattern = null;
-   /**
-    * If you set a blacklist regex pattern, all of the stream names that we will use must NOT match it - even the ones in includeStreams.
-    */
-   protected String    blacklistPattern = null;
+    protected String awsAccessKey = null;
+    protected String awsSecretKey = null;
+    protected String awsRegion = null;
+    /**
+     * If you set a whitelist regex pattern, all of the stream names that we will use MUST match it - even the ones in includeStreams.
+     */
+    protected String whitelistPattern = null;
+    /**
+     * If you set a blacklist regex pattern, all of the stream names that we will use must NOT match it - even the ones in includeStreams.
+     */
+    protected String blacklistPattern = null;
 
-   /**
-    * A CSV of pipe delimited collection name to table name pairs.
-    *
-    * Example: firehosedb.includeStreams=impression|liftck-player9-impression
-    *
-    * Or if the collection name is the name as the table name you can just send a the name
-    *
-    * Example: firehosedb.includeStreams=liftck-player9-impression
-    */
-   protected String      includeStreams;
+    /**
+     * A CSV of pipe delimited collection name to table name pairs.
+     * <p>
+     * Example: firehosedb.includeStreams=impression|liftck-player9-impression
+     * <p>
+     * Or if the collection name is the name as the table name you can just send a the name
+     * <p>
+     * Example: firehosedb.includeStreams=liftck-player9-impression
+     */
+    protected String includeStreams;
 
-   AmazonKinesisFirehoseAsync firehoseClient = null;
+    AmazonKinesisFirehoseAsync firehoseClient = null;
 
-   public FirehoseDb() {
-      super();
-      setType("firehose");
-   }
+    public FirehoseDb() {
+        super();
+        setType("firehose");
+    }
 
-   @Override
-   public void bootstrapApi() throws Exception
-   {
-      List<Pair<String, String>> nameActuals = new ArrayList<>();
-      // our local streams
-      getFirehoseClient().listDeliveryStreams(new ListDeliveryStreamsRequest().withDeliveryStreamType("DirectPut")).getDeliveryStreamNames().forEach(name -> nameActuals.add(Pair.of(name.toLowerCase(), name.toLowerCase())));
-      // our defined aliases
-      Stream.of(includeStreams.split(",")).map(part -> part.split("\\|")).forEach(arr -> nameActuals.add(Pair.of(arr[0], arr.length > 1 ? arr[1] : arr[0])));
+    @Override
+    public void bootstrapApi() throws Exception {
+        List<Pair<String, String>> nameActuals = new ArrayList<>();
+        // our local streams
+        getFirehoseClient().listDeliveryStreams(new ListDeliveryStreamsRequest().withDeliveryStreamType("DirectPut")).getDeliveryStreamNames().forEach(name -> nameActuals.add(Pair.of(name.toLowerCase(), name.toLowerCase())));
+        // our defined aliases
+        Stream.of(includeStreams.split(",")).map(part -> part.split("\\|")).forEach(arr -> nameActuals.add(Pair.of(arr[0], arr.length > 1 ? arr[1] : arr[0])));
 
-      this.setType("firehose");
+        this.setType("firehose");
 
-      if (!J.empty(includeStreams))
-      {
-         for (Pair<String, String> stream : nameActuals)
-         {
+        for (Pair<String, String> stream : nameActuals) {
             log.info("bootstrap {} stream {}", getType(), stream);
             String collectionName = stream.getKey();
             String streamName = stream.getValue();
 
-            if (!J.empty(whitelistPattern) && !collectionName.matches(whitelistPattern))
-            {
-               log.info("skipping {} stream {} because it doesn't match whitelist pattern {}", getType(), stream, whitelistPattern);
-               continue;
+            if (!J.empty(whitelistPattern) && !collectionName.matches(whitelistPattern)) {
+                log.info("skipping {} stream {} because it doesn't match whitelist pattern {}", getType(), stream, whitelistPattern);
+                continue;
             }
 
-            if (!J.empty(blacklistPattern) && collectionName.matches(blacklistPattern))
-            {
-               log.info("skipping {} stream {} because it matches blacklist pattern {}", getType(), stream, blacklistPattern);
-               continue;
+            if (!J.empty(blacklistPattern) && collectionName.matches(blacklistPattern)) {
+                log.info("skipping {} stream {} because it matches blacklist pattern {}", getType(), stream, blacklistPattern);
+                continue;
             }
 
             Table table = new Table(this, streamName);
@@ -87,7 +81,7 @@ public class FirehoseDb extends Db
 
             Collection collection = new Collection();
             if (!collectionName.endsWith("s"))
-               collectionName = English.plural(collectionName);
+                collectionName = English.plural(collectionName);
 
             collection.setName(collectionName);
 
@@ -99,38 +93,28 @@ public class FirehoseDb extends Db
             collection.setEntity(entity);
 
             api.addCollection(collection);
-         }
-      }
-      else
-      {
-         log.warn("FirehoseDb must have 'includeStreams' configured to be used");
-      }
-   }
+        }
+    }
 
-   public AmazonKinesisFirehoseAsync getFirehoseClient()
-   {
-      if (this.firehoseClient == null)
-      {
-         synchronized (this)
-         {
-            if (this.firehoseClient == null)
-            {
-               AmazonKinesisFirehoseAsyncClientBuilder builder = AmazonKinesisFirehoseAsyncClientBuilder.standard();
-               if (!J.empty(awsRegion))
-                  builder.withRegion(awsRegion);
+    public AmazonKinesisFirehoseAsync getFirehoseClient() {
+        if (this.firehoseClient == null) {
+            synchronized (this) {
+                if (this.firehoseClient == null) {
+                    AmazonKinesisFirehoseAsyncClientBuilder builder = AmazonKinesisFirehoseAsyncClientBuilder.standard();
+                    if (!J.empty(awsRegion))
+                        builder.withRegion(awsRegion);
 
-               if (!J.empty(awsAccessKey) && !J.empty(awsSecretKey))
-               {
-                  BasicAWSCredentials creds = new BasicAWSCredentials(awsAccessKey, awsSecretKey);
-                  builder.withCredentials(new AWSStaticCredentialsProvider(creds));
-               }
+                    if (!J.empty(awsAccessKey) && !J.empty(awsSecretKey)) {
+                        BasicAWSCredentials creds = new BasicAWSCredentials(awsAccessKey, awsSecretKey);
+                        builder.withCredentials(new AWSStaticCredentialsProvider(creds));
+                    }
 
-               firehoseClient = builder.build();
+                    firehoseClient = builder.build();
+                }
             }
-         }
-      }
+        }
 
-      return firehoseClient;
-   }
+        return firehoseClient;
+    }
 
 }
