@@ -419,11 +419,11 @@ public class SqlDb extends Db
                 }
             }
 
-         for (CompletableFuture<Table> tableCompletableFuture : tableFutures.values()) {
-            tableCompletableFuture.get();
-         }
          for (CompletableFuture<?> keyFuture : keyFutures) {
             keyFuture.get();
+         }
+         for (CompletableFuture<Table> tableCompletableFuture : tableFutures.values()) {
+            addTable(tableCompletableFuture.get());
          }
 
          log.info("finally, many-to-many");
