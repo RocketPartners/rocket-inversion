@@ -184,9 +184,9 @@ public class AuthHandler implements Handler
       }
       else if (!J.empty(username, password))
       {
-         Connection conn = db.getConnection();
+         Connection roConn = db.getConnection(false);
 
-         User tempUser = getUser(conn, api, req.getTenantCode(), username, null);
+         User tempUser = getUser(roConn, api, req.getTenantCode(), username, null);
          boolean authorized = false;
          if (tempUser != null)
          {
@@ -197,19 +197,19 @@ public class AuthHandler implements Handler
                //only attempt to validate password and log the attempt 
                //if the user has failed login fewer than failedMax times
                String remoteAddr = req.getRemoteAddr();
-               authorized = checkPassword(conn, tempUser, password);
+               authorized = checkPassword(roConn, tempUser, password);
 
                if (shouldTrackRequestTimes)
                {
                   String sql = "UPDATE User SET requestAt = ?, failedNum = ?, remoteAddr = ? WHERE id = ?";
-                  Sql.execute(conn, sql, now, authorized ? 0 : failedNum + 1, remoteAddr, tempUser.getId());
+                  Sql.execute(db.getConnection(true), sql, now, authorized ? 0 : failedNum + 1, remoteAddr, tempUser.getId());
                }
 
                if (authorized)
                {
                   tempUser.setRequestAt(now);
-                  tempUser.setRoles(getRoles(conn, req.getApi(), tempUser));
-                  tempUser.setPermissions(getPermissions(conn, req.getApi(), tempUser));
+                  tempUser.setRoles(getRoles(roConn, req.getApi(), tempUser));
+                  tempUser.setPermissions(getPermissions(roConn, req.getApi(), tempUser));
                   if (!J.empty(authenticatedPerm))
                   {
                      tempUser.getPermissions().add(new Permission(authenticatedPerm));
@@ -286,7 +286,7 @@ public class AuthHandler implements Handler
             Integer tenantId = (Integer) api.getCache("TENANT_ID_" + tenantCode);
             if (tenantId == null)
             {
-               Connection conn = db.getConnection();
+               Connection conn = db.getConnection(false);
 
                Object tenant = Sql.selectValue(conn, "SELECT id FROM Tenant WHERE tenantCode = ?", tenantCode);
                if (tenant == null)

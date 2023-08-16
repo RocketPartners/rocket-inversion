@@ -486,7 +486,9 @@ public class Configurator
          }
       }
 
-      config.files.add("ADDITIONAL PROPERTIES");
+      if (propertySource.hasNext()) {
+         config.files.add("ADDITIONAL ITERATOR PROPERTIES");
+      }
       while (propertySource.hasNext()) {
          Map.Entry<Object, Object> entry = propertySource.next();
          config.props.put(entry.getKey(), entry.getValue());

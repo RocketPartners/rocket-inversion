@@ -15,23 +15,7 @@
  */
 package io.rcktapp.api.handler.sql;
 
-import java.lang.reflect.Field;
-import java.sql.Connection;
-import java.sql.DatabaseMetaData;
-import java.sql.DriverManager;
-import java.sql.ResultSet;
-import java.sql.Types;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-
-import org.atteo.evo.inflector.English;
-
 import com.mchange.v2.c3p0.ComboPooledDataSource;
-
-import io.forty11.sql.Sql;
-import io.rcktapp.api.Api;
 import io.rcktapp.api.ApiException;
 import io.rcktapp.api.Attribute;
 import io.rcktapp.api.Collection;
@@ -42,7 +26,28 @@ import io.rcktapp.api.Relationship;
 import io.rcktapp.api.SC;
 import io.rcktapp.api.Table;
 import io.rcktapp.rql.sql.SqlRql;
+import lombok.extern.slf4j.Slf4j;
+import org.atteo.evo.inflector.English;
 
+import java.lang.reflect.Field;
+import java.sql.Connection;
+import java.sql.DatabaseMetaData;
+import java.sql.DriverManager;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Types;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Executor;
+import java.util.concurrent.Executors;
+import java.util.function.Predicate;
+import java.util.stream.Stream;
+
+@Slf4j
 public class SqlDb extends Db
 {
    static
@@ -67,8 +72,10 @@ public class SqlDb extends Db
 
    protected String        driver                   = null;
    protected String        url                      = null;
+   protected String        roUrl                    = null;
    protected String        user                     = null;
    protected String        pass                     = null;
+   protected String        ignoreTablePrefixes      = "";
    protected int           poolMin                  = MIN_POOL_SIZE;
    protected int           poolMax                  = MAX_POOL_SIZE;
    protected int           idleConnectionTestPeriod = 3600; // in seconds
@@ -108,7 +115,16 @@ public class SqlDb extends Db
       }
    }
 
+   /**
+    * @deprecated  As of release 0.3.12, replaced by {@link #getConnection(boolean)}
+    */
+   @Deprecated(since = "0.3.12", forRemoval = true)
    public Connection getConnection() throws ApiException
+   {
+      return getConnection(true);
+   }
+
+   public Connection getConnection(boolean writable) throws ApiException
    {
       try
       {
@@ -122,7 +138,7 @@ public class SqlDb extends Db
                   if (pool == null && !shutdown)
                   {
                      String driver = getDriver();
-                     String url = getUrl();
+                     String url = writable ? getUrl() : getRoUrl();
                      String user = getUser();
                      String password = getPass();
                      int minPoolSize = getPoolMin();
@@ -283,11 +299,10 @@ public class SqlDb extends Db
          return;
       }
 
+      Executor dbMetadataExecutorPool = Executors.newFixedThreadPool(50);
       String driver = getDriver();
       Class.forName(driver);
-      Connection apiConn = DriverManager.getConnection(getUrl(), getUser(), getPass());
-
-      try
+      try (Connection apiConn = DriverManager.getConnection(getRoUrl(), getUser(), getPass()))
       {
 
          DatabaseMetaData dbmd = apiConn.getMetaData();
@@ -305,76 +320,123 @@ public class SqlDb extends Db
          //-- that caputres all of the foreign key relationships.  You
          //-- have to do the fk loop second becuase the reference pk
          //-- object needs to exist so that it can be set on the fk Col
-         ResultSet rs = dbmd.getTables(null, "public", "%", new String[]{"TABLE", "VIEW"});
-         while (rs.next())
-         {
-            String tableCat = rs.getString("TABLE_CAT");
-            String tableSchem = rs.getString("TABLE_SCHEM");
-            String tableName = rs.getString("TABLE_NAME");
-            //String tableType = rs.getString("TABLE_TYPE");
+            Map<String, CompletableFuture<Table>> tableFutures = new HashMap<>();
+            try (ResultSet rs = dbmd.getTables(null, "public", "%", new String[]{"TABLE", "VIEW"})) {
+                while (rs.next())
+                {
+                    String tableCat = rs.getString("TABLE_CAT");
+                    String tableSchem = rs.getString("TABLE_SCHEM");
+                    String tableName = rs.getString("TABLE_NAME");
+                    //String tableType = rs.getString("TABLE_TYPE");
 
-            Table table = new Table(this, tableName);
-            addTable(table);
+                    if (Stream.of(ignoreTablePrefixes.split(",")).filter(Predicate.not(String::isEmpty)).anyMatch(tableName::startsWith)) continue;
 
-            ResultSet colsRs = dbmd.getColumns(tableCat, tableSchem, tableName, "%");
+                    tableFutures.put(tableName, CompletableFuture.supplyAsync(() -> {
+                        Table table = new Table(this, tableName);
+                        try (Connection tableConnection = DriverManager.getConnection(getRoUrl(), getUser(), getPass())) {
+                            DatabaseMetaData databaseMetaData = tableConnection.getMetaData();
+                            try (ResultSet colsRs = databaseMetaData.getColumns(tableCat, tableSchem, tableName, "%")) {
 
-            while (colsRs.next())
-            {
-               String colName = colsRs.getString("COLUMN_NAME");
-               Object type = colsRs.getString("DATA_TYPE");
-               String colType = types.get(type);
+                                while (colsRs.next())
+                                {
+                                    String colName = colsRs.getString("COLUMN_NAME");
+                                    Object type = colsRs.getString("DATA_TYPE");
+                                    String colType = types.get(type);
 
-               boolean nullable = colsRs.getInt("NULLABLE") == DatabaseMetaData.columnNullable;
+                                    boolean nullable = colsRs.getInt("NULLABLE") == DatabaseMetaData.columnNullable;
 
-               Column column = new Column(table, colName, colType, nullable);
-               table.addColumn(column);
+                                    Column column = new Column(table, colName, colType, nullable);
+                                    table.addColumn(column);
 
-               //               if (DELETED_FLAGS.contains(colName.toLowerCase()))
-               //               {
-               //                  table.setDeletedFlag(column);
-               //               }
+                                    //               if (DELETED_FLAGS.contains(colName.toLowerCase()))
+                                    //               {
+                                    //                  table.setDeletedFlag(column);
+                                    //               }
+                                }
+                            }
+
+                            ResultSet indexMd = databaseMetaData.getIndexInfo(tableConnection.getCatalog(), null, tableName, true, false);
+                            while (indexMd.next()) {
+                                String colName = indexMd.getString("COLUMN_NAME");
+                                for (Column c : table.getColumns()) {
+                                    if (c.getName().equalsIgnoreCase(colName)) {
+                                        c.setUnique(true);
+                                    }
+                                }
+                            }
+                            indexMd.close();
+                            log.info("{} table processing {}", getType(), table.getName());
+                            return table;
+                        } catch (SQLException ex) {
+                            throw new RuntimeException(ex);
+                        }
+                    }, dbMetadataExecutorPool));
+
+                }
             }
-            colsRs.close();
 
-            ResultSet indexMd = dbmd.getIndexInfo(apiConn.getCatalog(), null, tableName, true, false);
-            while (indexMd.next())
-            {
-               String colName = indexMd.getString("COLUMN_NAME");
-               Column col = getColumn(tableName, colName);
-               col.setUnique(true);
+            log.info("{} building foreign key relationships", getType());
+            //-- now link all of the fks to pks
+            //-- this is done after the first loop
+            //-- so that all of the tbls/cols are
+            //-- created first and are there to
+            //-- be connected
+            List<CompletableFuture<?>> keyFutures = new ArrayList<>();
+            try (ResultSet foreignKeyTablesRS = dbmd.getTables(null, "public", "%", new String[]{"TABLE"}))  {
+                while (foreignKeyTablesRS.next())
+                {
+                    String tableName = foreignKeyTablesRS.getString("TABLE_NAME");
+
+                    if (Stream.of(ignoreTablePrefixes.split(",")).filter(Predicate.not(String::isEmpty)).anyMatch(tableName::startsWith)) continue;
+
+                    keyFutures.add(CompletableFuture.supplyAsync(() -> {
+                        try (Connection keyConnection = DriverManager.getConnection(getRoUrl(), getUser(), getPass())) {
+                            DatabaseMetaData databaseMetaData = keyConnection.getMetaData();
+
+                            try (ResultSet keyMd = databaseMetaData.getImportedKeys(keyConnection.getCatalog(), null, tableName)) {
+                                while (keyMd.next())
+                                {
+                                    String fkTableName = keyMd.getString("FKTABLE_NAME");
+                                    String fkColumnName = keyMd.getString("FKCOLUMN_NAME");
+                                    String pkTableName = keyMd.getString("PKTABLE_NAME");
+                                    String pkColumnName = keyMd.getString("PKCOLUMN_NAME");
+
+                                    Column fk = null;
+                                    Table fkTable = tableFutures.get(fkTableName).get();
+                                    for (Column c : fkTable.getColumns())
+                                        if (c.getName().equalsIgnoreCase(fkColumnName))
+                                            fk = c;
+                                    if (fk == null)
+                                        throw new RuntimeException("fk column not found: " + fkTableName + "." + fkColumnName);
+                                   Table pkTable = tableFutures.get(pkTableName).get();
+                                    for (Column pk : pkTable.getColumns())
+                                        if (pk.getName().equalsIgnoreCase(pkColumnName))
+                                            fk.setPk(pk);
+
+                                    //log.info(fkTableName + "." + fkColumnName + " -> " + pkTableName + "." + pkColumnName);
+                                }
+                                log.info("{} foreign key processing for table {}", getType(), tableName);
+                                return null;
+                            } catch (ExecutionException e) {
+                                throw new RuntimeException(e);
+                            } catch (InterruptedException e) {
+                                throw new RuntimeException(e);
+                            }
+                        } catch (SQLException ex) {
+                            throw new RuntimeException(ex);
+                        }
+                    }, dbMetadataExecutorPool));
+                }
             }
-            indexMd.close();
 
+         for (CompletableFuture<?> keyFuture : keyFutures) {
+            keyFuture.get();
          }
-         rs.close();
-
-         //-- now link all of the fks to pks
-         //-- this is done after the first loop
-         //-- so that all of the tbls/cols are
-         //-- created first and are there to
-         //-- be connected
-         rs = dbmd.getTables(null, "public", "%", new String[]{"TABLE"});
-         while (rs.next())
-         {
-            String tableName = rs.getString("TABLE_NAME");
-
-            ResultSet keyMd = dbmd.getImportedKeys(apiConn.getCatalog(), null, tableName);
-            while (keyMd.next())
-            {
-               String fkTableName = keyMd.getString("FKTABLE_NAME");
-               String fkColumnName = keyMd.getString("FKCOLUMN_NAME");
-               String pkTableName = keyMd.getString("PKTABLE_NAME");
-               String pkColumnName = keyMd.getString("PKCOLUMN_NAME");
-
-               Column fk = getColumn(fkTableName, fkColumnName);
-               Column pk = getColumn(pkTableName, pkColumnName);
-               fk.setPk(pk);
-
-               //log.info(fkTableName + "." + fkColumnName + " -> " + pkTableName + "." + pkColumnName);
-            }
-            keyMd.close();
+         for (CompletableFuture<Table> tableCompletableFuture : tableFutures.values()) {
+            addTable(tableCompletableFuture.get());
          }
-         rs.close();
+
+         log.info("finally, many-to-many");
 
          //-- if a table has two columns and both are foreign keys
          //-- then it is a relationship table for MANY_TO_MANY relationships
@@ -386,10 +448,6 @@ public class SqlDb extends Db
                table.setLinkTbl(true);
             }
          }
-      }
-      finally
-      {
-         Sql.close(apiConn);
       }
    }
 
@@ -566,6 +624,12 @@ public class SqlDb extends Db
       this.driver = driver;
    }
 
+   public String getRoUrl(){
+      if (roUrl == null)
+         return getUrl();
+      return roUrl;
+   }
+
    public String getUrl()
    {
       return url;
@@ -630,7 +694,7 @@ public class SqlDb extends Db
    {
       if (driver.indexOf("mysql") < 0)
          return false;
-      
+
       return calcRowsFound;
    }
 

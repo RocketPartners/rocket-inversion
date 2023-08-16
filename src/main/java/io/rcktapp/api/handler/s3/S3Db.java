@@ -1,10 +1,5 @@
 package io.rcktapp.api.handler.s3;
 
-import java.io.InputStream;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
-
 import com.amazonaws.auth.AWSStaticCredentialsProvider;
 import com.amazonaws.auth.BasicAWSCredentials;
 import com.amazonaws.services.s3.AmazonS3;
@@ -20,7 +15,6 @@ import com.amazonaws.services.s3.model.ObjectMetadata;
 import com.amazonaws.services.s3.model.PutObjectRequest;
 import com.amazonaws.services.s3.model.PutObjectResult;
 import com.amazonaws.services.s3.model.S3Object;
-
 import io.rcktapp.api.Attribute;
 import io.rcktapp.api.Collection;
 import io.rcktapp.api.Column;
@@ -28,6 +22,12 @@ import io.rcktapp.api.Db;
 import io.rcktapp.api.Entity;
 import io.rcktapp.api.Table;
 import io.rcktapp.rql.s3.S3Rql;
+import lombok.extern.slf4j.Slf4j;
+
+import java.io.InputStream;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
 
 /**
  * Bucket ~= Table
@@ -39,6 +39,7 @@ import io.rcktapp.rql.s3.S3Rql;
  * @author kfrankic
  *
  */
+@Slf4j
 public class S3Db extends Db
 {
    static
@@ -67,6 +68,12 @@ public class S3Db extends Db
 
    private AmazonS3  client          = null;
 
+
+   public S3Db()
+   {
+      super();
+      setType("s3");
+   }
    /**
     * @see io.rcktapp.api.Db#bootstrapApi()
     */
@@ -102,6 +109,7 @@ public class S3Db extends Db
          // Other core metadata includes: eTag, size, lastModified, storageClass
          table.addColumn(new Column(table, "key", "java.lang.String", false));
          addTable(table);
+         log.info("Added bucket: {}" + bucketName.trim());
       }
 
       configApi();

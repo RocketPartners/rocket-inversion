@@ -159,7 +159,7 @@ public class SqlDeleteHandler extends SqlHandler
 
       Request req = chain.getRequest();
       SqlDb db = (SqlDb) chain.getService().getDb(req.getApi(), req.getCollectionKey(), SqlDb.class);
-      Connection conn = db.getConnection();
+      Connection conn = db.getConnection(true);
 
       Collection collection = req.getApi().getCollection(req.getCollectionKey(), SqlDb.class);
       Entity entity = collection.getEntity();

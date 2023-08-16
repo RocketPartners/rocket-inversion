@@ -15,18 +15,16 @@
  */
 package io.rcktapp.api;
 
+import lombok.extern.slf4j.Slf4j;
+import org.atteo.evo.inflector.English;
+
 import java.util.ArrayList;
 import java.util.List;
 
-import org.atteo.evo.inflector.English;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
+@Slf4j
 public abstract class Db extends Dto
 {
    protected Api    api       = null;
-
-   protected Logger log       = LoggerFactory.getLogger(getClass());
 
    protected String name      = null;
    protected String type      = null;
@@ -154,7 +152,7 @@ public abstract class Db extends Dto
    }
 
    /**
-    * @param tables the tables to set
+    * @param tbls the tables to set
     */
    public void setTables(List<Table> tbls)
    {
