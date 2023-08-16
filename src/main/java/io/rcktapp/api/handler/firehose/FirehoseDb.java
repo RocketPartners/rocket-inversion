@@ -25,13 +25,13 @@ public class FirehoseDb extends Db
     protected String awsSecretKey = null;
     protected String awsRegion = null;
     /**
-     * If you set a whitelist regex pattern, all of the stream names that we will use MUST match it - even the ones in includeStreams.
+     * If you set an allow regex pattern, all of the stream names that we will use MUST match it - even the ones in includeStreams.
      */
-    protected String whitelistPattern = null;
+    protected String allowPattern = null;
     /**
-     * If you set a blacklist regex pattern, all of the stream names that we will use must NOT match it - even the ones in includeStreams.
+     * If you set a deny regex pattern, all of the stream names that we will use must NOT match it - even the ones in includeStreams.
      */
-    protected String blacklistPattern = null;
+    protected String denyPattern = null;
 
     /**
      * A CSV of pipe delimited collection name to table name pairs.
@@ -66,13 +66,13 @@ public class FirehoseDb extends Db
             String collectionName = stream.getKey();
             String streamName = stream.getValue();
 
-            if (!J.empty(whitelistPattern) && !collectionName.matches(whitelistPattern)) {
-                log.info("skipping {} stream {} because it doesn't match whitelist pattern {}", getType(), stream, whitelistPattern);
+            if (!J.empty(allowPattern) && !collectionName.matches(allowPattern)) {
+                log.info("skipping {} stream {} because it doesn't match allow pattern {}", getType(), stream, allowPattern);
                 continue;
             }
 
-            if (!J.empty(blacklistPattern) && collectionName.matches(blacklistPattern)) {
-                log.info("skipping {} stream {} because it matches blacklist pattern {}", getType(), stream, blacklistPattern);
+            if (!J.empty(denyPattern) && collectionName.matches(denyPattern)) {
+                log.info("skipping {} stream {} because it matches deny pattern {}", getType(), stream, denyPattern);
                 continue;
             }
 

@@ -22,7 +22,7 @@ jobs:
         uses: actions/setup-java@v3
         with:
           distribution: corretto
-          java-version: '8'
+          java-version: '11'
 
       - name: Validate code formatting
         uses: gradle/gradle-build-action@v2.1.4
@@ -41,7 +41,7 @@ jobs:
         uses: actions/setup-java@v3
         with:
           distribution: corretto
-          java-version: '8'
+          java-version: '11'
 
       - name: Validate tests pass
         uses: gradle/gradle-build-action@v2.1.4
@@ -60,7 +60,7 @@ jobs:
         uses: actions/setup-java@v3
         with:
           distribution: corretto
-          java-version: '8'
+          java-version: '11'
 
       - name: Build jar and Docker image
         uses: gradle/gradle-build-action@v2.1.4
