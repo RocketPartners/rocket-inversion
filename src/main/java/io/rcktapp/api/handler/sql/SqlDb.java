@@ -26,6 +26,9 @@ import io.rcktapp.api.Relationship;
 import io.rcktapp.api.SC;
 import io.rcktapp.api.Table;
 import io.rcktapp.rql.sql.SqlRql;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.NoArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.atteo.evo.inflector.English;
 
@@ -48,6 +51,9 @@ import java.util.function.Predicate;
 import java.util.stream.Stream;
 
 @Slf4j
+@Builder(toBuilder = true)
+@NoArgsConstructor
+@AllArgsConstructor
 public class SqlDb extends Db
 {
    static
@@ -79,6 +85,8 @@ public class SqlDb extends Db
    protected int           poolMin                  = MIN_POOL_SIZE;
    protected int           poolMax                  = MAX_POOL_SIZE;
    protected int           idleConnectionTestPeriod = 3600; // in seconds
+
+   protected SqlDb readOnly = null;
 
    // set this to false to turn off SQL_CALC_FOUND_ROWS and SELECT FOUND_ROWS()
    // Only impacts 'mysql' types
@@ -113,6 +121,8 @@ public class SqlDb extends Db
       {
          pool.close();
       }
+      if (this.readOnly != null)
+         readOnly.shutdown();
    }
 
    /**
@@ -121,10 +131,24 @@ public class SqlDb extends Db
    @Deprecated(since = "0.3.12", forRemoval = true)
    public Connection getConnection() throws ApiException
    {
-      return getConnection(true);
+      return getConnection(getUrl());
+   }
+
+   SqlDb getReadOnly() {
+      if (readOnly == null)
+         readOnly = this.toBuilder().url(getRoUrl()).build();
+      return readOnly;
    }
 
    public Connection getConnection(boolean writable) throws ApiException
+   {
+      if (writable)
+         return getConnection(getUrl());
+      else
+         return getReadOnly().getConnection(getRoUrl());
+   }
+
+   public Connection getConnection(String url) throws ApiException
    {
       try
       {
@@ -138,7 +162,6 @@ public class SqlDb extends Db
                   if (pool == null && !shutdown)
                   {
                      String driver = getDriver();
-                     String url = writable ? getUrl() : getRoUrl();
                      String user = getUser();
                      String password = getPass();
                      int minPoolSize = getPoolMin();
