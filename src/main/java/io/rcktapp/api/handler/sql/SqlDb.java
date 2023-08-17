@@ -134,6 +134,11 @@ public class SqlDb extends Db
       return getConnection(getUrl());
    }
 
+   /**
+    * In case you're wondering why it does this, the readonly connection needs its own
+    * connection pool - and this was the fastest way to derive the same DB with a different url
+    * @return
+    */
    SqlDb getReadOnly() {
       if (readOnly == null)
          readOnly = this.toBuilder().url(getRoUrl()).build();
