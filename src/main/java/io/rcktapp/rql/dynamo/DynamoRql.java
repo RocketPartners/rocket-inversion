@@ -6,6 +6,7 @@ package io.rcktapp.rql.dynamo;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 import io.rcktapp.api.Table;
 import io.rcktapp.api.handler.dynamo.DynamoDb;
@@ -162,9 +163,10 @@ public class DynamoRql extends Rql
          for (Predicate pred : predicates)
          {
             String name = pred.getTerms().get(0).getToken();
-            if (excludes.contains(name.toLowerCase()))
+            Optional<String> foundExclude = excludes.stream().filter(name::equalsIgnoreCase).findFirst();
+            if (foundExclude.isPresent())
             {
-               express.addExcludedPredicate(name, pred);
+               express.addExcludedPredicate(foundExclude.get(), pred);
                excludeCnt++;
             }
             else
