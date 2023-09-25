@@ -42,7 +42,6 @@ repositories {
 
 dependencies {
 
-   implementation 'org.projectlombok:lombok:1.18.22'
    if (gradle.ext.rckt_snooze['addFortJProjectToClasspath']) {
       compile findProject(":fort_j")
    }
