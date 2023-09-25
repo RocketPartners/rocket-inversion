@@ -19,6 +19,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 import io.rocketpartners.cloud.model.ApiException;
 import io.rocketpartners.cloud.model.Collection;
@@ -89,7 +90,15 @@ public class ElasticsearchDb extends Db<ElasticsearchDb>
       {
          // 'GET _all' returns all indices/aliases/mappings
          String url = getUrl();
-         Response allResp = HttpUtils.get(url + "/_all").get(maxRequestDuration, TimeUnit.SECONDS);
+         String allRequestUrl = url + "/_all";
+         Response allResp;
+
+         try {
+             allResp = HttpUtils.get(allRequestUrl).get(maxRequestDuration, TimeUnit.SECONDS);
+         } catch (TimeoutException e) {
+             log.error("timed out waiting {} seconds for GET {} to complete", maxRequestDuration, allRequestUrl);
+             throw e;
+         }
 
          if (allResp.isSuccess())
          {
