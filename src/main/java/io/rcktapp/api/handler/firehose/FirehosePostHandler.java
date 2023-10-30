@@ -49,9 +49,9 @@ import java.util.concurrent.Future;
  * stringified record does not end in <code>separator</code>,
  * <code>separator</code> will be appended to the record.
  * <p>
- * The underlying Firehose stream is mapped to the collection name through
- * the FireshoseDb.includeStreams property.
- *
+ * The underlying Firehose stream may be mapped to the collection name through
+ * the FirehoseDb.includeStreams property.
+ ho
  * @author wells
  */
 public class FirehosePostHandler implements Handler

@@ -171,7 +171,7 @@ public class Servlet extends HttpServlet
       {
          ex.printStackTrace();
          httpResp.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
-         if (res.getInputStream() != null)
+         if (res != null && res.getInputStream() != null)
          {
             try
             {

@@ -16,6 +16,7 @@ import org.atteo.evo.inflector.English;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.stream.Stream;
 
 @Slf4j
@@ -57,7 +58,7 @@ public class FirehoseDb extends Db
         // our local streams
         getFirehoseClient().listDeliveryStreams(new ListDeliveryStreamsRequest().withDeliveryStreamType("DirectPut")).getDeliveryStreamNames().forEach(name -> nameActuals.add(Pair.of(name.toLowerCase(), name)));
         // our defined aliases
-        Stream.of(includeStreams.split(",")).map(part -> part.split("\\|")).forEach(arr -> nameActuals.add(Pair.of(arr[0], arr.length > 1 ? arr[1] : arr[0])));
+        Stream.of(Optional.ofNullable(includeStreams).orElse("").split(",")).map(part -> part.split("\\|")).forEach(arr -> nameActuals.add(Pair.of(arr[0], arr.length > 1 ? arr[1] : arr[0])));
 
         this.setType("firehose");
 
