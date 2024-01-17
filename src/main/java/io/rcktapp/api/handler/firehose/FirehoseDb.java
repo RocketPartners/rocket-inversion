@@ -5,6 +5,7 @@ import com.amazonaws.auth.BasicAWSCredentials;
 import com.amazonaws.services.kinesisfirehose.AmazonKinesisFirehoseAsync;
 import com.amazonaws.services.kinesisfirehose.AmazonKinesisFirehoseAsyncClientBuilder;
 import com.amazonaws.services.kinesisfirehose.model.ListDeliveryStreamsRequest;
+import com.amazonaws.services.kinesisfirehose.model.ListDeliveryStreamsResult;
 import io.forty11.j.J;
 import io.rcktapp.api.Collection;
 import io.rcktapp.api.Db;
@@ -45,6 +46,8 @@ public class FirehoseDb extends Db
      */
     protected String includeStreams;
 
+    protected int listDeliveryStreamsLimit = 20;
+
     AmazonKinesisFirehoseAsync firehoseClient = null;
 
     public FirehoseDb() {
@@ -56,7 +59,22 @@ public class FirehoseDb extends Db
     public void bootstrapApi() throws Exception {
         List<Pair<String, String>> nameActuals = new ArrayList<>();
         // our local streams
-        getFirehoseClient().listDeliveryStreams(new ListDeliveryStreamsRequest().withDeliveryStreamType("DirectPut")).getDeliveryStreamNames().forEach(name -> nameActuals.add(Pair.of(name.toLowerCase(), name)));
+        // getFirehoseClient().listDeliveryStreams(new ListDeliveryStreamsRequest().withDeliveryStreamType("DirectPut")).getDeliveryStreamNames().forEach(name -> nameActuals.add(Pair.of(name.toLowerCase(), name)));
+
+        ListDeliveryStreamsRequest listDeliveryStreamsRequest = new ListDeliveryStreamsRequest().withDeliveryStreamType("DirectPut");
+        listDeliveryStreamsRequest.setLimit(listDeliveryStreamsLimit);
+        ListDeliveryStreamsResult listDeliveryStreamsResult = getFirehoseClient().listDeliveryStreams(listDeliveryStreamsRequest);
+        List<String> deliveryStreamNames = listDeliveryStreamsResult.getDeliveryStreamNames();
+
+        while (listDeliveryStreamsResult.getHasMoreDeliveryStreams())
+        {
+            if (!deliveryStreamNames.isEmpty()) {
+                listDeliveryStreamsRequest.setExclusiveStartDeliveryStreamName(deliveryStreamNames.get(deliveryStreamNames.size() - 1));
+            }
+            listDeliveryStreamsResult = getFirehoseClient().listDeliveryStreams(listDeliveryStreamsRequest);
+            deliveryStreamNames.addAll(listDeliveryStreamsResult.getDeliveryStreamNames());
+        }
+
         // our defined aliases
         Stream.of(Optional.ofNullable(includeStreams).orElse("").split(",")).map(part -> part.split("\\|")).forEach(arr -> nameActuals.add(Pair.of(arr[0], arr.length > 1 ? arr[1] : arr[0])));
 
