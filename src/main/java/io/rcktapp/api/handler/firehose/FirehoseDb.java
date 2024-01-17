@@ -75,6 +75,8 @@ public class FirehoseDb extends Db
             deliveryStreamNames.addAll(listDeliveryStreamsResult.getDeliveryStreamNames());
         }
 
+        deliveryStreamNames.forEach(name -> nameActuals.add(Pair.of(name.toLowerCase(), name)));
+
         // our defined aliases
         Stream.of(Optional.ofNullable(includeStreams).orElse("").split(",")).map(part -> part.split("\\|")).forEach(arr -> nameActuals.add(Pair.of(arr[0], arr.length > 1 ? arr[1] : arr[0])));
 
