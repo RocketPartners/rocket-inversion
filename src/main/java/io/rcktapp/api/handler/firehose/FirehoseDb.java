@@ -57,8 +57,6 @@ public class FirehoseDb extends Db
     public void bootstrapApi() throws Exception {
         List<Pair<String, String>> nameActuals = new ArrayList<>();
         // our local streams
-        // getFirehoseClient().listDeliveryStreams(new ListDeliveryStreamsRequest().withDeliveryStreamType("DirectPut")).getDeliveryStreamNames().forEach(name -> nameActuals.add(Pair.of(name.toLowerCase(), name)));
-
         listAllDeliveryStreamNames().forEach(name -> nameActuals.add(Pair.of(name.toLowerCase(), name)));
 
         // our defined aliases
