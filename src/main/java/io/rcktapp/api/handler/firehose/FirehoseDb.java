@@ -5,6 +5,7 @@ import com.amazonaws.auth.BasicAWSCredentials;
 import com.amazonaws.services.kinesisfirehose.AmazonKinesisFirehoseAsync;
 import com.amazonaws.services.kinesisfirehose.AmazonKinesisFirehoseAsyncClientBuilder;
 import com.amazonaws.services.kinesisfirehose.model.ListDeliveryStreamsRequest;
+import com.amazonaws.services.kinesisfirehose.model.ListDeliveryStreamsResult;
 import io.forty11.j.J;
 import io.rcktapp.api.Collection;
 import io.rcktapp.api.Db;
@@ -56,7 +57,8 @@ public class FirehoseDb extends Db
     public void bootstrapApi() throws Exception {
         List<Pair<String, String>> nameActuals = new ArrayList<>();
         // our local streams
-        getFirehoseClient().listDeliveryStreams(new ListDeliveryStreamsRequest().withDeliveryStreamType("DirectPut")).getDeliveryStreamNames().forEach(name -> nameActuals.add(Pair.of(name.toLowerCase(), name)));
+        listAllDeliveryStreamNames().forEach(name -> nameActuals.add(Pair.of(name.toLowerCase(), name)));
+
         // our defined aliases
         Stream.of(Optional.ofNullable(includeStreams).orElse("").split(",")).map(part -> part.split("\\|")).forEach(arr -> nameActuals.add(Pair.of(arr[0], arr.length > 1 ? arr[1] : arr[0])));
 
@@ -95,6 +97,31 @@ public class FirehoseDb extends Db
 
             api.addCollection(collection);
         }
+    }
+
+    private List<String> listAllDeliveryStreamNames() {
+
+        ListDeliveryStreamsResult listDeliveryStreamsResult;
+        List<String> deliveryStreamNames = new ArrayList<>();
+
+        do {
+            String last = deliveryStreamNames.stream().reduce((first, second) -> second).orElse(null);
+
+            ListDeliveryStreamsRequest listDeliveryStreamsRequest = getRequest(last);
+
+            listDeliveryStreamsResult = getFirehoseClient().listDeliveryStreams(listDeliveryStreamsRequest);
+
+            deliveryStreamNames.addAll(listDeliveryStreamsResult.getDeliveryStreamNames());
+
+        } while (listDeliveryStreamsResult.getHasMoreDeliveryStreams());
+
+        return deliveryStreamNames;
+    }
+
+    ListDeliveryStreamsRequest getRequest(String lastEntry) {
+        return new ListDeliveryStreamsRequest()
+                .withDeliveryStreamType("DirectPut")
+                .withExclusiveStartDeliveryStreamName(lastEntry);
     }
 
     public AmazonKinesisFirehoseAsync getFirehoseClient() {
