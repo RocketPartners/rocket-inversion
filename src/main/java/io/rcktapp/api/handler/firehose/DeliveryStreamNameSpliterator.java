@@ -10,15 +10,14 @@ import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
 public class DeliveryStreamNameSpliterator implements Spliterator<String> {
+    private final AmazonKinesisFirehose firehoseClient;
     private String last = null;
 
-    private final AmazonKinesisFirehose firehoseClient;
-
-    public DeliveryStreamNameSpliterator(AmazonKinesisFirehose firehoseClient) {
+    private DeliveryStreamNameSpliterator(AmazonKinesisFirehose firehoseClient) {
         this.firehoseClient = firehoseClient;
     }
 
-    Stream<String> stream() {
+    static Stream<String> stream(AmazonKinesisFirehose firehoseClient) {
         return StreamSupport.stream(new DeliveryStreamNameSpliterator(firehoseClient), false);
     }
 

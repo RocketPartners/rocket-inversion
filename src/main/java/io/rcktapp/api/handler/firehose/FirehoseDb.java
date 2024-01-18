@@ -114,6 +114,6 @@ public class FirehoseDb extends Db
     }
 
     public Stream<String> firehoseNameStream() {
-        return new DeliveryStreamNameSpliterator(getFirehoseClient()).stream();
+        return DeliveryStreamNameSpliterator.stream(getFirehoseClient());
     }
 }
