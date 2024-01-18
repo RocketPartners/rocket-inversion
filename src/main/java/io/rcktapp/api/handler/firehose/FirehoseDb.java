@@ -4,21 +4,21 @@ import com.amazonaws.auth.AWSStaticCredentialsProvider;
 import com.amazonaws.auth.BasicAWSCredentials;
 import com.amazonaws.services.kinesisfirehose.AmazonKinesisFirehoseAsync;
 import com.amazonaws.services.kinesisfirehose.AmazonKinesisFirehoseAsyncClientBuilder;
-import com.amazonaws.services.kinesisfirehose.model.ListDeliveryStreamsRequest;
 import io.forty11.j.J;
 import io.rcktapp.api.Collection;
 import io.rcktapp.api.Db;
 import io.rcktapp.api.Entity;
 import io.rcktapp.api.Table;
+import lombok.EqualsAndHashCode;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.tuple.Pair;
 import org.atteo.evo.inflector.English;
 
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Optional;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+@EqualsAndHashCode(callSuper = true)
 @Slf4j
 public class FirehoseDb extends Db
 {
@@ -45,7 +45,7 @@ public class FirehoseDb extends Db
      */
     protected String includeStreams;
 
-    AmazonKinesisFirehoseAsync firehoseClient = null;
+    protected AmazonKinesisFirehoseAsync firehoseClient = null;
 
     public FirehoseDb() {
         super();
@@ -53,28 +53,28 @@ public class FirehoseDb extends Db
     }
 
     @Override
-    public void bootstrapApi() throws Exception {
-        List<Pair<String, String>> nameActuals = new ArrayList<>();
+    public void bootstrapApi() {
         // our local streams
-        getFirehoseClient().listDeliveryStreams(new ListDeliveryStreamsRequest().withDeliveryStreamType("DirectPut")).getDeliveryStreamNames().forEach(name -> nameActuals.add(Pair.of(name.toLowerCase(), name)));
+        Stream<Pair<String, String>> inKinesis = firehoseNameStream().map(name -> Pair.of(name.toLowerCase(), name));
         // our defined aliases
-        Stream.of(Optional.ofNullable(includeStreams).orElse("").split(",")).map(part -> part.split("\\|")).forEach(arr -> nameActuals.add(Pair.of(arr[0], arr.length > 1 ? arr[1] : arr[0])));
+        Stream<Pair<String, String>> inConfiguration = Stream.of(Optional.ofNullable(includeStreams).orElse("").split(","))
+                .map(part -> part.split("\\|"))
+                .map(arr -> Pair.of(arr[0], arr.length > 1 ? arr[1] : arr[0]));
 
         this.setType("firehose");
-
-        for (Pair<String, String> stream : nameActuals) {
+        Stream.concat(inConfiguration, inKinesis).collect(Collectors.toList()).forEach(stream -> {
             log.info("bootstrap {} stream {}", getType(), stream);
             String collectionName = stream.getKey();
             String streamName = stream.getValue();
 
             if (!J.empty(allowPattern) && !collectionName.matches(allowPattern)) {
                 log.info("skipping {} stream {} because it doesn't match allow pattern {}", getType(), stream, allowPattern);
-                continue;
+                return;
             }
 
             if (!J.empty(denyPattern) && collectionName.matches(denyPattern)) {
                 log.info("skipping {} stream {} because it matches deny pattern {}", getType(), stream, denyPattern);
-                continue;
+                return;
             }
 
             Table table = new Table(this, streamName);
@@ -94,28 +94,26 @@ public class FirehoseDb extends Db
             collection.setEntity(entity);
 
             api.addCollection(collection);
-        }
+        });
     }
 
-    public AmazonKinesisFirehoseAsync getFirehoseClient() {
-        if (this.firehoseClient == null) {
-            synchronized (this) {
-                if (this.firehoseClient == null) {
-                    AmazonKinesisFirehoseAsyncClientBuilder builder = AmazonKinesisFirehoseAsyncClientBuilder.standard();
-                    if (!J.empty(awsRegion))
-                        builder.withRegion(awsRegion);
+    public synchronized AmazonKinesisFirehoseAsync getFirehoseClient() {
+        if (this.firehoseClient != null)
+            return this.firehoseClient;
+        AmazonKinesisFirehoseAsyncClientBuilder builder = AmazonKinesisFirehoseAsyncClientBuilder.standard();
+        if (!J.empty(awsRegion))
+            builder.withRegion(awsRegion);
 
-                    if (!J.empty(awsAccessKey) && !J.empty(awsSecretKey)) {
-                        BasicAWSCredentials creds = new BasicAWSCredentials(awsAccessKey, awsSecretKey);
-                        builder.withCredentials(new AWSStaticCredentialsProvider(creds));
-                    }
-
-                    firehoseClient = builder.build();
-                }
-            }
+        if (!J.empty(awsAccessKey) && !J.empty(awsSecretKey)) {
+            BasicAWSCredentials creds = new BasicAWSCredentials(awsAccessKey, awsSecretKey);
+            builder.withCredentials(new AWSStaticCredentialsProvider(creds));
         }
 
+        firehoseClient = builder.build();
         return firehoseClient;
     }
 
+    public Stream<String> firehoseNameStream() {
+        return new DeliveryStreamNameSpliterator(getFirehoseClient()).stream();
+    }
 }
