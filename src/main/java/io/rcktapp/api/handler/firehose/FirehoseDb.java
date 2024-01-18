@@ -100,14 +100,14 @@ public class FirehoseDb extends Db
     }
 
     private List<String> listAllDeliveryStreamNames() {
-        ListDeliveryStreamsRequest listDeliveryStreamsRequest = new ListDeliveryStreamsRequest().withDeliveryStreamType("DirectPut");
+
         ListDeliveryStreamsResult listDeliveryStreamsResult;
         List<String> deliveryStreamNames = new ArrayList<>();
 
         do {
-            if (!deliveryStreamNames.isEmpty()) {
-                listDeliveryStreamsRequest.setExclusiveStartDeliveryStreamName(deliveryStreamNames.get(deliveryStreamNames.size() - 1));
-            }
+            String last = deliveryStreamNames.stream().reduce((first, second) -> second).orElse(null);
+
+            ListDeliveryStreamsRequest listDeliveryStreamsRequest = getRequest(last);
 
             listDeliveryStreamsResult = getFirehoseClient().listDeliveryStreams(listDeliveryStreamsRequest);
 
@@ -116,6 +116,12 @@ public class FirehoseDb extends Db
         } while (listDeliveryStreamsResult.getHasMoreDeliveryStreams());
 
         return deliveryStreamNames;
+    }
+
+    ListDeliveryStreamsRequest getRequest(String lastEntry) {
+        return new ListDeliveryStreamsRequest()
+                .withDeliveryStreamType("DirectPut")
+                .withExclusiveStartDeliveryStreamName(lastEntry);
     }
 
     public AmazonKinesisFirehoseAsync getFirehoseClient() {
