@@ -2,6 +2,7 @@ package io.rcktapp.api.handler.firehose;
 
 import com.amazonaws.services.kinesisfirehose.AmazonKinesisFirehose;
 import com.amazonaws.services.kinesisfirehose.model.ListDeliveryStreamsRequest;
+import com.amazonaws.services.kinesisfirehose.model.ListDeliveryStreamsResult;
 
 import java.util.List;
 import java.util.Spliterator;
@@ -24,10 +25,11 @@ public class DeliveryStreamNameSpliterator implements Spliterator<String> {
 
     @Override
     public boolean tryAdvance(Consumer<? super String> action) {
-        List<String> page = firehoseClient.listDeliveryStreams(getRequest(last)).getDeliveryStreamNames();
-        last = page.stream().reduce((first, second) -> second).orElse(null);
-        page.forEach(action);
-        return !page.isEmpty();
+        ListDeliveryStreamsResult page = firehoseClient.listDeliveryStreams(getRequest(last));
+        List<String> names = page.getDeliveryStreamNames();
+        last = names.stream().reduce((first, second) -> second).orElse(null);
+        names.forEach(action);
+        return page.getHasMoreDeliveryStreams();
     }
 
     ListDeliveryStreamsRequest getRequest(String lastEntry) {
