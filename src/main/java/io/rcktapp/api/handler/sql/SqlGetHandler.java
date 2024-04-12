@@ -181,9 +181,8 @@ public class SqlGetHandler extends SqlHandler
          String inClause = Sql.getInClauseStr(J.explode(",", Sql.check(req.getEntityKey())));
          List<String> inClauses = J.explode(",", inClause);
          params.addAll(inClauses);
-         String parameterizedInClause = Sql.getQuestionMarkStr(inClauses.size());
          sql += " SELECT * FROM " + rql.asCol(tbl.getName());
-         sql += " WHERE " + Sql.check(keyCol) + " IN (" + parameterizedInClause + ") ";
+         sql += " WHERE " + Sql.check(keyCol) + " IN (" + Sql.getQuestionMarkStr(inClauses.toArray()) + ") ";
       }
       else if (tbl != null)
       {
