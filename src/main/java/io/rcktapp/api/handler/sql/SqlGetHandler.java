@@ -179,9 +179,11 @@ public class SqlGetHandler extends SqlHandler
          //-- ${http://host/apipath}/collectionKey/entityKey[,entityKey2,entityKey3....,entityKeyN]
 
          String inClause = Sql.getInClauseStr(J.explode(",", Sql.check(req.getEntityKey())));
-
+         List<String> inClauses = J.explode(",", inClause);
+         params.addAll(inClauses);
+         String parameterizedInClause = Sql.getQuestionMarkStr(inClauses.size());
          sql += " SELECT * FROM " + rql.asCol(tbl.getName());
-         sql += " WHERE " + Sql.check(keyCol) + " IN (" + inClause + ") ";
+         sql += " WHERE " + Sql.check(keyCol) + " IN (" + parameterizedInClause + ") ";
       }
       else if (tbl != null)
       {
