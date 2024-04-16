@@ -92,7 +92,7 @@ public class SqlGetHandler extends SqlHandler
       }
       SqlRql rql = (SqlRql) Rql.getRql(db.getType());
 
-      conn = db.getConnection();
+      conn = db.getConnection(false);
 
       Collection collection = null;
       try

@@ -1,5 +1,4 @@
-apply plugin: 'eclipse'
-apply plugin: 'maven'
+apply plugin: 'maven-publish'
 apply plugin: 'java'
 
 //README uncomment the line below to use 'gradle build' to package a war.
@@ -9,109 +8,165 @@ apply plugin: 'java'
 //would be useless.
 //apply plugin: 'war'
 
-project.docsDirName='../docs/0.3.x/'
+project.docsDirName = '../docs/0.3.x/'
 
 configurations.all { resolutionStrategy.cacheChangingModulesFor 0, 'seconds' }
 
-version = '0.3.6.3'
+version = '0.3.16'
 group = 'com.github.RocketPartners'
-sourceCompatibility = 1.8
-
+sourceCompatibility = JavaVersion.VERSION_11
+targetCompatibility = JavaVersion.VERSION_11
 ext {
-   archiveRepo = "https://maven.pkg.github.com/RocketPartners/artifacts"
-   archiveRepoUser = System.env.GHP_USER
-   archiveRepoPassword = System.env.GHP_PASSWORD
-   junitVersion = '5.8.1'
+    archiveRepo = "https://maven.pkg.github.com/RocketPartners/artifacts"
+    archiveRepoUser = System.getenv('GHP_USER')
+    archiveRepoPassword = System.getenv('GHP_PASSWORD')
+    junitVersion = '5.8.1'
+
+    bash = { opts = [:] ->
+        opts += [
+                captureOutput  : opts.captureOutput == null ? false : opts.captureOutput,
+                ignoreExitValue: opts.ignoreExitValue == null ? false : opts.ignoreExitValue,
+                quiet          : opts.quiet == null ? false : opts.quiet
+        ]
+
+        def output = null
+
+        try {
+            exec {
+                if (opts.captureOutput) {
+                    standardOutput = new ByteArrayOutputStream()
+                    output = { -> standardOutput.toString() }
+                }
+
+                ignoreExitValue = opts.ignoreExitValue
+                opts.env?.each { key, val -> environment key, val }
+                opts.workingDir && workingDir(opts.workingDir)
+                commandLine = ["bash", "-o", "pipefail", "-c", "${opts.args?.trim()} 2>&1"]
+                opts.quiet || println(commandLine.join(" "))
+            }
+
+            if (opts.captureOutput) {
+                output()
+            }
+        } catch (e) {
+            if (opts.captureOutput) {
+                println(output())
+            }
+            throw e
+        }
+    }
+
+
+    git = { opts = [:] ->
+        try {
+            def result = file(".git").exists() ? bash(opts + [args: "git ${opts.args}".trim()]) : ""
+            result ?: opts.defaultValue
+        } catch (Exception e) {
+            if (opts.defaultValue) {
+                return opts.defaultValue
+            }
+            throw e
+        }
+    }
+
+    branch = git(args: "rev-parse --abbrev-ref HEAD", captureOutput: true, ignoreExitValue: false,
+            defaultValue: System.getenv("GITHUB_REF_NAME"))?.trim()?.replaceAll('/', '-')
+
+    isReleaseBranch = { opts = [:] ->
+        opts += [branch: opts.branch ?: project.branch]
+        opts.branch ==~ /^main$|^master$|^release-.*/
+    }
+
+    isReleaseBranch() || (project.version += "-$branch-SNAPSHOT")
 }
 
 repositories {
-   mavenLocal()
+    mavenLocal()
 
-   maven {
-      url archiveRepo
-      credentials {
-         username archiveRepoUser
-         password archiveRepoPassword
-      }
-   }
+    maven {
+        url archiveRepo
+        credentials {
+            username archiveRepoUser
+            password archiveRepoPassword
+        }
+    }
 
-   mavenCentral()
-   // maven { url 'https://jitpack.io' }
-   maven { url "http://redshift-maven-repository.s3-website-us-east-1.amazonaws.com/release" }
+    mavenCentral()
+    // maven { url 'https://jitpack.io' }
+    maven { url "http://redshift-maven-repository.s3-website-us-east-1.amazonaws.com/release" }
 }
 
 dependencies {
 
-   if (gradle.ext.rckt_snooze['addFortJProjectToClasspath']) {
-      compile findProject(":fort_j")
-   }
-   else {
-      // compile("com.github.wellsb1:fort_j:release-1.0.x-SNAPSHOT") { changing = true }
-      compile("com.github.wellsb1:fort_j:1.0.x")
-   }
+    implementation 'org.projectlombok:lombok:1.18.26'
+    annotationProcessor 'org.projectlombok:lombok:1.18.26'
+    if (gradle.ext.rckt_snooze['addFortJProjectToClasspath']) {
+        compile findProject(":fort_j")
+    } else {
+        // compile("com.github.wellsb1:fort_j:release-1.0.x-SNAPSHOT") { changing = true }
+        compile("com.github.wellsb1:fort_j:1.0.x")
+    }
 
-   if (gradle.ext.rckt_snooze['addFortWProjectToClasspath']) {
-      compile findProject(":fort_w")
-   }
-   else {
-      // compile("com.github.wellsb1:fort_w:release-1.0.x-SNAPSHOT") { changing = true }
-      compile("com.github.wellsb1:fort_w:1.0.x")
-   }
+    if (gradle.ext.rckt_snooze['addFortWProjectToClasspath']) {
+        compile findProject(":fort_w")
+    } else {
+        // compile("com.github.wellsb1:fort_w:release-1.0.x-SNAPSHOT") { changing = true }
+        compile("com.github.wellsb1:fort_w:1.0.x")
+    }
 
-   if (gradle.ext.rckt_snooze['addFortSProjectToClasspath']) {
-      compile findProject(":fort_s")
-   }
-   else {
-      // compile("com.github.wellsb1:fort_s:release-1.1.x-SNAPSHOT") { changing = true }
-      compile("com.github.wellsb1:fort_s:1.1.x")
-   }
+    if (gradle.ext.rckt_snooze['addFortSProjectToClasspath']) {
+        compile findProject(":fort_s")
+    } else {
+        // compile("com.github.wellsb1:fort_s:release-1.1.x-SNAPSHOT") { changing = true }
+        compile("com.github.wellsb1:fort_s:1.1.x")
+    }
 
-   // compile("com.github.wellsb1:fort_fusion_vtl:66afa082b5") { changing = true }
-   compile("com.github.wellsb1:fort_fusion_vtl:1.0.0")
+    // compile("com.github.wellsb1:fort_fusion_vtl:66afa082b5") { changing = true }
+    compile("com.github.wellsb1:fort_fusion_vtl:1.0.0")
 
-   compile group: 'org.bouncycastle', name: 'bcprov-jdk15on', version: '1.55'
+    compile group: 'org.bouncycastle', name: 'bcprov-jdk15on', version: '1.55'
 
-   compile group: 'com.mchange', name: 'c3p0', version: '0.9.5.2'
-   compile group: 'com.mchange', name: 'mchange-commons-java', version: '0.2.11'
+    compile group: 'com.mchange', name: 'c3p0', version: '0.9.5.2'
+    compile group: 'com.mchange', name: 'mchange-commons-java', version: '0.2.11'
 
-   compile group: 'commons-codec', name: 'commons-codec', version: '1.10'
-   compile group: 'commons-collections', name: 'commons-collections', version: '3.2.1'
-   compile group: 'org.apache.commons', name: 'commons-csv', version: '1.4'
-   compile group: 'commons-httpclient', name: 'commons-httpclient', version: '3.1'
-   compile group: 'org.apache.commons', name: 'commons-lang3', version: '3.4'
-
-
-   // required for the Redis client
-   compile group: 'redis.clients', name: 'jedis', version: '3.1.0'
-
-   compile 'com.amazonaws:aws-java-sdk-s3:1.11.390'
-   compile 'com.amazonaws:aws-java-sdk-dynamodb:1.11.390'
-   compile 'com.amazonaws:aws-java-sdk-kinesis:1.11.390'
-
-   //drivers for supportd DBs
-   compile group: 'mysql', name: 'mysql-connector-java', version: '5.1.34'
-   compile 'org.postgresql:postgresql:42.1.4'
-
-   // Beware of changing the redshift driver version. Newer versions of this driver are not thread-safe
-   // Version 1.2.10.1009 is thread-safe
-   // https://stackoverflow.com/questions/52884036/java-sql-sqlnontransientexception-amazonjdbc10900-not-all-parameters-have
-   compile group: 'com.amazon.redshift', name: 'redshift-jdbc42-no-awssdk', version: '1.2.10.1009'
-
-   compile group: 'com.auth0', name: 'java-jwt', version: '3.1.0'
-
-   compile group: 'ch.qos.logback', name: 'logback-classic', version: '1.1.11'
-
-   compile "javax.servlet:javax.servlet-api:3.1.0"
-
-   compile 'net.jodah:expiringmap:0.5.8'
-   compile group: 'org.graalvm', name: 'graal-sdk', version: '1.0.0-rc7'
-   compile group: 'com.oracle.truffle', name: 'truffle-api', version: '1.0.0-rc7'
-   compile files('libs/graaljs.jar')
-   compile files('libs/tregex.jar')
+    compile group: 'commons-codec', name: 'commons-codec', version: '1.10'
+    compile group: 'commons-collections', name: 'commons-collections', version: '3.2.1'
+    compile group: 'org.apache.commons', name: 'commons-csv', version: '1.4'
+    compile group: 'commons-httpclient', name: 'commons-httpclient', version: '3.1'
+    compile group: 'org.apache.commons', name: 'commons-lang3', version: '3.4'
 
 
-   compile group: 'org.apache.velocity', name: 'velocity-engine-core', version: '2.0'
-   //	compile group: 'org.apache.velocity', name: 'velocity-engine-scripting', version: '2.0'
+    // required for the Redis client
+    compile group: 'redis.clients', name: 'jedis', version: '3.1.0'
+
+    compile 'com.amazonaws:aws-java-sdk-s3:1.11.390'
+    compile 'com.amazonaws:aws-java-sdk-dynamodb:1.11.390'
+    compile 'com.amazonaws:aws-java-sdk-kinesis:1.11.390'
+
+    //drivers for supportd DBs
+    compile group: 'mysql', name: 'mysql-connector-java', version: '5.1.34'
+    compile 'org.postgresql:postgresql:42.1.4'
+
+    // Beware of changing the redshift driver version. Newer versions of this driver are not thread-safe
+    // Version 1.2.10.1009 is thread-safe
+    // https://stackoverflow.com/questions/52884036/java-sql-sqlnontransientexception-amazonjdbc10900-not-all-parameters-have
+    compile group: 'com.amazon.redshift', name: 'redshift-jdbc42-no-awssdk', version: '1.2.10.1009'
+
+    compile group: 'com.auth0', name: 'java-jwt', version: '3.1.0'
+
+    compile group: 'ch.qos.logback', name: 'logback-classic', version: '1.1.11'
+
+    compile "javax.servlet:javax.servlet-api:3.1.0"
+
+    compile 'net.jodah:expiringmap:0.5.8'
+    compile group: 'org.graalvm', name: 'graal-sdk', version: '1.0.0-rc7'
+    compile group: 'com.oracle.truffle', name: 'truffle-api', version: '1.0.0-rc7'
+    compile files('libs/graaljs.jar')
+    compile files('libs/tregex.jar')
+
+
+    compile group: 'org.apache.velocity', name: 'velocity-engine-core', version: '2.0'
+    //	compile group: 'org.apache.velocity', name: 'velocity-engine-scripting', version: '2.0'
 
     testImplementation group: 'org.hamcrest', name: 'hamcrest-all', version: '1.3'
     testImplementation group: 'org.hamcrest', name: 'hamcrest', version: '2.2'
@@ -128,53 +183,39 @@ test {
     useJUnitPlatform()
 }
 
-
-/************************************************************
- * Ensuring source directories are created if they do not
- * already exist when running 'gradle eclipse'
- */
-eclipse {
-   classpath {
-      file {
-         tasks.eclipse.dependsOn(cleanEclipseClasspath)
-         tasks.eclipse.dependsOn("create-dirs")
-      }
-   }
-}
-
-
-
 /************************************************************
  * This task should be used when creating a new project as
  * it will create all source and resource directories.  This
  * task is automatically executed during the
  * 'gradle eclipse' command.
  */
-task "create-dirs" {
-   doLast {
-      sourceSets*.java.srcDirs*.each { it.mkdirs() }
-      sourceSets*.resources.srcDirs*.each { it.mkdirs() }
-   }
+tasks.register('create-dirs') {
+    doLast {
+        sourceSets*.java.srcDirs*.each { it.mkdirs() }
+        sourceSets*.resources.srcDirs*.each { it.mkdirs() }
+    }
 }
 
 javadoc {
-   exclude "**/utils/**"
-   exclude "**/evo/**"
+    exclude "**/utils/**"
+    exclude "**/evo/**"
 }
 
-uploadArchives {
-   repositories {
-      mavenDeployer {
-         repository(url: archiveRepo) {
-            authentication(userName: archiveRepoUser, password: archiveRepoPassword)
-         }
-      }
-   }
-
-   doFirst {
-      println "${jar.archiveName} -> ${archiveRepo}"
-   }
-   dependsOn assemble
+publishing {
+    publications {
+        mavenJava(MavenPublication) {
+            from components.java
+        }
+    }
+    repositories {
+        maven {
+            credentials {
+                username archiveRepoUser
+                password archiveRepoPassword
+            }
+            url archiveRepo
+        }
+    }
 }
 
 tasks.register("getVersion") {

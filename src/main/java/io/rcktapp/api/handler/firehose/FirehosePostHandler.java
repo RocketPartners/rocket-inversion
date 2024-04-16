@@ -49,9 +49,9 @@ import java.util.concurrent.Future;
  * stringified record does not end in <code>separator</code>,
  * <code>separator</code> will be appended to the record.
  * <p>
- * The underlying Firehose stream is mapped to the collection name through
- * the FireshoseDb.includeStreams property.
- *
+ * The underlying Firehose stream may be mapped to the collection name through
+ * the FirehoseDb.includeStreams property.
+ ho
  * @author wells
  */
 public class FirehosePostHandler implements Handler
@@ -73,46 +73,6 @@ public class FirehosePostHandler implements Handler
         for (int idx = 0; idx < buf.length; ++idx)
             buf[idx] = symbols[random.nextInt(symbols.length)];
         return new String(buf);
-    }
-
-    public static void main(String[] args) throws Exception
-    {
-        System.out.println(randomString(100));
-
-        AmazonKinesisFirehose firehose = AmazonKinesisFirehoseClientBuilder.defaultClient();
-
-        ListDeliveryStreamsRequest listDeliveryStreamsRequest = new ListDeliveryStreamsRequest();
-        ListDeliveryStreamsResult listDeliveryStreamsResult = firehose.listDeliveryStreams(listDeliveryStreamsRequest);
-        List<String> deliveryStreamNames = listDeliveryStreamsResult.getDeliveryStreamNames();
-        while (listDeliveryStreamsResult.isHasMoreDeliveryStreams())
-        {
-            if (deliveryStreamNames.size() > 0)
-            {
-                listDeliveryStreamsRequest.setExclusiveStartDeliveryStreamName(deliveryStreamNames.get(deliveryStreamNames.size() - 1));
-            }
-            listDeliveryStreamsResult = firehose.listDeliveryStreams(listDeliveryStreamsRequest);
-            deliveryStreamNames.addAll(listDeliveryStreamsResult.getDeliveryStreamNames());
-        }
-
-        System.out.println(deliveryStreamNames);
-
-        for (int i = 0; i < 2000; i++)
-        {
-            List<Record> records = new ArrayList();
-            for (int j = 0; j < 500; j++)
-            {
-                JSObject json = new JSObject("tenantCode", "us", "yearid", 2019, "monthid", 201901, "dayid", 20190110, "locationCode", "asdfasdf", "playerCode", "us-12345667-1", "adId", (i * j), "somecrapproperrty", randomString(500));
-                records.add(new Record().withData(ByteBuffer.wrap((json.toString(false).trim() + "\n").getBytes())));
-            }
-
-            PutRecordBatchRequest put = new PutRecordBatchRequest();
-            put.setDeliveryStreamName("liftck-player9-impression");
-            put.setRecords(records);
-            firehose.putRecordBatch(put);
-
-            System.out.println(i);
-        }
-
     }
 
     @Override

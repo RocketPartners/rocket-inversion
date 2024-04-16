@@ -15,13 +15,6 @@
  */
 package io.rcktapp.api.handler.dynamo;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-
-import org.atteo.evo.inflector.English;
-
 import com.amazonaws.auth.AWSStaticCredentialsProvider;
 import com.amazonaws.auth.BasicAWSCredentials;
 import com.amazonaws.services.dynamodbv2.AmazonDynamoDB;
@@ -39,7 +32,6 @@ import com.amazonaws.services.dynamodbv2.model.GlobalSecondaryIndexDescription;
 import com.amazonaws.services.dynamodbv2.model.KeySchemaElement;
 import com.amazonaws.services.dynamodbv2.model.LocalSecondaryIndexDescription;
 import com.amazonaws.services.dynamodbv2.model.TableDescription;
-
 import io.forty11.j.J;
 import io.rcktapp.api.Api;
 import io.rcktapp.api.ApiException;
@@ -54,7 +46,15 @@ import io.rcktapp.api.Table;
 import io.rcktapp.rql.Parser;
 import io.rcktapp.rql.Predicate;
 import io.rcktapp.rql.dynamo.DynamoRql;
+import lombok.extern.slf4j.Slf4j;
+import org.atteo.evo.inflector.English;
 
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
+@Slf4j
 public class DynamoDb extends Db
 {
    public static final String PRIMARY_INDEX         = "Primary Index";
@@ -100,6 +100,11 @@ public class DynamoDb extends Db
 
    private AmazonDynamoDB dynamoClient = null;
 
+
+   public DynamoDb() {
+        super();
+        setType("dynamo");
+   }
    @Override
    public void bootstrapApi() throws Exception
    {

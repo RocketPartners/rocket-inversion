@@ -34,7 +34,7 @@ jobs:
         uses: actions/setup-java@v3
         with:
           distribution: corretto
-          java-version: '8'
+          java-version: '11'
 
       - name: Assemble
         run: ./gradlew clean assemble
@@ -55,7 +55,7 @@ jobs:
       - name: Publish package
         uses: gradle/gradle-build-action@67421db6bd0bf253fb4bd25b31ebb98943c375e1
         with:
-          arguments: uploadArchives
+          arguments: publish
 
       - name: Update Slack
         if: always()

@@ -19,7 +19,9 @@ import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.Vector;
 
 import org.atteo.evo.inflector.English;
@@ -40,6 +42,8 @@ import io.rcktapp.api.Response;
 import io.rcktapp.api.SC;
 import io.rcktapp.api.handler.sql.SqlDb.ConnectionLocal;
 
+import static java.util.Collections.emptyIterator;
+
 public class Service
 {
    boolean           inited         = false;
@@ -55,7 +59,7 @@ public class Service
    Configurator      configurator   = new Configurator();
 
    /**
-    * Must be set to match your servlet path if your servlet is not 
+    * Must be set to match your servlet path if your servlet is not
     * mapped to /*
     */
    protected String  servletMapping = null;
@@ -71,9 +75,9 @@ public class Service
    protected String  configOut      = null;
 
    /**
-    * Service reflects all request headers along with those supplied in <code>allowHeaders</code> as 
+    * Service reflects all request headers along with those supplied in <code>allowHeaders</code> as
     * "Access-Control-Allow-Headers" response headers.  This is primarily a CROS security thing and you
-    * probably won't need to customize this list. 
+    * probably won't need to customize this list.
     */
    protected String  allowedHeaders = "accept,accept-encoding,accept-language,access-control-request-headers,access-control-request-method,authorization,connection,Content-Type,host,user-agent,x-auth-token";
 
@@ -84,15 +88,20 @@ public class Service
 
    public synchronized void init()
    {
+      init(emptyIterator());
+   }
+   public synchronized void init(Iterator<Map.Entry<Object, Object>> propertySource)
+   {
       if (inited)
          return;
       inited = true;
-      configurator.loadConfg(this);
-
+      configurator.loadConfg(this, propertySource);
    }
 
    public Chain service(Request req, Response res)
    {
+      res.addHeader("X-Implementation-Title", getClass().getPackage().getImplementationTitle());
+      res.addHeader("X-Implementation-Version", getClass().getPackage().getImplementationVersion());
       Chain chain = null;
       String method = req.getMethod();
 

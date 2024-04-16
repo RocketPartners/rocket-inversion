@@ -15,18 +15,6 @@
  */
 package io.rcktapp.api.handler.security;
 
-import java.security.MessageDigest;
-import java.sql.Connection;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
-import java.util.UUID;
-
-import javax.xml.bind.annotation.adapters.HexBinaryAdapter;
-
-import org.apache.commons.codec.binary.Base64;
-import org.apache.commons.collections.map.LRUMap;
-
 import io.forty11.j.J;
 import io.forty11.sql.Sql;
 import io.forty11.web.js.JSArray;
@@ -45,6 +33,16 @@ import io.rcktapp.api.SC;
 import io.rcktapp.api.User;
 import io.rcktapp.api.handler.sql.SqlDb;
 import io.rcktapp.api.service.Service;
+import org.apache.commons.codec.binary.Base64;
+import org.apache.commons.codec.binary.Hex;
+import org.apache.commons.collections.map.LRUMap;
+
+import java.security.MessageDigest;
+import java.sql.Connection;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+import java.util.UUID;
 
 public class AuthHandler implements Handler
 {
@@ -186,9 +184,9 @@ public class AuthHandler implements Handler
       }
       else if (!J.empty(username, password))
       {
-         Connection conn = db.getConnection();
+         Connection roConn = db.getConnection(false);
 
-         User tempUser = getUser(conn, api, req.getTenantCode(), username, null);
+         User tempUser = getUser(roConn, api, req.getTenantCode(), username, null);
          boolean authorized = false;
          if (tempUser != null)
          {
@@ -199,19 +197,19 @@ public class AuthHandler implements Handler
                //only attempt to validate password and log the attempt 
                //if the user has failed login fewer than failedMax times
                String remoteAddr = req.getRemoteAddr();
-               authorized = checkPassword(conn, tempUser, password);
+               authorized = checkPassword(roConn, tempUser, password);
 
                if (shouldTrackRequestTimes)
                {
                   String sql = "UPDATE User SET requestAt = ?, failedNum = ?, remoteAddr = ? WHERE id = ?";
-                  Sql.execute(conn, sql, now, authorized ? 0 : failedNum + 1, remoteAddr, tempUser.getId());
+                  Sql.execute(db.getConnection(true), sql, now, authorized ? 0 : failedNum + 1, remoteAddr, tempUser.getId());
                }
 
                if (authorized)
                {
                   tempUser.setRequestAt(now);
-                  tempUser.setRoles(getRoles(conn, req.getApi(), tempUser));
-                  tempUser.setPermissions(getPermissions(conn, req.getApi(), tempUser));
+                  tempUser.setRoles(getRoles(roConn, req.getApi(), tempUser));
+                  tempUser.setPermissions(getPermissions(roConn, req.getApi(), tempUser));
                   if (!J.empty(authenticatedPerm))
                   {
                      tempUser.getPermissions().add(new Permission(authenticatedPerm));
@@ -288,7 +286,7 @@ public class AuthHandler implements Handler
             Integer tenantId = (Integer) api.getCache("TENANT_ID_" + tenantCode);
             if (tenantId == null)
             {
-               Connection conn = db.getConnection();
+               Connection conn = db.getConnection(false);
 
                Object tenant = Sql.selectValue(conn, "SELECT id FROM Tenant WHERE tenantCode = ?", tenantCode);
                if (tenant == null)
@@ -457,9 +455,7 @@ public class AuthHandler implements Handler
          digest.update(byteArr);
          byte[] bytes = digest.digest();
 
-         String hex = (new HexBinaryAdapter()).marshal(bytes);
-
-         return hex;
+         return Hex.encodeHexString( bytes );
       }
       catch (Exception ex)
       {

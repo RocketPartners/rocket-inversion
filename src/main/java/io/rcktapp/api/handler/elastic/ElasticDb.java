@@ -15,11 +15,6 @@
  */
 package io.rcktapp.api.handler.elastic;
 
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.concurrent.TimeUnit;
-
 import io.forty11.web.Web;
 import io.forty11.web.js.JS;
 import io.forty11.web.js.JSObject;
@@ -32,7 +27,14 @@ import io.rcktapp.api.Entity;
 import io.rcktapp.api.SC;
 import io.rcktapp.api.Table;
 import io.rcktapp.rql.elastic.ElasticRql;
+import lombok.extern.slf4j.Slf4j;
 
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.TimeUnit;
+
+@Slf4j
 public class ElasticDb extends Db
 {
 
@@ -54,6 +56,12 @@ public class ElasticDb extends Db
    protected static int         maxRequestDuration       = 10;                  // duration in seconds.
 
    protected static final int[] allowedFailResponseCodes = {400, 401, 403, 404};
+
+   public ElasticDb()
+   {
+      super();
+      setType("elastic");
+   }
 
    @Override
    public void bootstrapApi() throws Exception
@@ -139,8 +147,9 @@ public class ElasticDb extends Db
     * The name of the elastic index will be used as a table index.
     * Most tables will only have one index. An example of a 
     * table with multiple indexes would be the alias 'all'.
-    * @param indexName
+    * @param elasticName
     * @param jsIndex
+    * @param tableMap
     * @return
     */
    private void buildAliasTables(String elasticName, JSObject jsIndex, Map<String, Table> tableMap)
@@ -169,6 +178,7 @@ public class ElasticDb extends Db
                {
                   table = new Table(this, aliasName);
                   tableMap.put(aliasName, table);
+                  log.info("Created elastic map {} -> {}: ", aliasName, elasticName);
                }
 
                addTable(table);
