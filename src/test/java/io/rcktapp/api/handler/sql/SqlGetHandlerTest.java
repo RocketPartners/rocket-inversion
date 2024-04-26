@@ -95,7 +95,7 @@ public class SqlGetHandlerTest {
         // Mocked methods that return local objects used in the future
         when(chain.getService()).thenReturn(service);
         when(service.getDb(request.getApi(), request.getCollectionKey(), SqlDb.class)).thenReturn(sqlDb);
-        when(sqlDb.getConnection()).thenReturn(connection);
+        when(sqlDb.getConnection(false)).thenReturn(connection);
         when(Rql.getRql(sqlDb.getType())).thenReturn(sqlRql);
         when(api.getCollection(request.getCollectionKey(), SqlDb.class)).thenReturn(collection);
         when(collection.getEntity()).thenReturn(entity);
