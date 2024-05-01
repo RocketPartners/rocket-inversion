@@ -75,6 +75,12 @@ public class SqlGetHandlerTest {
     @Captor
     ArgumentCaptor<List> queryParametersCaptor;
 
+    @Captor
+    ArgumentCaptor<String> sqlCaptor;
+    
+    @Captor
+    ArgumentCaptor<Map<String, String>> rqlParamsCaptor;
+
     @Test
     public void testSqlGetHandler_queryParametersAreProperlyPassedToQueryObjectsMethod() throws Exception {
 
@@ -82,7 +88,7 @@ public class SqlGetHandlerTest {
 
         String passedQuery = "updatexml(rand(),concat(CHAR(126),user(),CHAR(126)),null)";
         String collectionName = "plugins";
-        String [] inClause = {"updatexml(rand()", "concat(CHAR(126)", "user()", "CHAR(126))", "null)"};
+        String[] inClause = {"updatexml(rand()", "concat(CHAR(126)", "user()", "CHAR(126))", "null)"};
 
         // Setup request object with proper api configuration
         Request request = new Request(url, "GET", new HashMap<>(), new HashMap<>(), "");
@@ -114,7 +120,7 @@ public class SqlGetHandlerTest {
         when(chain.getConfig("maxRows", 0)).thenReturn(0);
 
         // Call the actual method on the mocked handler
-        handler.service(service,api,endpoint,action,chain,request,response);
+        handler.service(service, api, endpoint, action, chain, request, response);
 
         // Verify that the invocation of queryObjects contains the proper parameters.
         verify(handler).queryObjects(any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), queryParametersCaptor.capture());
