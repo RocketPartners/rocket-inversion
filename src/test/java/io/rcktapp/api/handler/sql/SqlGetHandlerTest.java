@@ -105,7 +105,7 @@ public class SqlGetHandlerTest {
             doCallRealMethod().when(handler).service(service, api, endpoint, action, chain, request, response);
 
             // More mocked methods that return objects reused locally
-            when(sqlRql.asCol("plugins")).thenReturn(collectionName);
+            when(sqlRql.asCol(collectionName)).thenReturn(collectionName);
             sqlMockedStatic.when(() -> Sql.check(collectionName)).thenReturn(collectionName);
             sqlMockedStatic.when(() -> Sql.getQuestionMarkStr(inClause)).thenReturn("?,?,?,?,?");
             when(sqlRql.createStmt(any(), any(), any(), any(Replacer.class))).thenReturn(stmt);
