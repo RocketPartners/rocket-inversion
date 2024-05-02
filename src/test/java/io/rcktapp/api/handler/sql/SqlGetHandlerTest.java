@@ -65,8 +65,6 @@ public class SqlGetHandlerTest {
 
     @Captor
     ArgumentCaptor<String> sqlCaptor;
-    @Captor
-    ArgumentCaptor<Map<String, String>> rqlParamsCaptor;
 
     @Test
     public void testSqlGetHandler_queryParametersAreProperlyPassedToQueryObjectsMethod() throws Exception {
