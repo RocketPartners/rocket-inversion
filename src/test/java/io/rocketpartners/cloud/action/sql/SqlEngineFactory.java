@@ -112,7 +112,7 @@ public class SqlEngineFactory
                         {
                            String mysqlUrl = "jdbc:mysql://testnorthwind.cb4bo9agap0y.us-east-1.rds.amazonaws.com:3306";
 
-                           Class.forName("com.mysql.jdbc.Driver").newInstance();
+                           Class.forName("com.mysql.cj.jdbc.Driver").newInstance();
                            Connection mysqlConn = null;
                            boolean sourceLoaded = false;
                            try
@@ -140,7 +140,7 @@ public class SqlEngineFactory
                               throw ex;
                            }
                            mysqlUrl += "/northwindcopy";
-                           mysqlDb = createDb("mysql", null, "com.mysql.jdbc.Driver", mysqlUrl, "testcase", "password", "mysql/");
+                           mysqlDb = createDb("mysql", null, "com.mysql.cj.jdbc.Driver", mysqlUrl, "testcase", "password", "mysql/");
 
                            engine.getApi("northwind")//
                                  .withEndpoint("GET,PUT,POST,DELETE", "mysql/*", new RestAction())//
