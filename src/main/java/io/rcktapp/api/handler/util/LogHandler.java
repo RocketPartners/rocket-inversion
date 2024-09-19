@@ -15,6 +15,7 @@
  */
 package io.rcktapp.api.handler.util;
 
+import java.math.BigInteger;
 import java.sql.Connection;
 import java.util.*;
 
@@ -116,6 +117,9 @@ public class LogHandler implements Handler
 
                   if (logIdGeneric.getClass().isAssignableFrom(Long.class)){
                      logId = (Long) logIdGeneric;
+                  } else if (logIdGeneric.getClass().isAssignableFrom(BigInteger.class)){
+                     BigInteger logIdBigInt = (BigInteger) logIdGeneric;
+                     logId = logIdBigInt.longValue();
                   } else {
                      logId = Long.parseLong(logIdGeneric.toString());
                   }
