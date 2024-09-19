@@ -110,7 +110,15 @@ public class LogHandler implements Handler
                   {
                      logParams.put("tenantId", tenantId);
                   }
-                  Long logId = (Long) Sql.insertMap(conn, logTable, logParams);
+
+                  Object logIdGeneric = Sql.insertMap(conn, logTable, logParams);
+                  Long logId;
+
+                  if (logIdGeneric.getClass().isAssignableFrom(Long.class)){
+                     logId = (Long) logIdGeneric;
+                  } else {
+                     logId = Long.parseLong(logIdGeneric.toString());
+                  }
 
                   List<Map> changeMap = new ArrayList();
                   for (Change c : changes)
