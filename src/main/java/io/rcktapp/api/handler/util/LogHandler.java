@@ -113,16 +113,7 @@ public class LogHandler implements Handler
                   }
 
                   Object logIdGeneric = Sql.insertMap(conn, logTable, logParams);
-                  Long logId;
-
-                  if (logIdGeneric.getClass().isAssignableFrom(Long.class)){
-                     logId = (Long) logIdGeneric;
-                  } else if (logIdGeneric.getClass().isAssignableFrom(BigInteger.class)){
-                     BigInteger logIdBigInt = (BigInteger) logIdGeneric;
-                     logId = logIdBigInt.longValue();
-                  } else {
-                     logId = Long.parseLong(logIdGeneric.toString());
-                  }
+                  Long logId = convertToLong(logIdGeneric);
 
                   List<Map> changeMap = new ArrayList();
                   for (Change c : changes)
@@ -148,6 +139,21 @@ public class LogHandler implements Handler
             log.error("Unexpected exception while adding row to audit log. " + req.getMethod() + " " + req.getUrl(), e);
          }
       }
+   }
+
+   private static Long convertToLong(Object logIdGeneric) {
+      Long logId;
+      if (logIdGeneric == null) {
+         logId = null;
+      } else if (logIdGeneric.getClass().isAssignableFrom(Long.class)){
+         logId = (Long) logIdGeneric;
+      } else if (logIdGeneric.getClass().isAssignableFrom(BigInteger.class)){
+         BigInteger logIdBigInt = (BigInteger) logIdGeneric;
+         logId = logIdBigInt.longValue();
+      } else {
+         logId = Long.parseLong(logIdGeneric.toString());
+      }
+      return logId;
    }
 
    JSObject maskFields(JSObject json, String mask)
