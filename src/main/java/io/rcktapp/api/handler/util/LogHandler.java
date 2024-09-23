@@ -15,6 +15,7 @@
  */
 package io.rcktapp.api.handler.util;
 
+import java.math.BigInteger;
 import java.sql.Connection;
 import java.util.*;
 
@@ -110,7 +111,9 @@ public class LogHandler implements Handler
                   {
                      logParams.put("tenantId", tenantId);
                   }
-                  Long logId = (Long) Sql.insertMap(conn, logTable, logParams);
+
+                  Object logIdGeneric = Sql.insertMap(conn, logTable, logParams);
+                  Long logId = convertToLong(logIdGeneric);
 
                   List<Map> changeMap = new ArrayList();
                   for (Change c : changes)
@@ -136,6 +139,21 @@ public class LogHandler implements Handler
             log.error("Unexpected exception while adding row to audit log. " + req.getMethod() + " " + req.getUrl(), e);
          }
       }
+   }
+
+   private static Long convertToLong(Object logIdGeneric) {
+      Long logId;
+      if (logIdGeneric == null) {
+         logId = null;
+      } else if (logIdGeneric.getClass().isAssignableFrom(Long.class)){
+         logId = (Long) logIdGeneric;
+      } else if (logIdGeneric.getClass().isAssignableFrom(BigInteger.class)){
+         BigInteger logIdBigInt = (BigInteger) logIdGeneric;
+         logId = logIdBigInt.longValue();
+      } else {
+         logId = Long.parseLong(logIdGeneric.toString());
+      }
+      return logId;
    }
 
    JSObject maskFields(JSObject json, String mask)
