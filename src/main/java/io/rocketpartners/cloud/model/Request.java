@@ -15,6 +15,8 @@
  */
 package io.rocketpartners.cloud.model;
 
+import static org.junit.Assert.assertNotNull;
+
 import java.io.InputStream;
 import java.util.List;
 import java.util.Map;
