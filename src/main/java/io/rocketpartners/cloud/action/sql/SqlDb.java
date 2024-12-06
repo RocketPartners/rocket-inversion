@@ -16,6 +16,10 @@
 package io.rocketpartners.cloud.action.sql;
 
 import ch.qos.logback.classic.Level;
+import com.amazonaws.auth.DefaultAWSCredentialsProviderChain;
+import com.amazonaws.regions.DefaultAwsRegionProviderChain;
+import com.amazonaws.services.rds.auth.GetIamAuthTokenRequest;
+import com.amazonaws.services.rds.auth.RdsIamAuthTokenGenerator;
 import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
 import io.rocketpartners.cloud.model.ApiException;
@@ -46,6 +50,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Properties;
 import java.util.Set;
 import javax.sql.DataSource;
 import org.apache.commons.lang3.StringUtils;
@@ -130,6 +135,7 @@ public class SqlDb extends Db<SqlDb> {
   protected int poolMin = 3;
   protected int poolMax = 10;
   protected int idleConnectionTestPeriod = 3600; // in seconds
+  protected boolean useIamAuth = false;
   // set this to false to turn off SQL_CALC_FOUND_ROWS and SELECT FOUND_ROWS()
   // Only impacts 'mysql' types
   protected boolean calcRowsFound = true;
@@ -293,18 +299,7 @@ public class SqlDb extends Db<SqlDb> {
             pool = pools.get(getName());
 
             if (pool == null && !isShutdown()) {
-              // System.out.println("CREATING NEW POOL: " + getUrl());
-              // pool = JdbcConnectionPool.create("jdbc:h2:./northwind", "sa", "");
-
-              HikariConfig config = new HikariConfig();
-              String driver = getDriver();
-              config.setDriverClassName(driver);
-              config.setJdbcUrl(getUrl());
-              config.setUsername(getUser());
-              config.setPassword(getPass());
-              config.setMaximumPoolSize(Math.min(getPoolMax(), MAX_POOL_SIZE));
-              pool = new HikariDataSource(config);
-
+              pool = getDataSource();
               pools.put(dsKey, pool);
             }
           }
@@ -333,6 +328,69 @@ public class SqlDb extends Db<SqlDb> {
       log.error("Unable to get DB connection", ex);
       throw new ApiException(SC.SC_500_INTERNAL_SERVER_ERROR, "Unable to get DB connection", ex);
     }
+  }
+
+  public DataSource getDataSource() {
+    return useIamAuth ? buildIamAuthDataSource() : buildNormalDataSource();
+  }
+
+  private DataSource buildIamAuthDataSource() {
+    HikariConfig config = new HikariConfig();
+    config.setDriverClassName(getDriver());
+    config.setJdbcUrl(getUrl());
+    config.setUsername(getUser());
+    config.setMaximumPoolSize(Math.min(getPoolMax(), MAX_POOL_SIZE));
+
+    Properties targetDataSourceProps = new Properties();
+    targetDataSourceProps.setProperty("wrapperPlugins", "iam");
+    config.addDataSourceProperty("targetDataSourceProperties", targetDataSourceProps);
+
+    return new HikariDataSource(config) {
+      @Override
+      public String getPassword() {
+        return generateAuthToken();
+      }
+
+      private String generateAuthToken() {
+        RdsIamAuthTokenGenerator generator = RdsIamAuthTokenGenerator.builder()
+                .credentials(new DefaultAWSCredentialsProviderChain())
+                .region(new DefaultAwsRegionProviderChain().getRegion())
+                .build();
+
+        return generator.getAuthToken(GetIamAuthTokenRequest.builder()
+                .hostname(determineHostname(getUrl()))
+                .port(determinePort(getUrl()))
+                .userName(getUser())
+                .build());
+      }
+
+      private String determineHostname(String jdbcUrl) {
+        return jdbcUrl.substring(jdbcUrl.indexOf("//") + 2, jdbcUrl.lastIndexOf(":"));
+      }
+
+      private int determinePort(String jdbcUrl) {
+        String portStringStart = jdbcUrl.substring(jdbcUrl.lastIndexOf(":") + 1);
+        StringBuilder stringBuilder = new StringBuilder();
+        for (int i = 0; i < portStringStart.length(); i++) {
+          if (Character.isDigit(portStringStart.charAt(i))) {
+            stringBuilder.append(portStringStart.charAt(i));
+          } else {
+            break;
+          }
+        }
+        return Integer.parseInt(stringBuilder.toString());
+      }
+    };
+  }
+
+  private DataSource buildNormalDataSource() {
+    HikariConfig config = new HikariConfig();
+    config.setDriverClassName(getDriver());
+    config.setJdbcUrl(getUrl());
+    config.setUsername(getUser());
+    config.setPassword(getPass());
+    config.setMaximumPoolSize(Math.min(getPoolMax(), MAX_POOL_SIZE));
+    return new HikariDataSource(config);
   }
 
   @Override
@@ -774,6 +832,15 @@ public class SqlDb extends Db<SqlDb> {
   public SqlDb withPass(String pass) {
     this.pass = pass;
     return this;
+  }
+
+  public SqlDb withUseIamAuth(boolean useIamAuth) {
+    this.useIamAuth = useIamAuth;
+    return this;
+  }
+
+  public boolean isUseIamAuth() {
+    return useIamAuth;
   }
 
   public int getPoolMin() {
