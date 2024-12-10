@@ -334,111 +334,103 @@ public class SqlDb extends Db
 
       String driver = getDriver();
       Class.forName(driver);
-      Connection apiConn = DriverManager.getConnection(getUrl(), getUser(), getPass());
+      Connection apiConn = getConnection();
 
-      try
+      DatabaseMetaData dbmd = apiConn.getMetaData();
+
+      //-- only here to map jdbc type integer codes to strings ex "4" to "BIGINT" or whatever it is
+      Map<String, String> types = new HashMap<String, String>();
+      for (Field field : Types.class.getFields())
       {
-
-         DatabaseMetaData dbmd = apiConn.getMetaData();
-
-         //-- only here to map jdbc type integer codes to strings ex "4" to "BIGINT" or whatever it is
-         Map<String, String> types = new HashMap<String, String>();
-         for (Field field : Types.class.getFields())
-         {
-            types.put(field.get(null) + "", field.getName());
-         }
-         //--
-
-         //-- the first loop through is going to construct all of the
-         //-- Tbl and Col objects.  There will be a second loop through
-         //-- that caputres all of the foreign key relationships.  You
-         //-- have to do the fk loop second becuase the reference pk
-         //-- object needs to exist so that it can be set on the fk Col
-         ResultSet rs = dbmd.getTables(null, "public", "%", new String[]{"TABLE", "VIEW"});
-         while (rs.next())
-         {
-            String tableCat = rs.getString("TABLE_CAT");
-            String tableSchem = rs.getString("TABLE_SCHEM");
-            String tableName = rs.getString("TABLE_NAME");
-            //String tableType = rs.getString("TABLE_TYPE");
-
-            Table table = new Table(this, tableName);
-            addTable(table);
-
-            ResultSet colsRs = dbmd.getColumns(tableCat, tableSchem, tableName, "%");
-
-            while (colsRs.next())
-            {
-               String colName = colsRs.getString("COLUMN_NAME");
-               Object type = colsRs.getString("DATA_TYPE");
-               String colType = types.get(type);
-
-               boolean nullable = colsRs.getInt("NULLABLE") == DatabaseMetaData.columnNullable;
-
-               Column column = new Column(table, colName, colType, nullable);
-               table.addColumn(column);
-
-               //               if (DELETED_FLAGS.contains(colName.toLowerCase()))
-               //               {
-               //                  table.setDeletedFlag(column);
-               //               }
-            }
-            colsRs.close();
-
-            ResultSet indexMd = dbmd.getIndexInfo(apiConn.getCatalog(), null, tableName, true, false);
-            while (indexMd.next())
-            {
-               String colName = indexMd.getString("COLUMN_NAME");
-               Column col = getColumn(tableName, colName);
-               col.setUnique(true);
-            }
-            indexMd.close();
-
-         }
-         rs.close();
-
-         //-- now link all of the fks to pks
-         //-- this is done after the first loop
-         //-- so that all of the tbls/cols are
-         //-- created first and are there to
-         //-- be connected
-         rs = dbmd.getTables(null, "public", "%", new String[]{"TABLE"});
-         while (rs.next())
-         {
-            String tableName = rs.getString("TABLE_NAME");
-
-            ResultSet keyMd = dbmd.getImportedKeys(apiConn.getCatalog(), null, tableName);
-            while (keyMd.next())
-            {
-               String fkTableName = keyMd.getString("FKTABLE_NAME");
-               String fkColumnName = keyMd.getString("FKCOLUMN_NAME");
-               String pkTableName = keyMd.getString("PKTABLE_NAME");
-               String pkColumnName = keyMd.getString("PKCOLUMN_NAME");
-
-               Column fk = getColumn(fkTableName, fkColumnName);
-               Column pk = getColumn(pkTableName, pkColumnName);
-               fk.setPk(pk);
-
-               //log.info(fkTableName + "." + fkColumnName + " -> " + pkTableName + "." + pkColumnName);
-            }
-            keyMd.close();
-         }
-         rs.close();
-
-         //-- if a table has two columns and both are foreign keys
-         //-- then it is a relationship table for MANY_TO_MANY relationships
-         for (Table table : getTables())
-         {
-            List<Column> cols = table.getColumns();
-            if (cols.size() == 2 && cols.get(0).isFk() && cols.get(1).isFk())
-            {
-               table.setLinkTbl(true);
-            }
-         }
+         types.put(field.get(null) + "", field.getName());
       }
-      finally
+      //--
+
+      //-- the first loop through is going to construct all of the
+      //-- Tbl and Col objects.  There will be a second loop through
+      //-- that caputres all of the foreign key relationships.  You
+      //-- have to do the fk loop second becuase the reference pk
+      //-- object needs to exist so that it can be set on the fk Col
+      ResultSet rs = dbmd.getTables(null, "public", "%", new String[]{"TABLE", "VIEW"});
+      while (rs.next())
       {
-         Sql.close(apiConn);
+         String tableCat = rs.getString("TABLE_CAT");
+         String tableSchem = rs.getString("TABLE_SCHEM");
+         String tableName = rs.getString("TABLE_NAME");
+         //String tableType = rs.getString("TABLE_TYPE");
+
+         Table table = new Table(this, tableName);
+         addTable(table);
+
+         ResultSet colsRs = dbmd.getColumns(tableCat, tableSchem, tableName, "%");
+
+         while (colsRs.next())
+         {
+            String colName = colsRs.getString("COLUMN_NAME");
+            Object type = colsRs.getString("DATA_TYPE");
+            String colType = types.get(type);
+
+            boolean nullable = colsRs.getInt("NULLABLE") == DatabaseMetaData.columnNullable;
+
+            Column column = new Column(table, colName, colType, nullable);
+            table.addColumn(column);
+
+            //               if (DELETED_FLAGS.contains(colName.toLowerCase()))
+            //               {
+            //                  table.setDeletedFlag(column);
+            //               }
+         }
+         colsRs.close();
+
+         ResultSet indexMd = dbmd.getIndexInfo(apiConn.getCatalog(), null, tableName, true, false);
+         while (indexMd.next())
+         {
+            String colName = indexMd.getString("COLUMN_NAME");
+            Column col = getColumn(tableName, colName);
+            col.setUnique(true);
+         }
+         indexMd.close();
+
+      }
+      rs.close();
+
+      //-- now link all of the fks to pks
+      //-- this is done after the first loop
+      //-- so that all of the tbls/cols are
+      //-- created first and are there to
+      //-- be connected
+      rs = dbmd.getTables(null, "public", "%", new String[]{"TABLE"});
+      while (rs.next())
+      {
+         String tableName = rs.getString("TABLE_NAME");
+
+         ResultSet keyMd = dbmd.getImportedKeys(apiConn.getCatalog(), null, tableName);
+         while (keyMd.next())
+         {
+            String fkTableName = keyMd.getString("FKTABLE_NAME");
+            String fkColumnName = keyMd.getString("FKCOLUMN_NAME");
+            String pkTableName = keyMd.getString("PKTABLE_NAME");
+            String pkColumnName = keyMd.getString("PKCOLUMN_NAME");
+
+            Column fk = getColumn(fkTableName, fkColumnName);
+            Column pk = getColumn(pkTableName, pkColumnName);
+            fk.setPk(pk);
+
+            //log.info(fkTableName + "." + fkColumnName + " -> " + pkTableName + "." + pkColumnName);
+         }
+         keyMd.close();
+      }
+      rs.close();
+
+      //-- if a table has two columns and both are foreign keys
+      //-- then it is a relationship table for MANY_TO_MANY relationships
+      for (Table table : getTables())
+      {
+         List<Column> cols = table.getColumns();
+         if (cols.size() == 2 && cols.get(0).isFk() && cols.get(1).isFk())
+         {
+            table.setLinkTbl(true);
+         }
       }
    }
 
