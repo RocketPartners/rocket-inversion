@@ -25,7 +25,14 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Properties;
 
+import com.amazonaws.auth.DefaultAWSCredentialsProviderChain;
+import com.amazonaws.regions.DefaultAwsRegionProviderChain;
+import com.amazonaws.services.rds.auth.GetIamAuthTokenRequest;
+import com.amazonaws.services.rds.auth.RdsIamAuthTokenGenerator;
+import com.zaxxer.hikari.HikariConfig;
+import com.zaxxer.hikari.HikariDataSource;
 import org.atteo.evo.inflector.English;
 
 import com.mchange.v2.c3p0.ComboPooledDataSource;
@@ -42,6 +49,8 @@ import io.rcktapp.api.Relationship;
 import io.rcktapp.api.SC;
 import io.rcktapp.api.Table;
 import io.rcktapp.rql.sql.SqlRql;
+
+import javax.sql.DataSource;
 
 public class SqlDb extends Db
 {
@@ -63,7 +72,7 @@ public class SqlDb extends Db
 
    boolean                 shutdown                 = false;
 
-   ComboPooledDataSource   pool                     = null;
+   DataSource pool = null;
 
    protected String        driver                   = null;
    protected String        url                      = null;
@@ -72,6 +81,7 @@ public class SqlDb extends Db
    protected int           poolMin                  = MIN_POOL_SIZE;
    protected int           poolMax                  = MAX_POOL_SIZE;
    protected int           idleConnectionTestPeriod = 3600; // in seconds
+   protected boolean useIamAuth = false;
 
    // set this to false to turn off SQL_CALC_FOUND_ROWS and SELECT FOUND_ROWS()
    // Only impacts 'mysql' types
@@ -101,11 +111,6 @@ public class SqlDb extends Db
    public void shutdown()
    {
       shutdown = true;
-
-      synchronized (this)
-      {
-         pool.close();
-      }
    }
 
    public Connection getConnection() throws ApiException
@@ -121,26 +126,7 @@ public class SqlDb extends Db
                {
                   if (pool == null && !shutdown)
                   {
-                     String driver = getDriver();
-                     String url = getUrl();
-                     String user = getUser();
-                     String password = getPass();
-                     int minPoolSize = getPoolMin();
-                     int maxPoolSize = getPoolMax();
-                     int idleTestPeriod = getIdleConnectionTestPeriod();
-
-                     pool = new ComboPooledDataSource();
-                     pool.setDriverClass(driver);
-                     pool.setJdbcUrl(url);
-                     pool.setUser(user);
-                     pool.setPassword(password);
-                     pool.setInitialPoolSize(minPoolSize);
-                     pool.setMinPoolSize(minPoolSize);
-                     pool.setMaxPoolSize(maxPoolSize);
-
-                     pool.setIdleConnectionTestPeriod(idleTestPeriod);
-                     //                     if (idleTestPeriod > 0)
-                     //                        pool.setTestConnectionOnCheckin(true);
+                     pool = getDataSource();
                   }
                }
             }
@@ -158,6 +144,69 @@ public class SqlDb extends Db
          log.error("Unable to get DB connection", ex);
          throw new ApiException(SC.SC_500_INTERNAL_SERVER_ERROR, "Unable to get DB connection", ex);
       }
+   }
+
+   public DataSource getDataSource() {
+      return useIamAuth ? buildIamAuthDataSource() : buildNormalDataSource();
+   }
+
+   private DataSource buildIamAuthDataSource() {
+      HikariConfig config = new HikariConfig();
+      config.setDriverClassName(getDriver());
+      config.setJdbcUrl(getUrl());
+      config.setUsername(getUser());
+      config.setMaximumPoolSize(Math.min(getPoolMax(), MAX_POOL_SIZE));
+
+      Properties targetDataSourceProps = new Properties();
+      targetDataSourceProps.setProperty("wrapperPlugins", "iam");
+      config.addDataSourceProperty("targetDataSourceProperties", targetDataSourceProps);
+
+      return new HikariDataSource(config) {
+         @Override
+         public String getPassword() {
+            return generateAuthToken();
+         }
+
+         private String generateAuthToken() {
+            RdsIamAuthTokenGenerator generator = RdsIamAuthTokenGenerator.builder()
+                    .credentials(new DefaultAWSCredentialsProviderChain())
+                    .region(new DefaultAwsRegionProviderChain().getRegion())
+                    .build();
+
+            return generator.getAuthToken(GetIamAuthTokenRequest.builder()
+                    .hostname(determineHostname(getUrl()))
+                    .port(determinePort(getUrl()))
+                    .userName(getUser())
+                    .build());
+         }
+
+         private String determineHostname(String jdbcUrl) {
+            return jdbcUrl.substring(jdbcUrl.indexOf("//") + 2, jdbcUrl.lastIndexOf(":"));
+         }
+
+         private int determinePort(String jdbcUrl) {
+            String portStringStart = jdbcUrl.substring(jdbcUrl.lastIndexOf(":") + 1);
+            StringBuilder stringBuilder = new StringBuilder();
+            for (int i = 0; i < portStringStart.length(); i++) {
+               if (Character.isDigit(portStringStart.charAt(i))) {
+                  stringBuilder.append(portStringStart.charAt(i));
+               } else {
+                  break;
+               }
+            }
+            return Integer.parseInt(stringBuilder.toString());
+         }
+      };
+   }
+
+   private DataSource buildNormalDataSource() {
+      HikariConfig config = new HikariConfig();
+      config.setDriverClassName(getDriver());
+      config.setJdbcUrl(getUrl());
+      config.setUsername(getUser());
+      config.setPassword(getPass());
+      config.setMaximumPoolSize(Math.min(getPoolMax(), MAX_POOL_SIZE));
+      return new HikariDataSource(config);
    }
 
    public static class ConnectionLocal
@@ -594,6 +643,15 @@ public class SqlDb extends Db
    public void setPass(String pass)
    {
       this.pass = pass;
+   }
+
+   public SqlDb withUseIamAuth(boolean useIamAuth) {
+      this.useIamAuth = useIamAuth;
+      return this;
+   }
+
+   public boolean isUseIamAuth() {
+      return useIamAuth;
    }
 
    public int getPoolMin()
