@@ -18,7 +18,6 @@ package io.rcktapp.api.handler.sql;
 import java.lang.reflect.Field;
 import java.sql.Connection;
 import java.sql.DatabaseMetaData;
-import java.sql.DriverManager;
 import java.sql.ResultSet;
 import java.sql.Types;
 import java.util.ArrayList;
@@ -35,10 +34,6 @@ import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
 import org.atteo.evo.inflector.English;
 
-import com.mchange.v2.c3p0.ComboPooledDataSource;
-
-import io.forty11.sql.Sql;
-import io.rcktapp.api.Api;
 import io.rcktapp.api.ApiException;
 import io.rcktapp.api.Attribute;
 import io.rcktapp.api.Collection;
@@ -161,42 +156,7 @@ public class SqlDb extends Db
       targetDataSourceProps.setProperty("wrapperPlugins", "iam");
       config.addDataSourceProperty("targetDataSourceProperties", targetDataSourceProps);
 
-      return new HikariDataSource(config) {
-         @Override
-         public String getPassword() {
-            return generateAuthToken();
-         }
-
-         private String generateAuthToken() {
-            RdsIamAuthTokenGenerator generator = RdsIamAuthTokenGenerator.builder()
-                    .credentials(new DefaultAWSCredentialsProviderChain())
-                    .region(new DefaultAwsRegionProviderChain().getRegion())
-                    .build();
-
-            return generator.getAuthToken(GetIamAuthTokenRequest.builder()
-                    .hostname(determineHostname(getUrl()))
-                    .port(determinePort(getUrl()))
-                    .userName(getUser())
-                    .build());
-         }
-
-         private String determineHostname(String jdbcUrl) {
-            return jdbcUrl.substring(jdbcUrl.indexOf("//") + 2, jdbcUrl.lastIndexOf(":"));
-         }
-
-         private int determinePort(String jdbcUrl) {
-            String portStringStart = jdbcUrl.substring(jdbcUrl.lastIndexOf(":") + 1);
-            StringBuilder stringBuilder = new StringBuilder();
-            for (int i = 0; i < portStringStart.length(); i++) {
-               if (Character.isDigit(portStringStart.charAt(i))) {
-                  stringBuilder.append(portStringStart.charAt(i));
-               } else {
-                  break;
-               }
-            }
-            return Integer.parseInt(stringBuilder.toString());
-         }
-      };
+      return new RdsIamDataSource(config);
    }
 
    private DataSource buildNormalDataSource() {
