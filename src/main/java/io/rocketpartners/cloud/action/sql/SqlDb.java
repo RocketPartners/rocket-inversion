@@ -183,12 +183,6 @@ public class SqlDb extends Db<SqlDb> {
     String selectKey = (table != null ? table.getKeyName() + "." : "") + "select";
 
     String selectSql = (String) Chain.peek().remove(selectKey);
-    //      if (Utils.empty(sql))
-    //      {
-    //         if (table == null)
-    //            throw new ApiException(SC.SC_400_BAD_REQUEST, "Table missing");
-    //         sql = " SELECT * FROM " + quoteCol(table.getName());
-    //      }
 
     SqlQuery query = new SqlQuery(table, columnMappedTerms);
     query.withDb(db);
@@ -311,18 +305,6 @@ public class SqlDb extends Db<SqlDb> {
         ConnectionLocal.putConnection(this, conn);
       }
 
-      //         String res = "TABLE NOT FOUND";
-      //         try
-      //         {
-      //            res = SqlUtils.selectRows(conn, "SELECT CUSTOMERID FROM CUSTOMERS LIMIT
-      // 1").toString();
-      //         }
-      //         catch(Exception ex)
-      //         {
-      //
-      //         }
-      // System.out.println("GETTING CONNECTION: " + getUrl() + " - " + res);
-
       return conn;
     } catch (Exception ex) {
       log.error("Unable to get DB connection", ex);
@@ -345,42 +327,7 @@ public class SqlDb extends Db<SqlDb> {
     targetDataSourceProps.setProperty("wrapperPlugins", "iam");
     config.addDataSourceProperty("targetDataSourceProperties", targetDataSourceProps);
 
-    return new HikariDataSource(config) {
-      @Override
-      public String getPassword() {
-        return generateAuthToken();
-      }
-
-      private String generateAuthToken() {
-        RdsIamAuthTokenGenerator generator = RdsIamAuthTokenGenerator.builder()
-                .credentials(new DefaultAWSCredentialsProviderChain())
-                .region(new DefaultAwsRegionProviderChain().getRegion())
-                .build();
-
-        return generator.getAuthToken(GetIamAuthTokenRequest.builder()
-                .hostname(determineHostname(getUrl()))
-                .port(determinePort(getUrl()))
-                .userName(getUser())
-                .build());
-      }
-
-      private String determineHostname(String jdbcUrl) {
-        return jdbcUrl.substring(jdbcUrl.indexOf("//") + 2, jdbcUrl.lastIndexOf(":"));
-      }
-
-      private int determinePort(String jdbcUrl) {
-        String portStringStart = jdbcUrl.substring(jdbcUrl.lastIndexOf(":") + 1);
-        StringBuilder stringBuilder = new StringBuilder();
-        for (int i = 0; i < portStringStart.length(); i++) {
-          if (Character.isDigit(portStringStart.charAt(i))) {
-            stringBuilder.append(portStringStart.charAt(i));
-          } else {
-            break;
-          }
-        }
-        return Integer.parseInt(stringBuilder.toString());
-      }
-    };
+    return new RdsIamDataSource(config);
   }
 
   private DataSource buildNormalDataSource() {
@@ -459,11 +406,6 @@ public class SqlDb extends Db<SqlDb> {
 
           Column column = new Column(table, columnNumber, colName, colType, nullable);
           table.withColumn(column);
-
-          //               if (DELETED_FLAGS.contains(colName.toLowerCase()))
-          //               {
-          //                  table.setDeletedFlag(column);
-          //               }
         }
         colsRs.close();
 
@@ -529,28 +471,11 @@ public class SqlDb extends Db<SqlDb> {
           fk.withPk(pk);
 
           getTable(fkTableName).makeIndex(fk, fkName, "FOREIGN_KEY", false);
-
-          // System.out.println("FOREIGN_KEY: " + tableName + " - " + pkName + " - " + fkName + "- "
-          // + fkTableName + "." + fkColumnName + " -> " + pkTableName + "." + pkColumnName);
         }
         keyMd.close();
       } while (rs.next());
 
     rs.close();
-
-    // 2019-02-11 WB - moved below code into Table.isLinkTable
-    //
-    //      -- if a table has two columns and both are foreign keys
-    //      -- then it is a relationship table for MANY_TO_MANY relationships
-    //            for (Table table : getTables())
-    //            {
-    //               List<Column> cols = table.getColumns();
-    //               if (cols.size() == 2 && cols.get(0).isFk() && cols.get(1).isFk())
-    //               {
-    //                  table.withLinkTbl(true);
-    //               }
-    //            }
-
   }
 
   public void configApi() throws Exception {
@@ -710,10 +635,6 @@ public class SqlDb extends Db<SqlDb> {
           Relationship rel = collection.getRelationship(part);
 
           if (rel == null) break;
-
-          //               if (rel == null)
-          //                  throw new ApiException("Unable to identify relationship for dotted
-          // attribute name: '" + token + "'");
 
           String aliasPrefix =
               "_join_" + rel.getEntity().getCollection().getName() + "_" + part + "_";
