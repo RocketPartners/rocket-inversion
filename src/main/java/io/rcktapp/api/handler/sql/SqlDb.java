@@ -18,20 +18,22 @@ package io.rcktapp.api.handler.sql;
 import java.lang.reflect.Field;
 import java.sql.Connection;
 import java.sql.DatabaseMetaData;
-import java.sql.DriverManager;
 import java.sql.ResultSet;
 import java.sql.Types;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Properties;
 
+import com.amazonaws.auth.DefaultAWSCredentialsProviderChain;
+import com.amazonaws.regions.DefaultAwsRegionProviderChain;
+import com.amazonaws.services.rds.auth.GetIamAuthTokenRequest;
+import com.amazonaws.services.rds.auth.RdsIamAuthTokenGenerator;
+import com.zaxxer.hikari.HikariConfig;
+import com.zaxxer.hikari.HikariDataSource;
 import org.atteo.evo.inflector.English;
 
-import com.mchange.v2.c3p0.ComboPooledDataSource;
-
-import io.forty11.sql.Sql;
-import io.rcktapp.api.Api;
 import io.rcktapp.api.ApiException;
 import io.rcktapp.api.Attribute;
 import io.rcktapp.api.Collection;
@@ -42,6 +44,8 @@ import io.rcktapp.api.Relationship;
 import io.rcktapp.api.SC;
 import io.rcktapp.api.Table;
 import io.rcktapp.rql.sql.SqlRql;
+
+import javax.sql.DataSource;
 
 public class SqlDb extends Db
 {
@@ -63,7 +67,7 @@ public class SqlDb extends Db
 
    boolean                 shutdown                 = false;
 
-   ComboPooledDataSource   pool                     = null;
+   DataSource pool = null;
 
    protected String        driver                   = null;
    protected String        url                      = null;
@@ -72,6 +76,7 @@ public class SqlDb extends Db
    protected int           poolMin                  = MIN_POOL_SIZE;
    protected int           poolMax                  = MAX_POOL_SIZE;
    protected int           idleConnectionTestPeriod = 3600; // in seconds
+   protected boolean useIamAuth = false;
 
    // set this to false to turn off SQL_CALC_FOUND_ROWS and SELECT FOUND_ROWS()
    // Only impacts 'mysql' types
@@ -101,11 +106,6 @@ public class SqlDb extends Db
    public void shutdown()
    {
       shutdown = true;
-
-      synchronized (this)
-      {
-         pool.close();
-      }
    }
 
    public Connection getConnection() throws ApiException
@@ -121,26 +121,7 @@ public class SqlDb extends Db
                {
                   if (pool == null && !shutdown)
                   {
-                     String driver = getDriver();
-                     String url = getUrl();
-                     String user = getUser();
-                     String password = getPass();
-                     int minPoolSize = getPoolMin();
-                     int maxPoolSize = getPoolMax();
-                     int idleTestPeriod = getIdleConnectionTestPeriod();
-
-                     pool = new ComboPooledDataSource();
-                     pool.setDriverClass(driver);
-                     pool.setJdbcUrl(url);
-                     pool.setUser(user);
-                     pool.setPassword(password);
-                     pool.setInitialPoolSize(minPoolSize);
-                     pool.setMinPoolSize(minPoolSize);
-                     pool.setMaxPoolSize(maxPoolSize);
-
-                     pool.setIdleConnectionTestPeriod(idleTestPeriod);
-                     //                     if (idleTestPeriod > 0)
-                     //                        pool.setTestConnectionOnCheckin(true);
+                     pool = getDataSource();
                   }
                }
             }
@@ -158,6 +139,34 @@ public class SqlDb extends Db
          log.error("Unable to get DB connection", ex);
          throw new ApiException(SC.SC_500_INTERNAL_SERVER_ERROR, "Unable to get DB connection", ex);
       }
+   }
+
+   public DataSource getDataSource() {
+      return useIamAuth ? buildIamAuthDataSource() : buildNormalDataSource();
+   }
+
+   private DataSource buildIamAuthDataSource() {
+      HikariConfig config = new HikariConfig();
+      config.setDriverClassName(getDriver());
+      config.setJdbcUrl(getUrl());
+      config.setUsername(getUser());
+      config.setMaximumPoolSize(Math.min(getPoolMax(), MAX_POOL_SIZE));
+
+      Properties targetDataSourceProps = new Properties();
+      targetDataSourceProps.setProperty("wrapperPlugins", "iam");
+      config.addDataSourceProperty("targetDataSourceProperties", targetDataSourceProps);
+
+      return new RdsIamDataSource(config);
+   }
+
+   private DataSource buildNormalDataSource() {
+      HikariConfig config = new HikariConfig();
+      config.setDriverClassName(getDriver());
+      config.setJdbcUrl(getUrl());
+      config.setUsername(getUser());
+      config.setPassword(getPass());
+      config.setMaximumPoolSize(Math.min(getPoolMax(), MAX_POOL_SIZE));
+      return new HikariDataSource(config);
    }
 
    public static class ConnectionLocal
@@ -285,111 +294,103 @@ public class SqlDb extends Db
 
       String driver = getDriver();
       Class.forName(driver);
-      Connection apiConn = DriverManager.getConnection(getUrl(), getUser(), getPass());
+      Connection apiConn = getConnection();
 
-      try
+      DatabaseMetaData dbmd = apiConn.getMetaData();
+
+      //-- only here to map jdbc type integer codes to strings ex "4" to "BIGINT" or whatever it is
+      Map<String, String> types = new HashMap<String, String>();
+      for (Field field : Types.class.getFields())
       {
-
-         DatabaseMetaData dbmd = apiConn.getMetaData();
-
-         //-- only here to map jdbc type integer codes to strings ex "4" to "BIGINT" or whatever it is
-         Map<String, String> types = new HashMap<String, String>();
-         for (Field field : Types.class.getFields())
-         {
-            types.put(field.get(null) + "", field.getName());
-         }
-         //--
-
-         //-- the first loop through is going to construct all of the
-         //-- Tbl and Col objects.  There will be a second loop through
-         //-- that caputres all of the foreign key relationships.  You
-         //-- have to do the fk loop second becuase the reference pk
-         //-- object needs to exist so that it can be set on the fk Col
-         ResultSet rs = dbmd.getTables(null, "public", "%", new String[]{"TABLE", "VIEW"});
-         while (rs.next())
-         {
-            String tableCat = rs.getString("TABLE_CAT");
-            String tableSchem = rs.getString("TABLE_SCHEM");
-            String tableName = rs.getString("TABLE_NAME");
-            //String tableType = rs.getString("TABLE_TYPE");
-
-            Table table = new Table(this, tableName);
-            addTable(table);
-
-            ResultSet colsRs = dbmd.getColumns(tableCat, tableSchem, tableName, "%");
-
-            while (colsRs.next())
-            {
-               String colName = colsRs.getString("COLUMN_NAME");
-               Object type = colsRs.getString("DATA_TYPE");
-               String colType = types.get(type);
-
-               boolean nullable = colsRs.getInt("NULLABLE") == DatabaseMetaData.columnNullable;
-
-               Column column = new Column(table, colName, colType, nullable);
-               table.addColumn(column);
-
-               //               if (DELETED_FLAGS.contains(colName.toLowerCase()))
-               //               {
-               //                  table.setDeletedFlag(column);
-               //               }
-            }
-            colsRs.close();
-
-            ResultSet indexMd = dbmd.getIndexInfo(apiConn.getCatalog(), null, tableName, true, false);
-            while (indexMd.next())
-            {
-               String colName = indexMd.getString("COLUMN_NAME");
-               Column col = getColumn(tableName, colName);
-               col.setUnique(true);
-            }
-            indexMd.close();
-
-         }
-         rs.close();
-
-         //-- now link all of the fks to pks
-         //-- this is done after the first loop
-         //-- so that all of the tbls/cols are
-         //-- created first and are there to
-         //-- be connected
-         rs = dbmd.getTables(null, "public", "%", new String[]{"TABLE"});
-         while (rs.next())
-         {
-            String tableName = rs.getString("TABLE_NAME");
-
-            ResultSet keyMd = dbmd.getImportedKeys(apiConn.getCatalog(), null, tableName);
-            while (keyMd.next())
-            {
-               String fkTableName = keyMd.getString("FKTABLE_NAME");
-               String fkColumnName = keyMd.getString("FKCOLUMN_NAME");
-               String pkTableName = keyMd.getString("PKTABLE_NAME");
-               String pkColumnName = keyMd.getString("PKCOLUMN_NAME");
-
-               Column fk = getColumn(fkTableName, fkColumnName);
-               Column pk = getColumn(pkTableName, pkColumnName);
-               fk.setPk(pk);
-
-               //log.info(fkTableName + "." + fkColumnName + " -> " + pkTableName + "." + pkColumnName);
-            }
-            keyMd.close();
-         }
-         rs.close();
-
-         //-- if a table has two columns and both are foreign keys
-         //-- then it is a relationship table for MANY_TO_MANY relationships
-         for (Table table : getTables())
-         {
-            List<Column> cols = table.getColumns();
-            if (cols.size() == 2 && cols.get(0).isFk() && cols.get(1).isFk())
-            {
-               table.setLinkTbl(true);
-            }
-         }
+         types.put(field.get(null) + "", field.getName());
       }
-      finally
+      //--
+
+      //-- the first loop through is going to construct all of the
+      //-- Tbl and Col objects.  There will be a second loop through
+      //-- that caputres all of the foreign key relationships.  You
+      //-- have to do the fk loop second becuase the reference pk
+      //-- object needs to exist so that it can be set on the fk Col
+      ResultSet rs = dbmd.getTables(null, "public", "%", new String[]{"TABLE", "VIEW"});
+      while (rs.next())
       {
-         Sql.close(apiConn);
+         String tableCat = rs.getString("TABLE_CAT");
+         String tableSchem = rs.getString("TABLE_SCHEM");
+         String tableName = rs.getString("TABLE_NAME");
+         //String tableType = rs.getString("TABLE_TYPE");
+
+         Table table = new Table(this, tableName);
+         addTable(table);
+
+         ResultSet colsRs = dbmd.getColumns(tableCat, tableSchem, tableName, "%");
+
+         while (colsRs.next())
+         {
+            String colName = colsRs.getString("COLUMN_NAME");
+            Object type = colsRs.getString("DATA_TYPE");
+            String colType = types.get(type);
+
+            boolean nullable = colsRs.getInt("NULLABLE") == DatabaseMetaData.columnNullable;
+
+            Column column = new Column(table, colName, colType, nullable);
+            table.addColumn(column);
+
+            //               if (DELETED_FLAGS.contains(colName.toLowerCase()))
+            //               {
+            //                  table.setDeletedFlag(column);
+            //               }
+         }
+         colsRs.close();
+
+         ResultSet indexMd = dbmd.getIndexInfo(apiConn.getCatalog(), null, tableName, true, false);
+         while (indexMd.next())
+         {
+            String colName = indexMd.getString("COLUMN_NAME");
+            Column col = getColumn(tableName, colName);
+            col.setUnique(true);
+         }
+         indexMd.close();
+
+      }
+      rs.close();
+
+      //-- now link all of the fks to pks
+      //-- this is done after the first loop
+      //-- so that all of the tbls/cols are
+      //-- created first and are there to
+      //-- be connected
+      rs = dbmd.getTables(null, "public", "%", new String[]{"TABLE"});
+      while (rs.next())
+      {
+         String tableName = rs.getString("TABLE_NAME");
+
+         ResultSet keyMd = dbmd.getImportedKeys(apiConn.getCatalog(), null, tableName);
+         while (keyMd.next())
+         {
+            String fkTableName = keyMd.getString("FKTABLE_NAME");
+            String fkColumnName = keyMd.getString("FKCOLUMN_NAME");
+            String pkTableName = keyMd.getString("PKTABLE_NAME");
+            String pkColumnName = keyMd.getString("PKCOLUMN_NAME");
+
+            Column fk = getColumn(fkTableName, fkColumnName);
+            Column pk = getColumn(pkTableName, pkColumnName);
+            fk.setPk(pk);
+
+            //log.info(fkTableName + "." + fkColumnName + " -> " + pkTableName + "." + pkColumnName);
+         }
+         keyMd.close();
+      }
+      rs.close();
+
+      //-- if a table has two columns and both are foreign keys
+      //-- then it is a relationship table for MANY_TO_MANY relationships
+      for (Table table : getTables())
+      {
+         List<Column> cols = table.getColumns();
+         if (cols.size() == 2 && cols.get(0).isFk() && cols.get(1).isFk())
+         {
+            table.setLinkTbl(true);
+         }
       }
    }
 
@@ -594,6 +595,15 @@ public class SqlDb extends Db
    public void setPass(String pass)
    {
       this.pass = pass;
+   }
+
+   public SqlDb withUseIamAuth(boolean useIamAuth) {
+      this.useIamAuth = useIamAuth;
+      return this;
+   }
+
+   public boolean isUseIamAuth() {
+      return useIamAuth;
    }
 
    public int getPoolMin()
