@@ -37,7 +37,7 @@ repositories {
 
    mavenCentral()
    // maven { url 'https://jitpack.io' }
-   maven { url "http://redshift-maven-repository.s3-website-us-east-1.amazonaws.com/release" }
+   maven { url "https://s3.amazonaws.com/redshift-maven-repository/release" }
 }
 
 dependencies {
