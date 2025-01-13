@@ -329,19 +329,14 @@ public class SqlGetHandler extends SqlHandler
       Rows rows = Sql.selectRows(conn, sql, vals);
       if (db.isCalcRowsFound() && chain.get("rowCount") == null)
       {
-         sql = "SELECT FOUND_ROWS()";
-         //TODO "SELECT FOUND_ROWS() is MySQL specific
-         //         if(!mysql)
-         //         {
-         //            sql = "SELECT count(*) " + sql.substring(sql.indexOf("FROM "), sql.length());
-         //            if (sql.indexOf("LIMIT ") > 0)
-         //               sql = sql.substring(0, sql.indexOf("LIMIT "));
-         //
-         //            if (sql.indexOf("ORDER BY ") > 0)
-         //               sql = sql.substring(0, sql.indexOf("ORDER BY "));   
-         //         }
+         sql = sql.replaceFirst("\\*", "COUNT(*)");
 
-         int found = Sql.selectInt(conn, sql);
+         int limitIndex = sql.indexOf("ORDER BY");
+         if(limitIndex > 0) {
+            sql = sql.substring(0, limitIndex);
+         }
+
+         int found = Sql.selectInt(conn, sql, vals);
 
          if (chain.isDebug())
          {
@@ -774,8 +769,6 @@ public class SqlGetHandler extends SqlHandler
 
    static boolean find(java.util.Collection<String> haystack, String needle)
    {
-      //      if(needle.equalsIgnoreCase("adcompleters.ad"))
-      //         System.out.println("asdf");
       String lc = needle.toLowerCase();
       if (haystack.contains(needle) || haystack.contains(lc))
          return true;

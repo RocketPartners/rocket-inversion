@@ -29,7 +29,6 @@ import io.rcktapp.api.Api;
 import io.rcktapp.api.ApiException;
 import io.rcktapp.api.Chain;
 import io.rcktapp.api.Collection;
-import io.rcktapp.api.Db;
 import io.rcktapp.api.Endpoint;
 import io.rcktapp.api.Entity;
 import io.rcktapp.api.Request;
@@ -104,10 +103,6 @@ public class SqlDeleteHandler extends SqlHandler
                   throw new ApiException("Nested delete url: " + url + " failed!");
                }
             }
-
-            //         JSObject deletedKeyJs = new JSObject();
-            //         deletedKeyJs.put("deletedKeys", new JSArray(deletedKeys));
-            //         res.setJson(deletedKeyJs);
          }
          else
          {
@@ -195,8 +190,6 @@ public class SqlDeleteHandler extends SqlHandler
          Entity entity = collection.getEntity();
          String entityKey = req.getEntityKey();
 
-         //String table = rql.asCol(entity.getTable().getName());
-
          Map params = req.getParams();
          String keyAttr = collection.getEntity().getKey().getName();
          if (!J.empty(entityKey))
@@ -211,8 +204,6 @@ public class SqlDeleteHandler extends SqlHandler
          Stmt stmt = rql.createStmt(sql, entity.getTable(), params, replacer);
          stmt.setMaxRows(-1);
          sql = rql.toSql(stmt);
-
-         sql = sql.replaceAll("SQL_CALC_FOUND_ROWS", "");
 
          if (sql.toLowerCase().indexOf(" where ") < 0)
             throw new ApiException(SC.SC_400_BAD_REQUEST, "You can't delete from a table without a where clause or an individual ID.");

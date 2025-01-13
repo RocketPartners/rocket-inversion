@@ -72,13 +72,13 @@ public class TestSqlRql
                             "SELECT * FROM Person p JOIN Entry e ON p.id = e.personId JOIN Country c ON e.country = c.country_name", //
                             "SELECT `country`, COUNT(`country`) AS 'result' FROM Person p JOIN Entry e ON p.id = e.personId JOIN Country c ON e.country = c.country_name WHERE `status` IN('killed') GROUP BY `country` LIMIT 1", //
                             "SELECT `country`, COUNT(`country`) AS 'result' FROM Person p JOIN Entry e ON p.id = e.personId JOIN Country c ON e.country = c.country_name WHERE `status` IN(?) GROUP BY `country` LIMIT 1", //
-                            "status", "'killed'"));//));            
+                            "status", "'killed'"));
 
       tests.add(new RqlTest("aggregate(count,country,result)&includes=country,result&in(status,killed)", //
                             "SELECT * FROM Person p JOIN Entry e ON p.id = e.personId JOIN Country c ON e.country = c.country_name", //
                             "SELECT `country`, COUNT(`country`) AS 'result' FROM Person p JOIN Entry e ON p.id = e.personId JOIN Country c ON e.country = c.country_name WHERE `status` IN('killed') GROUP BY `country`", //
                             "SELECT `country`, COUNT(`country`) AS 'result' FROM Person p JOIN Entry e ON p.id = e.personId JOIN Country c ON e.country = c.country_name WHERE `status` IN(?) GROUP BY `country`", //
-                            "status", "'killed'"));//));
+                            "status", "'killed'"));
 
       //Test 5
       tests.add(new RqlTest("aggregate(count,country,result)&includes=country,result&in(status,killed,other)", //
@@ -99,12 +99,12 @@ public class TestSqlRql
 
       tests.add(new RqlTest("pagenum=10&pagesize=20)", //
                             "select * from table1", //
-                            "select SQL_CALC_FOUND_ROWS * from table1 LIMIT 180, 20", //
+                            "select * from table1 LIMIT 180, 20", //
                             null));
 
       tests.add(new RqlTest("page(10,20)", //
                             "select * from table1", //
-                            "select SQL_CALC_FOUND_ROWS * from table1 LIMIT 180, 20", //
+                            "select * from table1 LIMIT 180, 20", //
                             null));
 
       //Test 10
@@ -338,17 +338,17 @@ public class TestSqlRql
       //45
       tests.add(new RqlTest("q=firstName=*w*", //
                             "select * from table1", //
-                            "select SQL_CALC_FOUND_ROWS * from table1 WHERE `firstName` LIKE '%w%'", //
-                            "select SQL_CALC_FOUND_ROWS * from table1 WHERE `firstName` LIKE ?", "firstName", "'%w%'"));
+                            "select * from table1 WHERE `firstName` LIKE '%w%'", //
+                            "select * from table1 WHERE `firstName` LIKE ?", "firstName", "'%w%'"));
 
       tests.add(new RqlTest("pagenum=1", //
                             "select * from table1", //
-                            "select SQL_CALC_FOUND_ROWS * from table1", //
+                            "select * from table1", //
                             null));
 
       tests.add(new RqlTest("as(if(captive, 'Taken Captive', 'Not Taken Captive'), 'Captive')", //
                             "select * from table1", //
-                            "select SQL_CALC_FOUND_ROWS *, IF(`captive`, 'Taken Captive', 'Not Taken Captive') AS 'Captive' from table1", //
+                            "select *, IF(`captive`, 'Taken Captive', 'Not Taken Captive') AS 'Captive' from table1", //
                             null));
 
       tests.add(new RqlTest("name='John Doe'", //
@@ -462,10 +462,8 @@ public class TestSqlRql
 
       if (!str1.equals(str2))
       {
-         str2 = str2.replaceAll("SQL_CALC_FOUND_ROWS ", "");
          str2 = str2.replaceAll(" LIMIT 0, 100", "");
 
-         str1 = str1.replaceAll("SQL_CALC_FOUND_ROWS ", "");
          str1 = str1.replaceAll(" LIMIT 0, 100", "");
 
          if (!str1.equals(str2))
