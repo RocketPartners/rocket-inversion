@@ -329,11 +329,13 @@ public class SqlGetHandler extends SqlHandler
       Rows rows = Sql.selectRows(conn, sql, vals);
       if (db.isCalcRowsFound() && chain.get("rowCount") == null)
       {
-         sql = sql.replaceFirst("\\*", "COUNT(*)");
+         sql = sql.substring(0, sql.indexOf("SELECT")+6) +
+                 " COUNT(*) " +
+                 sql.substring(sql.indexOf("FROM"));
 
-         int limitIndex = sql.indexOf("ORDER BY");
-         if(limitIndex > 0) {
-            sql = sql.substring(0, limitIndex);
+         int orderByIndex = sql.indexOf("ORDER BY");
+         if(orderByIndex > 0) {
+            sql = sql.substring(0, orderByIndex);
          }
 
          int found = Sql.selectInt(conn, sql, vals);
