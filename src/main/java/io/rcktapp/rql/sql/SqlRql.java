@@ -100,12 +100,6 @@ public class SqlRql extends Rql
          stmt.parts.select = stmt.parts.select.substring(0, idx) + " DISTINCT " + stmt.parts.select.substring(idx, stmt.parts.select.length());
       }
 
-      if (isCalcRowsFound() && stmt.pagenum > 0 && stmt.parts.select.toLowerCase().trim().startsWith("select"))
-      {
-         int idx = stmt.parts.select.toLowerCase().indexOf("select") + 6;
-         stmt.parts.select = stmt.parts.select.substring(0, idx) + " SQL_CALC_FOUND_ROWS " + stmt.parts.select.substring(idx, stmt.parts.select.length());
-      }
-
       //--WHERE 
 
       if (stmt.where.size() > 0)

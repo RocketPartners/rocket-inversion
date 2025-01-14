@@ -78,7 +78,7 @@ public class SqlDb extends Db
    protected int           idleConnectionTestPeriod = 3600; // in seconds
    protected boolean useIamAuth = false;
 
-   // set this to false to turn off SQL_CALC_FOUND_ROWS and SELECT FOUND_ROWS()
+   // set this to false to turn off row total calculation
    // Only impacts 'mysql' types
    protected boolean       calcRowsFound            = true;
 

@@ -329,19 +329,16 @@ public class SqlGetHandler extends SqlHandler
       Rows rows = Sql.selectRows(conn, sql, vals);
       if (db.isCalcRowsFound() && chain.get("rowCount") == null)
       {
-         sql = "SELECT FOUND_ROWS()";
-         //TODO "SELECT FOUND_ROWS() is MySQL specific
-         //         if(!mysql)
-         //         {
-         //            sql = "SELECT count(*) " + sql.substring(sql.indexOf("FROM "), sql.length());
-         //            if (sql.indexOf("LIMIT ") > 0)
-         //               sql = sql.substring(0, sql.indexOf("LIMIT "));
-         //
-         //            if (sql.indexOf("ORDER BY ") > 0)
-         //               sql = sql.substring(0, sql.indexOf("ORDER BY "));   
-         //         }
+         sql = sql.substring(0, sql.indexOf("SELECT")+6) +
+                 " COUNT(*) " +
+                 sql.substring(sql.indexOf("FROM"));
 
-         int found = Sql.selectInt(conn, sql);
+         int orderByIndex = sql.indexOf("ORDER BY");
+         if(orderByIndex > 0) {
+            sql = sql.substring(0, orderByIndex);
+         }
+
+         int found = Sql.selectInt(conn, sql, vals);
 
          if (chain.isDebug())
          {
@@ -774,8 +771,6 @@ public class SqlGetHandler extends SqlHandler
 
    static boolean find(java.util.Collection<String> haystack, String needle)
    {
-      //      if(needle.equalsIgnoreCase("adcompleters.ad"))
-      //         System.out.println("asdf");
       String lc = needle.toLowerCase();
       if (haystack.contains(needle) || haystack.contains(lc))
          return true;
