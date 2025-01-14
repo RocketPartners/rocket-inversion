@@ -329,24 +329,28 @@ public class SqlGetHandler extends SqlHandler
       Rows rows = Sql.selectRows(conn, sql, vals);
       if (db.isCalcRowsFound() && chain.get("rowCount") == null)
       {
-         sql = sql.substring(0, sql.indexOf("SELECT")+6) +
-                 " COUNT(*) " +
-                 sql.substring(sql.indexOf("FROM"));
+         int selectEndIndex = sql.toLowerCase().indexOf("select") + 6;
+         int fromStartIndex = sql.toLowerCase().indexOf("from");
 
-         int orderByIndex = sql.indexOf("ORDER BY");
-         if(orderByIndex > 0) {
-            sql = sql.substring(0, orderByIndex);
+         if (selectEndIndex != -1 && fromStartIndex != -1) {
+            sql = sql.substring(0, selectEndIndex) +
+                    " COUNT(*) " +
+                    sql.substring(fromStartIndex);
+
+            int orderByIndex = sql.toLowerCase().indexOf("order by");
+            if(orderByIndex > 0) {
+               sql = sql.substring(0, orderByIndex);
+            }
+
+            int found = Sql.selectInt(conn, sql, vals);
+
+            if (chain.isDebug())
+            {
+               chain.getResponse().debug("", sql + " -> " + found);
+            }
+
+            chain.put("rowCount", found);
          }
-
-         int found = Sql.selectInt(conn, sql, vals);
-
-         if (chain.isDebug())
-         {
-            chain.getResponse().debug("", sql + " -> " + found);
-         }
-
-         chain.put("rowCount", found);
-
       }
       return rows;
    }
