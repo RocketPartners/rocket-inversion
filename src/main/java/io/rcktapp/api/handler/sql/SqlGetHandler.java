@@ -329,27 +329,28 @@ public class SqlGetHandler extends SqlHandler
       Rows rows = Sql.selectRows(conn, sql, vals);
       if (db.isCalcRowsFound() && chain.get("rowCount") == null)
       {
-         sql = "SELECT FOUND_ROWS()";
-         //TODO "SELECT FOUND_ROWS() is MySQL specific
-         //         if(!mysql)
-         //         {
-         //            sql = "SELECT count(*) " + sql.substring(sql.indexOf("FROM "), sql.length());
-         //            if (sql.indexOf("LIMIT ") > 0)
-         //               sql = sql.substring(0, sql.indexOf("LIMIT "));
-         //
-         //            if (sql.indexOf("ORDER BY ") > 0)
-         //               sql = sql.substring(0, sql.indexOf("ORDER BY "));   
-         //         }
+         int selectEndIndex = sql.toLowerCase().indexOf("select") + 6;
+         int fromStartIndex = sql.toLowerCase().indexOf("from");
 
-         int found = Sql.selectInt(conn, sql);
+         if (selectEndIndex != -1 && fromStartIndex != -1) {
+            sql = sql.substring(0, selectEndIndex) +
+                    " COUNT(*) " +
+                    sql.substring(fromStartIndex);
 
-         if (chain.isDebug())
-         {
-            chain.getResponse().debug("", sql + " -> " + found);
+            int orderByIndex = sql.toLowerCase().indexOf("order by");
+            if(orderByIndex > 0) {
+               sql = sql.substring(0, orderByIndex);
+            }
+
+            int found = Sql.selectInt(conn, sql, vals);
+
+            if (chain.isDebug())
+            {
+               chain.getResponse().debug("", sql + " -> " + found);
+            }
+
+            chain.put("rowCount", found);
          }
-
-         chain.put("rowCount", found);
-
       }
       return rows;
    }
@@ -774,8 +775,6 @@ public class SqlGetHandler extends SqlHandler
 
    static boolean find(java.util.Collection<String> haystack, String needle)
    {
-      //      if(needle.equalsIgnoreCase("adcompleters.ad"))
-      //         System.out.println("asdf");
       String lc = needle.toLowerCase();
       if (haystack.contains(needle) || haystack.contains(lc))
          return true;
