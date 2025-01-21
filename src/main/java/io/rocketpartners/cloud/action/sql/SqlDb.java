@@ -16,6 +16,10 @@
 package io.rocketpartners.cloud.action.sql;
 
 import ch.qos.logback.classic.Level;
+import com.amazonaws.auth.DefaultAWSCredentialsProviderChain;
+import com.amazonaws.regions.DefaultAwsRegionProviderChain;
+import com.amazonaws.services.rds.auth.GetIamAuthTokenRequest;
+import com.amazonaws.services.rds.auth.RdsIamAuthTokenGenerator;
 import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
 import io.rocketpartners.cloud.model.ApiException;
@@ -46,6 +50,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Properties;
 import java.util.Set;
 import javax.sql.DataSource;
 import org.apache.commons.lang3.StringUtils;
@@ -130,6 +135,7 @@ public class SqlDb extends Db<SqlDb> {
   protected int poolMin = 3;
   protected int poolMax = 10;
   protected int idleConnectionTestPeriod = 3600; // in seconds
+  protected boolean useIamAuth = false;
   // set this to false to turn off SQL_CALC_FOUND_ROWS and SELECT FOUND_ROWS()
   // Only impacts 'mysql' types
   protected boolean calcRowsFound = true;
@@ -177,12 +183,6 @@ public class SqlDb extends Db<SqlDb> {
     String selectKey = (table != null ? table.getKeyName() + "." : "") + "select";
 
     String selectSql = (String) Chain.peek().remove(selectKey);
-    //      if (Utils.empty(sql))
-    //      {
-    //         if (table == null)
-    //            throw new ApiException(SC.SC_400_BAD_REQUEST, "Table missing");
-    //         sql = " SELECT * FROM " + quoteCol(table.getName());
-    //      }
 
     SqlQuery query = new SqlQuery(table, columnMappedTerms);
     query.withDb(db);
@@ -293,18 +293,7 @@ public class SqlDb extends Db<SqlDb> {
             pool = pools.get(getName());
 
             if (pool == null && !isShutdown()) {
-              // System.out.println("CREATING NEW POOL: " + getUrl());
-              // pool = JdbcConnectionPool.create("jdbc:h2:./northwind", "sa", "");
-
-              HikariConfig config = new HikariConfig();
-              String driver = getDriver();
-              config.setDriverClassName(driver);
-              config.setJdbcUrl(getUrl());
-              config.setUsername(getUser());
-              config.setPassword(getPass());
-              config.setMaximumPoolSize(Math.min(getPoolMax(), MAX_POOL_SIZE));
-              pool = new HikariDataSource(config);
-
+              pool = getDataSource();
               pools.put(dsKey, pool);
             }
           }
@@ -316,23 +305,39 @@ public class SqlDb extends Db<SqlDb> {
         ConnectionLocal.putConnection(this, conn);
       }
 
-      //         String res = "TABLE NOT FOUND";
-      //         try
-      //         {
-      //            res = SqlUtils.selectRows(conn, "SELECT CUSTOMERID FROM CUSTOMERS LIMIT
-      // 1").toString();
-      //         }
-      //         catch(Exception ex)
-      //         {
-      //
-      //         }
-      // System.out.println("GETTING CONNECTION: " + getUrl() + " - " + res);
-
       return conn;
     } catch (Exception ex) {
       log.error("Unable to get DB connection", ex);
       throw new ApiException(SC.SC_500_INTERNAL_SERVER_ERROR, "Unable to get DB connection", ex);
     }
+  }
+
+  public DataSource getDataSource() {
+    return useIamAuth ? buildIamAuthDataSource() : buildNormalDataSource();
+  }
+
+  private DataSource buildIamAuthDataSource() {
+    HikariConfig config = new HikariConfig();
+    config.setDriverClassName(getDriver());
+    config.setJdbcUrl(getUrl());
+    config.setUsername(getUser());
+    config.setMaximumPoolSize(Math.min(getPoolMax(), MAX_POOL_SIZE));
+
+    Properties targetDataSourceProps = new Properties();
+    targetDataSourceProps.setProperty("wrapperPlugins", "iam");
+    config.addDataSourceProperty("targetDataSourceProperties", targetDataSourceProps);
+
+    return new RdsIamDataSource(config);
+  }
+
+  private DataSource buildNormalDataSource() {
+    HikariConfig config = new HikariConfig();
+    config.setDriverClassName(getDriver());
+    config.setJdbcUrl(getUrl());
+    config.setUsername(getUser());
+    config.setPassword(getPass());
+    config.setMaximumPoolSize(Math.min(getPoolMax(), MAX_POOL_SIZE));
+    return new HikariDataSource(config);
   }
 
   @Override
@@ -401,11 +406,6 @@ public class SqlDb extends Db<SqlDb> {
 
           Column column = new Column(table, columnNumber, colName, colType, nullable);
           table.withColumn(column);
-
-          //               if (DELETED_FLAGS.contains(colName.toLowerCase()))
-          //               {
-          //                  table.setDeletedFlag(column);
-          //               }
         }
         colsRs.close();
 
@@ -471,28 +471,11 @@ public class SqlDb extends Db<SqlDb> {
           fk.withPk(pk);
 
           getTable(fkTableName).makeIndex(fk, fkName, "FOREIGN_KEY", false);
-
-          // System.out.println("FOREIGN_KEY: " + tableName + " - " + pkName + " - " + fkName + "- "
-          // + fkTableName + "." + fkColumnName + " -> " + pkTableName + "." + pkColumnName);
         }
         keyMd.close();
       } while (rs.next());
 
     rs.close();
-
-    // 2019-02-11 WB - moved below code into Table.isLinkTable
-    //
-    //      -- if a table has two columns and both are foreign keys
-    //      -- then it is a relationship table for MANY_TO_MANY relationships
-    //            for (Table table : getTables())
-    //            {
-    //               List<Column> cols = table.getColumns();
-    //               if (cols.size() == 2 && cols.get(0).isFk() && cols.get(1).isFk())
-    //               {
-    //                  table.withLinkTbl(true);
-    //               }
-    //            }
-
   }
 
   public void configApi() throws Exception {
@@ -653,10 +636,6 @@ public class SqlDb extends Db<SqlDb> {
 
           if (rel == null) break;
 
-          //               if (rel == null)
-          //                  throw new ApiException("Unable to identify relationship for dotted
-          // attribute name: '" + token + "'");
-
           String aliasPrefix =
               "_join_" + rel.getEntity().getCollection().getName() + "_" + part + "_";
 
@@ -774,6 +753,15 @@ public class SqlDb extends Db<SqlDb> {
   public SqlDb withPass(String pass) {
     this.pass = pass;
     return this;
+  }
+
+  public SqlDb withUseIamAuth(boolean useIamAuth) {
+    this.useIamAuth = useIamAuth;
+    return this;
+  }
+
+  public boolean isUseIamAuth() {
+    return useIamAuth;
   }
 
   public int getPoolMin() {
