@@ -342,6 +342,11 @@ public class SqlGetHandler extends SqlHandler
                sql = sql.substring(0, orderByIndex);
             }
 
+            int limitIndex = sql.toLowerCase().indexOf("limit");
+            if(limitIndex > 0) {
+                sql = sql.substring(0, limitIndex);
+            }
+
             int found = Sql.selectInt(conn, sql, vals);
 
             if (chain.isDebug())
