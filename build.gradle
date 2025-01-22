@@ -10,10 +10,6 @@ buildscript {
     }
 }
 
-plugins {
-    id 'maven-publish'
-}
-
 apply plugin: 'eclipse'
 apply plugin: 'maven'
 apply plugin: 'java'
@@ -35,31 +31,23 @@ version = '0.4.2'
 group = 'com.github.RocketPartners'
 sourceCompatibility = 1.8
 
+ext {
+    archiveRepo = "https://maven.pkg.github.com/RocketPartners/artifacts"
+    archiveRepoUser = System.env.GHP_USER
+    archiveRepoPassword = System.env.GHP_PASSWORD
+}
+
 repositories {
     mavenLocal()
     maven {
-        name = 'github'
-        url = 'https://maven.pkg.github.com/RocketPartners/artifacts'
+        url archiveRepo
         credentials {
-            username = System.env.GHP_USER
-            password = System.env.GHP_PASSWORD
+            username archiveRepoUser
+            password archiveRepoPassword
         }
     }
     maven { url "https://s3.amazonaws.com/redshift-maven-repository/release" }
     mavenCentral()
-}
-
-publishing {
-    repositories {
-        maven {
-            name = 'github'
-            url = 'https://maven.pkg.github.com/RocketPartners/artifacts'
-            credentials {
-                username = System.env.GHP_USER
-                password = System.env.GHP_PASSWORD
-            }
-        }
-    }
 }
 
 dependencies {
@@ -155,15 +143,21 @@ test {
 uploadArchives {
     repositories {
         mavenDeployer {
-            repository(url: 'https://maven.pkg.github.com/RocketPartners/artifacts') {
-                authentication(userName: System.env.GHP_USER, password: System.env.GHP_PASSWORD)
+            repository(url: archiveRepo) {
+                authentication(userName: archiveRepoUser, password: archiveRepoPassword)
             }
         }
     }
 
     doFirst {
-        println "API user: ${System.env.GHP_USER}"
-        println "${jar.archiveName} -> 'https://maven.pkg.github.com/RocketPartners/artifacts'"
+        println "API user: ${archiveRepoUser}"
+        println "${jar.archiveName} -> ${archiveRepo}"
     }
     dependsOn assemble
+}
+
+tasks.register("getVersion") {
+    doLast {
+        println(project.version)
+    }
 }
