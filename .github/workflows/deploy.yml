@@ -1,0 +1,47 @@
+
+on: [ workflow_dispatch ]
+jobs:
+  CI:
+    runs-on: ubuntu-latest
+    env:
+      GHP_USER: ${{ secrets.GHP_USER }}
+      GHP_PASSWORD: ${{ secrets.GHP_PASSWORD }}
+      SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Extract version
+        run: echo "##[set-output name=version;]$(./gradlew -q getVersion | tail -n 1)"
+        id: extract_version
+
+      - name: Extract branch name
+        shell: bash
+        run: echo "##[set-output name=branch;]$(echo ${GITHUB_REF#refs/heads/})"
+        id: extract_branch
+
+      - name: Extract image name
+        shell: bash
+        run: |
+          if [[ ${{ steps.extract_branch.outputs.branch }} == 'main' ]] || [[ ${{ steps.extract_branch.outputs.branch }} == "release"* ]];
+          then
+            echo "##[set-output name=image;]${{ steps.extract_version.outputs.version }}"
+          else
+            echo "##[set-output name=image;]${{ steps.extract_version.outputs.version }}-${{ steps.extract_branch.outputs.branch }}-SNAPSHOT"
+          fi
+        id: image_name
+
+      - name: Setup Java
+        uses: actions/setup-java@v3
+        with:
+          distribution: corretto
+          java-version: '8'
+
+      - name: Assemble
+        run: ./gradlew clean assemble
+
+      - name: Test
+        run: ./gradlew test
+
+      - name: Publish package
+        run: ./gradlew uploadArchives
