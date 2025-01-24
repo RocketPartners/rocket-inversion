@@ -7,6 +7,11 @@ import com.amazonaws.services.rds.auth.RdsIamAuthTokenGenerator;
 import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
 
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.SQLException;
+import java.util.Properties;
+
 public class RdsIamDataSource extends HikariDataSource {
 
     public RdsIamDataSource(HikariConfig config) {
@@ -15,19 +20,19 @@ public class RdsIamDataSource extends HikariDataSource {
 
     @Override
     public String getPassword() {
-        return generateAuthToken();
+        return generateAuthToken(getJdbcUrl(), getUsername());
     }
 
-    private String generateAuthToken() {
+    private static String generateAuthToken(String jdbcUrl, String username) {
         RdsIamAuthTokenGenerator generator = RdsIamAuthTokenGenerator.builder()
                 .credentials(new DefaultAWSCredentialsProviderChain())
                 .region(new DefaultAwsRegionProviderChain().getRegion())
                 .build();
 
         return generator.getAuthToken(GetIamAuthTokenRequest.builder()
-                .hostname(determineHostname(getJdbcUrl()))
-                .port(determinePort(getJdbcUrl()))
-                .userName(getUsername())
+                .hostname(determineHostname(jdbcUrl))
+                .port(determinePort(jdbcUrl))
+                .userName(username)
                 .build());
     }
 
@@ -56,5 +61,12 @@ public class RdsIamDataSource extends HikariDataSource {
         if (separatorIndex == -1 || separatorIndex + 2 >= hostnameEndIndex) {
             throw new IllegalArgumentException("Invalid JDBC URL: " + jdbcUrl);
         }
+    }
+
+    public static Connection getSingleConnection(String jdbcUrl, String username) throws SQLException {
+        Properties props = new Properties();
+        props.setProperty("user", username);
+        props.setProperty("password", generateAuthToken(jdbcUrl, username));
+        return DriverManager.getConnection(jdbcUrl, props);
     }
 }

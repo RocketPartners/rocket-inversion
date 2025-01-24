@@ -15,7 +15,6 @@
  */
 package io.rcktapp.api.handler.sql;
 
-import com.mchange.v2.c3p0.ComboPooledDataSource;
 import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
 import io.rcktapp.api.ApiException;
@@ -38,6 +37,7 @@ import javax.sql.DataSource;
 import java.lang.reflect.Field;
 import java.sql.Connection;
 import java.sql.DatabaseMetaData;
+import java.sql.DriverManager;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Types;
@@ -214,6 +214,12 @@ public class SqlDb extends Db
       return new HikariDataSource(config);
    }
 
+   private Connection getSingleConnection(boolean writable) throws SQLException {
+      return useIamAuth ?
+              RdsIamDataSource.getSingleConnection(writable ? getUrl() : getRoUrl(), getUser()) :
+              DriverManager.getConnection(writable ? getUrl() : getRoUrl(), getUser(), getPass());
+   }
+
    public static class ConnectionLocal
    {
       static ThreadLocal<Map<Db, Connection>> connections = new ThreadLocal();
@@ -340,71 +346,77 @@ public class SqlDb extends Db
       Executor dbMetadataExecutorPool = Executors.newFixedThreadPool(50);
       String driver = getDriver();
       Class.forName(driver);
-
-      Connection apiConn = getConnection(false);
-      DatabaseMetaData dbmd = apiConn.getMetaData();
-
-      //-- only here to map jdbc type integer codes to strings ex "4" to "BIGINT" or whatever it is
-      Map<String, String> types = new HashMap<String, String>();
-      for (Field field : Types.class.getFields())
+      try (Connection apiConn = getSingleConnection(false))
       {
-         types.put(field.get(null) + "", field.getName());
-      }
-      //--
 
-      //-- the first loop through is going to construct all of the
-      //-- Tbl and Col objects.  There will be a second loop through
-      //-- that caputres all of the foreign key relationships.  You
-      //-- have to do the fk loop second becuase the reference pk
-      //-- object needs to exist so that it can be set on the fk Col
+         DatabaseMetaData dbmd = apiConn.getMetaData();
+
+         //-- only here to map jdbc type integer codes to strings ex "4" to "BIGINT" or whatever it is
+         Map<String, String> types = new HashMap<String, String>();
+         for (Field field : Types.class.getFields())
+         {
+            types.put(field.get(null) + "", field.getName());
+         }
+         //--
+
+         //-- the first loop through is going to construct all of the
+         //-- Tbl and Col objects.  There will be a second loop through
+         //-- that caputres all of the foreign key relationships.  You
+         //-- have to do the fk loop second becuase the reference pk
+         //-- object needs to exist so that it can be set on the fk Col
          Map<String, CompletableFuture<Table>> tableFutures = new HashMap<>();
          try (ResultSet rs = dbmd.getTables(null, "public", "%", new String[]{"TABLE", "VIEW"})) {
-             while (rs.next())
-             {
-                 String tableCat = rs.getString("TABLE_CAT");
-                 String tableSchem = rs.getString("TABLE_SCHEM");
-                 String tableName = rs.getString("TABLE_NAME");
+            while (rs.next())
+            {
+               String tableCat = rs.getString("TABLE_CAT");
+               String tableSchem = rs.getString("TABLE_SCHEM");
+               String tableName = rs.getString("TABLE_NAME");
+               //String tableType = rs.getString("TABLE_TYPE");
 
-                 if (Stream.of(ignoreTablePrefixes.split(",")).filter(Predicate.not(String::isEmpty)).anyMatch(tableName::startsWith)) continue;
+               if (Stream.of(ignoreTablePrefixes.split(",")).filter(Predicate.not(String::isEmpty)).anyMatch(tableName::startsWith)) continue;
 
-                 tableFutures.put(tableName, CompletableFuture.supplyAsync(() -> {
-                     Table table = new Table(this, tableName);
-                     try {
-                         Connection tableConnection = getConnection(false);
-                         DatabaseMetaData databaseMetaData = tableConnection.getMetaData();
-                         try (ResultSet colsRs = databaseMetaData.getColumns(tableCat, tableSchem, tableName, "%")) {
+               tableFutures.put(tableName, CompletableFuture.supplyAsync(() -> {
+                  Table table = new Table(this, tableName);
+                  try (Connection tableConnection = getSingleConnection(false)) {
+                     DatabaseMetaData databaseMetaData = tableConnection.getMetaData();
+                     try (ResultSet colsRs = databaseMetaData.getColumns(tableCat, tableSchem, tableName, "%")) {
 
-                             while (colsRs.next())
-                             {
-                                 String colName = colsRs.getString("COLUMN_NAME");
-                                 Object type = colsRs.getString("DATA_TYPE");
-                                 String colType = types.get(type);
+                        while (colsRs.next())
+                        {
+                           String colName = colsRs.getString("COLUMN_NAME");
+                           Object type = colsRs.getString("DATA_TYPE");
+                           String colType = types.get(type);
 
-                                 boolean nullable = colsRs.getInt("NULLABLE") == DatabaseMetaData.columnNullable;
+                           boolean nullable = colsRs.getInt("NULLABLE") == DatabaseMetaData.columnNullable;
 
-                                 Column column = new Column(table, colName, colType, nullable);
-                                 table.addColumn(column);
-                             }
-                         }
+                           Column column = new Column(table, colName, colType, nullable);
+                           table.addColumn(column);
 
-                         ResultSet indexMd = databaseMetaData.getIndexInfo(tableConnection.getCatalog(), null, tableName, true, false);
-                         while (indexMd.next()) {
-                             String colName = indexMd.getString("COLUMN_NAME");
-                             for (Column c : table.getColumns()) {
-                                 if (c.getName().equalsIgnoreCase(colName)) {
-                                     c.setUnique(true);
-                                 }
-                             }
-                         }
-                         indexMd.close();
-                         log.info("{} table processing {}", getType(), table.getName());
-                         return table;
-                     } catch (SQLException ex) {
-                         throw new RuntimeException(ex);
+                           //               if (DELETED_FLAGS.contains(colName.toLowerCase()))
+                           //               {
+                           //                  table.setDeletedFlag(column);
+                           //               }
+                        }
                      }
-                 }, dbMetadataExecutorPool));
 
-             }
+                     ResultSet indexMd = databaseMetaData.getIndexInfo(tableConnection.getCatalog(), null, tableName, true, false);
+                     while (indexMd.next()) {
+                        String colName = indexMd.getString("COLUMN_NAME");
+                        for (Column c : table.getColumns()) {
+                           if (c.getName().equalsIgnoreCase(colName)) {
+                              c.setUnique(true);
+                           }
+                        }
+                     }
+                     indexMd.close();
+                     log.info("{} table processing {}", getType(), table.getName());
+                     return table;
+                  } catch (SQLException ex) {
+                     throw new RuntimeException(ex);
+                  }
+               }, dbMetadataExecutorPool));
+
+            }
          }
 
          log.info("{} building foreign key relationships", getType());
@@ -415,70 +427,70 @@ public class SqlDb extends Db
          //-- be connected
          List<CompletableFuture<?>> keyFutures = new ArrayList<>();
          try (ResultSet foreignKeyTablesRS = dbmd.getTables(null, "public", "%", new String[]{"TABLE"}))  {
-             while (foreignKeyTablesRS.next())
-             {
-                 String tableName = foreignKeyTablesRS.getString("TABLE_NAME");
+            while (foreignKeyTablesRS.next())
+            {
+               String tableName = foreignKeyTablesRS.getString("TABLE_NAME");
 
-                 if (Stream.of(ignoreTablePrefixes.split(",")).filter(Predicate.not(String::isEmpty)).anyMatch(tableName::startsWith)) continue;
+               if (Stream.of(ignoreTablePrefixes.split(",")).filter(Predicate.not(String::isEmpty)).anyMatch(tableName::startsWith)) continue;
 
-                 keyFutures.add(CompletableFuture.supplyAsync(() -> {
-                     try {
-                         Connection keyConnection = getConnection(false);
-                         DatabaseMetaData databaseMetaData = keyConnection.getMetaData();
+               keyFutures.add(CompletableFuture.supplyAsync(() -> {
+                  try (Connection keyConnection = getSingleConnection(false)) {
+                     DatabaseMetaData databaseMetaData = keyConnection.getMetaData();
 
-                         try (ResultSet keyMd = databaseMetaData.getImportedKeys(keyConnection.getCatalog(), null, tableName)) {
-                             while (keyMd.next())
-                             {
-                                 String fkTableName = keyMd.getString("FKTABLE_NAME");
-                                 String fkColumnName = keyMd.getString("FKCOLUMN_NAME");
-                                 String pkTableName = keyMd.getString("PKTABLE_NAME");
-                                 String pkColumnName = keyMd.getString("PKCOLUMN_NAME");
+                     try (ResultSet keyMd = databaseMetaData.getImportedKeys(keyConnection.getCatalog(), null, tableName)) {
+                        while (keyMd.next())
+                        {
+                           String fkTableName = keyMd.getString("FKTABLE_NAME");
+                           String fkColumnName = keyMd.getString("FKCOLUMN_NAME");
+                           String pkTableName = keyMd.getString("PKTABLE_NAME");
+                           String pkColumnName = keyMd.getString("PKCOLUMN_NAME");
 
-                                 Column fk = null;
-                                 Table fkTable = tableFutures.get(fkTableName).get();
-                                 for (Column c : fkTable.getColumns())
-                                     if (c.getName().equalsIgnoreCase(fkColumnName))
-                                         fk = c;
-                                 if (fk == null)
-                                     throw new RuntimeException("fk column not found: " + fkTableName + "." + fkColumnName);
-                                Table pkTable = tableFutures.get(pkTableName).get();
-                                 for (Column pk : pkTable.getColumns())
-                                     if (pk.getName().equalsIgnoreCase(pkColumnName))
-                                         fk.setPk(pk);
+                           Column fk = null;
+                           Table fkTable = tableFutures.get(fkTableName).get();
+                           for (Column c : fkTable.getColumns())
+                              if (c.getName().equalsIgnoreCase(fkColumnName))
+                                 fk = c;
+                           if (fk == null)
+                              throw new RuntimeException("fk column not found: " + fkTableName + "." + fkColumnName);
+                           Table pkTable = tableFutures.get(pkTableName).get();
+                           for (Column pk : pkTable.getColumns())
+                              if (pk.getName().equalsIgnoreCase(pkColumnName))
+                                 fk.setPk(pk);
 
-                                 //log.info(fkTableName + "." + fkColumnName + " -> " + pkTableName + "." + pkColumnName);
-                             }
-                             log.info("{} foreign key processing for table {}", getType(), tableName);
-                             return null;
-                         } catch (ExecutionException e) {
-                             throw new RuntimeException(e);
-                         } catch (InterruptedException e) {
-                             throw new RuntimeException(e);
-                         }
-                     } catch (SQLException ex) {
-                         throw new RuntimeException(ex);
+                           //log.info(fkTableName + "." + fkColumnName + " -> " + pkTableName + "." + pkColumnName);
+                        }
+                        log.info("{} foreign key processing for table {}", getType(), tableName);
+                        return null;
+                     } catch (ExecutionException e) {
+                        throw new RuntimeException(e);
+                     } catch (InterruptedException e) {
+                        throw new RuntimeException(e);
                      }
-                 }, dbMetadataExecutorPool));
-             }
+                  } catch (SQLException ex) {
+                     throw new RuntimeException(ex);
+                  }
+               }, dbMetadataExecutorPool));
+            }
          }
 
-      for (CompletableFuture<?> keyFuture : keyFutures) {
-         keyFuture.get();
-      }
-      for (CompletableFuture<Table> tableCompletableFuture : tableFutures.values()) {
-         addTable(tableCompletableFuture.get());
-      }
+         for (CompletableFuture<?> keyFuture : keyFutures) {
+            keyFuture.get();
+         }
+         for (CompletableFuture<Table> tableCompletableFuture : tableFutures.values()) {
+            addTable(tableCompletableFuture.get());
+         }
 
-      log.info("finally, many-to-many");
+         log.info("finally, many-to-many");
 
-      //-- if a table has two columns and both are foreign keys
-      //-- then it is a relationship table for MANY_TO_MANY relationships
-      for (Table table : getTables())
-      {
-         List<Column> cols = table.getColumns();
-         if (cols.size() == 2 && cols.get(0).isFk() && cols.get(1).isFk())
+         //-- if a table has two columns and both are foreign keys
+         //-- then it is a relationship table for MANY_TO_MANY relationships
+         for (Table table : getTables())
          {
-            table.setLinkTbl(true);
+            List<Column> cols = table.getColumns();
+            if (cols.size() == 2 && cols.get(0).isFk() && cols.get(1).isFk())
+            {
+               table.setLinkTbl(true);
+            }
          }
       }
    }
