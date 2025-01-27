@@ -215,9 +215,10 @@ public class SqlDb extends Db
    }
 
    private Connection getSingleConnection(boolean writable) throws SQLException {
+      final String connectionUrl = writable ? getUrl() : getRoUrl();
       return useIamAuth ?
-              RdsIamDataSource.getSingleConnection(writable ? getUrl() : getRoUrl(), getUser()) :
-              DriverManager.getConnection(writable ? getUrl() : getRoUrl(), getUser(), getPass());
+              RdsIamDataSource.getSingleConnection(connectionUrl, getUser()) :
+              DriverManager.getConnection(connectionUrl, getUser(), getPass());
    }
 
    public static class ConnectionLocal
