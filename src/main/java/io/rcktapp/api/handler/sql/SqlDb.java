@@ -371,9 +371,10 @@ public class SqlDb extends Db
                String tableCat = rs.getString("TABLE_CAT");
                String tableSchem = rs.getString("TABLE_SCHEM");
                String tableName = rs.getString("TABLE_NAME");
-               //String tableType = rs.getString("TABLE_TYPE");
 
-               if (Stream.of(ignoreTablePrefixes.split(",")).filter(Predicate.not(String::isEmpty)).anyMatch(tableName::startsWith)) continue;
+               if (isTableNameInIgnoreTablePrefixesList(tableName)) {
+                  continue;
+               }
 
                tableFutures.put(tableName, CompletableFuture.supplyAsync(() -> {
                   Table table = new Table(this, tableName);
@@ -391,11 +392,6 @@ public class SqlDb extends Db
 
                            Column column = new Column(table, colName, colType, nullable);
                            table.addColumn(column);
-
-                           //               if (DELETED_FLAGS.contains(colName.toLowerCase()))
-                           //               {
-                           //                  table.setDeletedFlag(column);
-                           //               }
                         }
                      }
 
@@ -431,7 +427,9 @@ public class SqlDb extends Db
             {
                String tableName = foreignKeyTablesRS.getString("TABLE_NAME");
 
-               if (Stream.of(ignoreTablePrefixes.split(",")).filter(Predicate.not(String::isEmpty)).anyMatch(tableName::startsWith)) continue;
+               if (isTableNameInIgnoreTablePrefixesList(tableName)) {
+                  continue;
+               }
 
                keyFutures.add(CompletableFuture.supplyAsync(() -> {
                   try (Connection keyConnection = getSingleConnection(false)) {
@@ -454,10 +452,9 @@ public class SqlDb extends Db
                               throw new RuntimeException("fk column not found: " + fkTableName + "." + fkColumnName);
                            Table pkTable = tableFutures.get(pkTableName).get();
                            for (Column pk : pkTable.getColumns())
-                              if (pk.getName().equalsIgnoreCase(pkColumnName))
+                              if (pk.getName().equalsIgnoreCase(pkColumnName)) {
                                  fk.setPk(pk);
-
-                           //log.info(fkTableName + "." + fkColumnName + " -> " + pkTableName + "." + pkColumnName);
+                              }
                         }
                         log.info("{} foreign key processing for table {}", getType(), tableName);
                         return null;
@@ -493,6 +490,12 @@ public class SqlDb extends Db
             }
          }
       }
+   }
+
+   private boolean isTableNameInIgnoreTablePrefixesList(String tableName) {
+      return Stream.of(ignoreTablePrefixes.split(","))
+              .filter(Predicate.not(String::isEmpty))
+              .anyMatch(tableName::startsWith);
    }
 
    public void configApi() throws Exception
