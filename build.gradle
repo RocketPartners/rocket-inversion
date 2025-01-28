@@ -12,7 +12,7 @@ project.docsDirName = '../docs/0.3.x/'
 
 configurations.all { resolutionStrategy.cacheChangingModulesFor 0, 'seconds' }
 
-version = '0.3.17'
+version = '0.3.18'
 group = 'com.github.RocketPartners'
 sourceCompatibility = JavaVersion.VERSION_11
 targetCompatibility = JavaVersion.VERSION_11
@@ -92,8 +92,7 @@ repositories {
     }
 
     mavenCentral()
-    // maven { url 'https://jitpack.io' }
-    maven { url "http://redshift-maven-repository.s3-website-us-east-1.amazonaws.com/release" }
+    maven { url "https://s3.amazonaws.com/redshift-maven-repository/release" }
 }
 
 dependencies {
@@ -135,6 +134,7 @@ dependencies {
     compile group: 'commons-httpclient', name: 'commons-httpclient', version: '3.1'
     compile group: 'org.apache.commons', name: 'commons-lang3', version: '3.4'
 
+    compile group: 'com.zaxxer', name: 'HikariCP', version: '3.3.1'
 
     // required for the Redis client
     compile group: 'redis.clients', name: 'jedis', version: '3.1.0'
@@ -142,6 +142,7 @@ dependencies {
     compile 'com.amazonaws:aws-java-sdk-s3:1.11.390'
     compile 'com.amazonaws:aws-java-sdk-dynamodb:1.11.390'
     compile 'com.amazonaws:aws-java-sdk-kinesis:1.11.390'
+    compile 'com.amazonaws:aws-java-sdk-rds:1.11.542'
 
     //drivers for supportd DBs
     compile group: 'mysql', name: 'mysql-connector-java', version: '5.1.34'
