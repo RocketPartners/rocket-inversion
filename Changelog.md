@@ -1,5 +1,8 @@
 ## Unreleased
 
+## [0.3.6.8 - 02/20/25]
+- LIFTBAU-2988: revert RDS IAM authentication
+
 ## [0.3.6.7 - 1/22/25]
 - LIFTBAU-2803: Fix incorrect rowCount when querying without `ORDER BY`
 
