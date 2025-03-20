@@ -1,6 +1,6 @@
 ## Unreleased
 
-## [0.3.6.8 - 1/22/25]
+## [0.3.6.8 - 3/20/25]
 - LIFTBAU-3239: Re-add ComboPooledDataSource for non-IAM RDS connections
 
 ## [0.3.6.7 - 1/22/25]
