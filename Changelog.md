@@ -1,5 +1,8 @@
 ## Unreleased
 
+## [0.3.6.8 - 1/22/25]
+- LIFTBAU-3239: Re-add ComboPooledDataSource for non-IAM RDS connections
+
 ## [0.3.6.7 - 1/22/25]
 - LIFTBAU-2803: Fix incorrect rowCount when querying without `ORDER BY`
 
