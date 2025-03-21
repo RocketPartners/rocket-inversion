@@ -15,6 +15,7 @@
  */
 package io.rcktapp.api.handler.sql;
 
+import java.beans.PropertyVetoException;
 import java.lang.reflect.Field;
 import java.sql.Connection;
 import java.sql.DatabaseMetaData;
@@ -26,12 +27,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 
-import com.amazonaws.auth.DefaultAWSCredentialsProviderChain;
-import com.amazonaws.regions.DefaultAwsRegionProviderChain;
-import com.amazonaws.services.rds.auth.GetIamAuthTokenRequest;
-import com.amazonaws.services.rds.auth.RdsIamAuthTokenGenerator;
+import com.mchange.v2.c3p0.ComboPooledDataSource;
 import com.zaxxer.hikari.HikariConfig;
-import com.zaxxer.hikari.HikariDataSource;
 import org.atteo.evo.inflector.English;
 
 import io.rcktapp.api.ApiException;
@@ -106,6 +103,13 @@ public class SqlDb extends Db
    public void shutdown()
    {
       shutdown = true;
+
+      synchronized (this)
+      {
+         if (pool instanceof ComboPooledDataSource) {
+            ((ComboPooledDataSource) pool).close();
+         }
+      }
    }
 
    public Connection getConnection() throws ApiException
@@ -141,8 +145,8 @@ public class SqlDb extends Db
       }
    }
 
-   public DataSource getDataSource() {
-      return useIamAuth ? buildIamAuthDataSource() : buildNormalDataSource();
+   public DataSource getDataSource() throws PropertyVetoException {
+      return useIamAuth ? buildIamAuthDataSource() : buildUsernameAndPasswordDataSource();
    }
 
    private DataSource buildIamAuthDataSource() {
@@ -159,14 +163,17 @@ public class SqlDb extends Db
       return new RdsIamDataSource(config);
    }
 
-   private DataSource buildNormalDataSource() {
-      HikariConfig config = new HikariConfig();
-      config.setDriverClassName(getDriver());
-      config.setJdbcUrl(getUrl());
-      config.setUsername(getUser());
-      config.setPassword(getPass());
-      config.setMaximumPoolSize(Math.min(getPoolMax(), MAX_POOL_SIZE));
-      return new HikariDataSource(config);
+   private DataSource buildUsernameAndPasswordDataSource() throws PropertyVetoException {
+      ComboPooledDataSource dataSource = new ComboPooledDataSource();
+      dataSource.setDriverClass(getDriver());
+      dataSource.setJdbcUrl(getUrl());
+      dataSource.setUser(getUser());
+      dataSource.setPassword(getPass());
+      dataSource.setInitialPoolSize(getPoolMin());
+      dataSource.setMinPoolSize(getPoolMin());
+      dataSource.setMaxPoolSize(getPoolMax());
+      dataSource.setIdleConnectionTestPeriod(getIdleConnectionTestPeriod());
+      return dataSource;
    }
 
    public static class ConnectionLocal
