@@ -15,6 +15,7 @@
  */
 package io.rcktapp.api.handler.sql;
 
+import com.mchange.v2.c3p0.ComboPooledDataSource;
 import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
 import io.rcktapp.api.ApiException;
@@ -34,6 +35,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.atteo.evo.inflector.English;
 
 import javax.sql.DataSource;
+import java.beans.PropertyVetoException;
 import java.lang.reflect.Field;
 import java.sql.Connection;
 import java.sql.DatabaseMetaData;
@@ -121,6 +123,9 @@ public class SqlDb extends Db
    {
       shutdown = true;
 
+      if (pool instanceof ComboPooledDataSource) {
+         ((ComboPooledDataSource) pool).close();
+      }
       if (this.readOnly != null)
          readOnly.shutdown();
    }
@@ -166,7 +171,7 @@ public class SqlDb extends Db
                {
                   if (pool == null && !shutdown)
                   {
-                     pool = getDataSource();
+                     pool = getDataSource(url);
                   }
                }
             }
@@ -186,14 +191,14 @@ public class SqlDb extends Db
       }
    }
 
-   public DataSource getDataSource() {
-      return useIamAuth ? buildIamAuthDataSource() : buildUsernameAndPasswordDataSource();
+   public DataSource getDataSource(String url) throws PropertyVetoException {
+      return useIamAuth ? buildIamAuthDataSource(url) : buildUsernameAndPasswordDataSource(url);
    }
 
-   private DataSource buildIamAuthDataSource() {
+   private DataSource buildIamAuthDataSource(String url) {
       HikariConfig config = new HikariConfig();
       config.setDriverClassName(getDriver());
-      config.setJdbcUrl(getUrl());
+      config.setJdbcUrl(url);
       config.setUsername(getUser());
       config.setMaximumPoolSize(getPoolMax());
 
@@ -204,14 +209,17 @@ public class SqlDb extends Db
       return new RdsIamDataSource(config);
    }
 
-   private DataSource buildUsernameAndPasswordDataSource() {
-      HikariConfig config = new HikariConfig();
-      config.setDriverClassName(getDriver());
-      config.setJdbcUrl(getUrl());
-      config.setUsername(getUser());
-      config.setPassword(getPass());
-      config.setMaximumPoolSize(getPoolMax());
-      return new HikariDataSource(config);
+   private DataSource buildUsernameAndPasswordDataSource(String url) throws PropertyVetoException {
+      ComboPooledDataSource dataSource = new ComboPooledDataSource();
+      dataSource.setDriverClass(getDriver());
+      dataSource.setJdbcUrl(url);
+      dataSource.setUser(getUser());
+      dataSource.setPassword(getPass());
+      dataSource.setInitialPoolSize(getPoolMin());
+      dataSource.setMinPoolSize(getPoolMin());
+      dataSource.setMaxPoolSize(getPoolMax());
+      dataSource.setIdleConnectionTestPeriod(getIdleConnectionTestPeriod());
+      return dataSource;
    }
 
    private Connection getSingleConnection(boolean writable) throws SQLException {
