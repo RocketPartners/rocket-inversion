@@ -344,7 +344,7 @@ public class SqlDb extends Db
          }
          colsRs.close();
 
-         ResultSet indexMd = dbmd.getIndexInfo(tableCat, null, tableName, true, false);
+         ResultSet indexMd = dbmd.getIndexInfo(apiCatalog, null, tableName, true, false);
          while (indexMd.next())
          {
             String colName = indexMd.getString("COLUMN_NAME");
