@@ -32,6 +32,7 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.NoArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.StringUtils;
 import org.atteo.evo.inflector.English;
 
 import javax.sql.DataSource;
@@ -359,6 +360,7 @@ public class SqlDb extends Db
       {
 
          DatabaseMetaData dbmd = apiConn.getMetaData();
+         String apiCatalog = StringUtils.isBlank(apiConn.getCatalog()) ? null : apiConn.getCatalog();
 
          //-- only here to map jdbc type integer codes to strings ex "4" to "BIGINT" or whatever it is
          Map<String, String> types = new HashMap<String, String>();
@@ -366,15 +368,14 @@ public class SqlDb extends Db
          {
             types.put(field.get(null) + "", field.getName());
          }
-         //--
 
-         //-- the first loop through is going to construct all of the
+         //-- the first loop through is going to construct all the
          //-- Tbl and Col objects.  There will be a second loop through
-         //-- that caputres all of the foreign key relationships.  You
-         //-- have to do the fk loop second becuase the reference pk
+         //-- that captures all the foreign key relationships.  You
+         //-- have to do the fk loop second because the reference pk
          //-- object needs to exist so that it can be set on the fk Col
          Map<String, CompletableFuture<Table>> tableFutures = new HashMap<>();
-         try (ResultSet rs = dbmd.getTables(null, "public", "%", new String[]{"TABLE", "VIEW"})) {
+         try (ResultSet rs = dbmd.getTables(apiCatalog, "public", "%", new String[]{"TABLE", "VIEW"})) {
             while (rs.next())
             {
                String tableCat = rs.getString("TABLE_CAT");
@@ -425,13 +426,13 @@ public class SqlDb extends Db
          }
 
          log.info("{} building foreign key relationships", getType());
-         //-- now link all of the fks to pks
+         //-- now link all the fks to pks
          //-- this is done after the first loop
-         //-- so that all of the tbls/cols are
+         //-- so that all the tbls/cols are
          //-- created first and are there to
          //-- be connected
          List<CompletableFuture<?>> keyFutures = new ArrayList<>();
-         try (ResultSet foreignKeyTablesRS = dbmd.getTables(null, "public", "%", new String[]{"TABLE"}))  {
+         try (ResultSet foreignKeyTablesRS = dbmd.getTables(apiCatalog, "public", "%", new String[]{"TABLE"}))  {
             while (foreignKeyTablesRS.next())
             {
                String tableName = foreignKeyTablesRS.getString("TABLE_NAME");
