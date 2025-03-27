@@ -362,23 +362,23 @@ public class SqlDb extends Db<SqlDb> {
     Connection conn = getConnection();
 
     DatabaseMetaData dbmd = conn.getMetaData();
+    String apiCatalog = StringUtils.isBlank(conn.getCatalog()) ? null : conn.getCatalog();
 
     // -- only here to map jdbc type integer codes to strings ex "4" to "BIGINT" or whatever it is
     Map<String, String> types = new HashMap<String, String>();
     for (Field field : Types.class.getFields()) {
       types.put(field.get(null) + "", field.getName());
     }
-    // --
 
-    // -- the first loop through is going to construct all of the
+    // -- the first loop through is going to construct all the
     // -- Tbl and Col objects.  There will be a second loop through
-    // -- that caputres all of the foreign key relationships.  You
-    // -- have to do the fk loop second becuase the reference pk
+    // -- that captures all the foreign key relationships.  You
+    // -- have to do the fk loop second because the reference pk
     // -- object needs to exist so that it can be set on the fk Col
-    ResultSet rs = dbmd.getTables(null, "public", "%", new String[] {"TABLE", "VIEW"});
+    ResultSet rs = dbmd.getTables(apiCatalog, "public", "%", new String[] {"TABLE", "VIEW"});
     boolean hasNext = rs.next();
     if (!hasNext) {
-      rs = dbmd.getTables(null, null, "%", new String[] {"TABLE", "VIEW"});
+      rs = dbmd.getTables(apiCatalog, null, "%", new String[] {"TABLE", "VIEW"});
       hasNext = rs.next();
     }
     if (hasNext)
@@ -386,9 +386,6 @@ public class SqlDb extends Db<SqlDb> {
         String tableCat = rs.getString("TABLE_CAT");
         String tableSchem = rs.getString("TABLE_SCHEM");
         String tableName = rs.getString("TABLE_NAME");
-        // String tableType = rs.getString("TABLE_TYPE");
-
-        // System.out.println(tableName);
 
         Table table = new Table(this, tableName);
         withTable(table);
@@ -442,15 +439,15 @@ public class SqlDb extends Db<SqlDb> {
       } while (rs.next());
     rs.close();
 
-    // -- now link all of the fks to pks
+    // -- now link all the fks to pks
     // -- this is done after the first loop
-    // -- so that all of the tbls/cols are
+    // -- so that all the tbls/cols are
     // -- created first and are there to
     // -- be connected
-    rs = dbmd.getTables(null, "public", "%", new String[] {"TABLE"});
+    rs = dbmd.getTables(apiCatalog, "public", "%", new String[] {"TABLE"});
     hasNext = rs.next();
     if (!hasNext) {
-      rs = dbmd.getTables(null, null, "%", new String[] {"TABLE"});
+      rs = dbmd.getTables(apiCatalog, null, "%", new String[] {"TABLE"});
       hasNext = rs.next();
     }
     if (hasNext)
