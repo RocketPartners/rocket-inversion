@@ -29,6 +29,7 @@ import java.util.Properties;
 
 import com.mchange.v2.c3p0.ComboPooledDataSource;
 import com.zaxxer.hikari.HikariConfig;
+import org.apache.commons.lang3.StringUtils;
 import org.atteo.evo.inflector.English;
 
 import io.rcktapp.api.ApiException;
@@ -304,6 +305,7 @@ public class SqlDb extends Db
       Connection apiConn = getConnection();
 
       DatabaseMetaData dbmd = apiConn.getMetaData();
+      String apiCatalog = StringUtils.isBlank(apiConn.getCatalog()) ? null : apiConn.getCatalog();
 
       //-- only here to map jdbc type integer codes to strings ex "4" to "BIGINT" or whatever it is
       Map<String, String> types = new HashMap<String, String>();
@@ -311,20 +313,18 @@ public class SqlDb extends Db
       {
          types.put(field.get(null) + "", field.getName());
       }
-      //--
 
-      //-- the first loop through is going to construct all of the
+      //-- the first loop through is going to construct all the
       //-- Tbl and Col objects.  There will be a second loop through
-      //-- that caputres all of the foreign key relationships.  You
-      //-- have to do the fk loop second becuase the reference pk
+      //-- that captures all the foreign key relationships.  You
+      //-- have to do the fk loop second because the reference pk
       //-- object needs to exist so that it can be set on the fk Col
-      ResultSet rs = dbmd.getTables(null, "public", "%", new String[]{"TABLE", "VIEW"});
+      ResultSet rs = dbmd.getTables(apiCatalog, "public", "%", new String[]{"TABLE", "VIEW"});
       while (rs.next())
       {
          String tableCat = rs.getString("TABLE_CAT");
          String tableSchem = rs.getString("TABLE_SCHEM");
          String tableName = rs.getString("TABLE_NAME");
-         //String tableType = rs.getString("TABLE_TYPE");
 
          Table table = new Table(this, tableName);
          addTable(table);
@@ -341,15 +341,10 @@ public class SqlDb extends Db
 
             Column column = new Column(table, colName, colType, nullable);
             table.addColumn(column);
-
-            //               if (DELETED_FLAGS.contains(colName.toLowerCase()))
-            //               {
-            //                  table.setDeletedFlag(column);
-            //               }
          }
          colsRs.close();
 
-         ResultSet indexMd = dbmd.getIndexInfo(apiConn.getCatalog(), null, tableName, true, false);
+         ResultSet indexMd = dbmd.getIndexInfo(apiCatalog, null, tableName, true, false);
          while (indexMd.next())
          {
             String colName = indexMd.getString("COLUMN_NAME");
@@ -371,7 +366,7 @@ public class SqlDb extends Db
       {
          String tableName = rs.getString("TABLE_NAME");
 
-         ResultSet keyMd = dbmd.getImportedKeys(apiConn.getCatalog(), null, tableName);
+         ResultSet keyMd = dbmd.getImportedKeys(apiCatalog, null, tableName);
          while (keyMd.next())
          {
             String fkTableName = keyMd.getString("FKTABLE_NAME");
@@ -382,8 +377,6 @@ public class SqlDb extends Db
             Column fk = getColumn(fkTableName, fkColumnName);
             Column pk = getColumn(pkTableName, pkColumnName);
             fk.setPk(pk);
-
-            //log.info(fkTableName + "." + fkColumnName + " -> " + pkTableName + "." + pkColumnName);
          }
          keyMd.close();
       }
