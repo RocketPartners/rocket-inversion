@@ -18,8 +18,6 @@ package io.rcktapp.api.handler.security;
 import java.util.Hashtable;
 import java.util.Map;
 
-import javax.servlet.http.HttpServletRequest;
-
 import io.forty11.web.js.JSObject;
 import io.rcktapp.api.Action;
 import io.rcktapp.api.Api;

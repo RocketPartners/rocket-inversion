@@ -13,9 +13,9 @@ project.docsDirName='../docs/0.3.x/'
 
 configurations.all { resolutionStrategy.cacheChangingModulesFor 0, 'seconds' }
 
-version = '0.3.6.9'
+version = '0.3.6.10-SNAPSHOT'
 group = 'com.github.RocketPartners'
-sourceCompatibility = 1.8
+sourceCompatibility = 1.17
 
 ext {
    archiveRepo = "https://maven.pkg.github.com/RocketPartners/artifacts"
@@ -67,7 +67,9 @@ dependencies {
    }
 
    // compile("com.github.wellsb1:fort_fusion_vtl:66afa082b5") { changing = true }
-   compile("com.github.wellsb1:fort_fusion_vtl:1.0.0")
+   compile("com.github.wellsb1:fort_fusion_vtl:1.0.0") {
+      exclude group: "javax.servlet", module: "javax.servlet-api"
+   }
 
    compile group: 'org.bouncycastle', name: 'bcprov-jdk15on', version: '1.55'
 
@@ -99,7 +101,9 @@ dependencies {
 
    compile group: 'ch.qos.logback', name: 'logback-classic', version: '1.1.11'
 
-   compile "javax.servlet:javax.servlet-api:3.1.0"
+   // springboot 3 requires Jakarta EE 10 at minimum
+   // https://github.com/spring-projects/spring-boot/wiki/Spring-Boot-3.0-Migration-Guide#jakarta-ee
+   compile("jakarta.platform:jakarta.jakartaee-api:10.0.0")
 
    compile 'net.jodah:expiringmap:0.5.8'
    compile group: 'org.graalvm', name: 'graal-sdk', version: '1.0.0-rc7'
