@@ -22,7 +22,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.UUID;
 
-import javax.xml.bind.annotation.adapters.HexBinaryAdapter;
+import jakarta.xml.bind.annotation.adapters.HexBinaryAdapter;
 
 import org.apache.commons.codec.binary.Base64;
 import org.apache.commons.collections.map.LRUMap;
@@ -442,6 +442,8 @@ public class AuthHandler implements Handler
 
          String encoded = Base64.encodeBase64String(input).trim();
          return encoded;
+         // bZBOt1Y4y43gjPSkvwsYfxFcNCZ+s+T/dsKQjzEDwcTU+nZKL5+NYyBLhkm/7aZHrYwJX18TGgehUxyReIEYCw==
+         // bZBOt1Y4y43gjPSkvwsYfxFcNCZ+s+T/dsKQjzEDwcTU+nZKL5+NYyBLhkm/7aZHrYwJX18TGgehUxyReIEYCw==
       }
       catch (Exception ex)
       {
