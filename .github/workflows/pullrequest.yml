@@ -25,9 +25,7 @@ jobs:
           java-version: '17'
 
       - name: Validate code formatting
-        uses: gradle/gradle-build-action@v2.1.4
-        with:
-          arguments: check -x test
+        run: ./gradlew check -x test
   test:
     runs-on: ubuntu-latest
     env:
@@ -44,9 +42,7 @@ jobs:
           java-version: '17'
 
       - name: Validate tests pass
-        uses: gradle/gradle-build-action@v2.1.4
-        with:
-          arguments: test
+        run: ./gradlew test
   build:
     runs-on: ubuntu-latest
     env:
@@ -63,6 +59,4 @@ jobs:
           java-version: '17'
 
       - name: Build jar and Docker image
-        uses: gradle/gradle-build-action@v2.1.4
-        with:
-          arguments: build
+        run: ./gradlew build
