@@ -440,10 +440,7 @@ public class AuthHandler implements Handler
             input = digest.digest(input);
          }
 
-         String encoded = Base64.encodeBase64String(input).trim();
-         return encoded;
-         // bZBOt1Y4y43gjPSkvwsYfxFcNCZ+s+T/dsKQjzEDwcTU+nZKL5+NYyBLhkm/7aZHrYwJX18TGgehUxyReIEYCw==
-         // bZBOt1Y4y43gjPSkvwsYfxFcNCZ+s+T/dsKQjzEDwcTU+nZKL5+NYyBLhkm/7aZHrYwJX18TGgehUxyReIEYCw==
+         return Base64.encodeBase64String(input).trim();
       }
       catch (Exception ex)
       {
