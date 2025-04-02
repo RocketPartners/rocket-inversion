@@ -34,7 +34,7 @@ jobs:
         uses: actions/setup-java@v3
         with:
           distribution: corretto
-          java-version: '8'
+          java-version: '17'
 
       - name: Assemble
         run: ./gradlew clean assemble
@@ -50,12 +50,8 @@ jobs:
           path: "build/test-results/test/TEST-*.xml"
           reporter: java-junit
 
-      - name: Validate Gradle wrapper
-        uses: gradle/wrapper-validation-action@e6e38bacfdf1a337459f332974bb2327a31aaf4b
       - name: Publish package
-        uses: gradle/gradle-build-action@67421db6bd0bf253fb4bd25b31ebb98943c375e1
-        with:
-          arguments: uploadArchives
+        run: ./gradlew publish
 
       - name: Update Slack
         if: always()

@@ -22,7 +22,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.UUID;
 
-import javax.xml.bind.annotation.adapters.HexBinaryAdapter;
+import jakarta.xml.bind.annotation.adapters.HexBinaryAdapter;
 
 import org.apache.commons.codec.binary.Base64;
 import org.apache.commons.collections.map.LRUMap;
@@ -440,8 +440,7 @@ public class AuthHandler implements Handler
             input = digest.digest(input);
          }
 
-         String encoded = Base64.encodeBase64String(input).trim();
-         return encoded;
+         return Base64.encodeBase64String(input).trim();
       }
       catch (Exception ex)
       {
