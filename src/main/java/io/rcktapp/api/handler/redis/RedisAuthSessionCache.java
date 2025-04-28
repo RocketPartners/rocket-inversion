@@ -37,12 +37,12 @@ public class RedisAuthSessionCache implements AuthSessionCache
    protected boolean redisTestOnBorrow                  = true;
    protected boolean redisTestOnReturn                  = true;
    protected boolean redisTestWhileIdle                 = true;
-   protected int     redisMinEvictableIdleTimeMillis    = 60000;
-   protected int     redisTimeBetweenEvictionRunsMillis = 30000;
+   protected long    redisMinEvictableIdleTimeMillis    = 60000;
+   protected long    redisTimeBetweenEvictionRunsMillis = 30000;
    protected int     redisNumTestsPerEvictionRun        = 3;
    protected boolean redisBlockWhenExhausted            = true;
    protected int     redisReadSocketTimeout             = 2500;
-   protected int     redisTtl                           = 8 * 60 * 60;                                         // 8 hours in seconds
+   protected long    redisTtl                           = 8 * 60 * 60;                                         // 8 hours in seconds
 
    protected String  keyPrefix                          = "RedisAuthSess-";
 

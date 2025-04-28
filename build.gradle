@@ -1,5 +1,6 @@
 apply plugin: 'maven-publish'
 apply plugin: 'java'
+apply plugin: 'java-library'
 
 //README uncomment the line below to use 'gradle build' to package a war.
 //This file is shipped as a java plugin project not a war plugin project because
@@ -12,10 +13,10 @@ project.docsDirName = '../docs/0.3.x/'
 
 configurations.all { resolutionStrategy.cacheChangingModulesFor 0, 'seconds' }
 
-version = '0.3.20'
+version = '0.3.21'
 group = 'com.github.RocketPartners'
-sourceCompatibility = JavaVersion.VERSION_11
-targetCompatibility = JavaVersion.VERSION_11
+sourceCompatibility = JavaVersion.VERSION_17
+targetCompatibility = JavaVersion.VERSION_17
 ext {
     archiveRepo = "https://maven.pkg.github.com/RocketPartners/artifacts"
     archiveRepoUser = System.getenv('GHP_USER')
@@ -100,74 +101,78 @@ dependencies {
     implementation 'org.projectlombok:lombok:1.18.26'
     annotationProcessor 'org.projectlombok:lombok:1.18.26'
     if (gradle.ext.rckt_snooze['addFortJProjectToClasspath']) {
-        compile findProject(":fort_j")
+        api findProject(":fort_j")
     } else {
-        // compile("com.github.wellsb1:fort_j:release-1.0.x-SNAPSHOT") { changing = true }
-        compile("com.github.wellsb1:fort_j:1.0.x")
+        // api("com.github.wellsb1:fort_j:release-1.0.x-SNAPSHOT") { changing = true }
+        api("com.github.wellsb1:fort_j:1.0.x")
     }
 
     if (gradle.ext.rckt_snooze['addFortWProjectToClasspath']) {
-        compile findProject(":fort_w")
+        api findProject(":fort_w")
     } else {
-        // compile("com.github.wellsb1:fort_w:release-1.0.x-SNAPSHOT") { changing = true }
-        compile("com.github.wellsb1:fort_w:1.0.x")
+        // api("com.github.wellsb1:fort_w:release-1.0.x-SNAPSHOT") { changing = true }
+        api("com.github.wellsb1:fort_w:1.0.x")
     }
 
     if (gradle.ext.rckt_snooze['addFortSProjectToClasspath']) {
-        compile findProject(":fort_s")
+        api findProject(":fort_s")
     } else {
-        // compile("com.github.wellsb1:fort_s:release-1.1.x-SNAPSHOT") { changing = true }
-        compile("com.github.wellsb1:fort_s:1.1.x")
+        // api("com.github.wellsb1:fort_s:release-1.1.x-SNAPSHOT") { changing = true }
+        api("com.github.wellsb1:fort_s:1.1.x")
     }
 
-    // compile("com.github.wellsb1:fort_fusion_vtl:66afa082b5") { changing = true }
-    compile("com.github.wellsb1:fort_fusion_vtl:1.0.0")
+    // api("com.github.wellsb1:fort_fusion_vtl:66afa082b5") { changing = true }
+    api("com.github.wellsb1:fort_fusion_vtl:1.0.0")
 
-    compile group: 'org.bouncycastle', name: 'bcprov-jdk15on', version: '1.55'
+    api group: 'org.bouncycastle', name: 'bcprov-jdk15on', version: '1.55'
 
-    compile group: 'com.mchange', name: 'c3p0', version: '0.9.5.2'
-    compile group: 'com.mchange', name: 'mchange-commons-java', version: '0.2.11'
+    api group: 'com.mchange', name: 'c3p0', version: '0.9.5.2'
+    api group: 'com.mchange', name: 'mchange-commons-java', version: '0.2.11'
 
-    compile group: 'commons-codec', name: 'commons-codec', version: '1.10'
-    compile group: 'commons-collections', name: 'commons-collections', version: '3.2.1'
-    compile group: 'org.apache.commons', name: 'commons-csv', version: '1.4'
-    compile group: 'commons-httpclient', name: 'commons-httpclient', version: '3.1'
-    compile group: 'org.apache.commons', name: 'commons-lang3', version: '3.4'
+    api group: 'commons-codec', name: 'commons-codec', version: '1.10'
+    api group: 'commons-collections', name: 'commons-collections', version: '3.2.1'
+    api group: 'org.apache.commons', name: 'commons-csv', version: '1.4'
+    api group: 'commons-httpclient', name: 'commons-httpclient', version: '3.1'
+    api group: 'org.apache.commons', name: 'commons-lang3', version: '3.4'
 
-    compile group: 'com.zaxxer', name: 'HikariCP', version: '3.3.1'
+    api group: 'com.zaxxer', name: 'HikariCP', version: '3.3.1'
 
     // required for the Redis client
-    compile group: 'redis.clients', name: 'jedis', version: '3.1.0'
+    api group: 'redis.clients', name: 'jedis', version: '5.2.0'
 
-    compile 'com.amazonaws:aws-java-sdk-s3:1.11.390'
-    compile 'com.amazonaws:aws-java-sdk-dynamodb:1.11.390'
-    compile 'com.amazonaws:aws-java-sdk-kinesis:1.11.390'
-    compile 'com.amazonaws:aws-java-sdk-rds:1.11.542'
+    api 'com.amazonaws:aws-java-sdk-s3:1.11.390'
+    api 'com.amazonaws:aws-java-sdk-dynamodb:1.11.390'
+    api 'com.amazonaws:aws-java-sdk-kinesis:1.11.390'
+    api 'com.amazonaws:aws-java-sdk-rds:1.11.542'
 
     //drivers for supportd DBs
-    compile group: 'mysql', name: 'mysql-connector-java', version: '5.1.34'
-    compile 'org.postgresql:postgresql:42.1.4'
+    api group: 'mysql', name: 'mysql-connector-java', version: '5.1.34'
+    api 'org.postgresql:postgresql:42.1.4'
 
     // Beware of changing the redshift driver version. Newer versions of this driver are not thread-safe
     // Version 1.2.10.1009 is thread-safe
     // https://stackoverflow.com/questions/52884036/java-sql-sqlnontransientexception-amazonjdbc10900-not-all-parameters-have
-    compile group: 'com.amazon.redshift', name: 'redshift-jdbc42-no-awssdk', version: '1.2.10.1009'
+    api group: 'com.amazon.redshift', name: 'redshift-jdbc42-no-awssdk', version: '1.2.10.1009'
 
-    compile group: 'com.auth0', name: 'java-jwt', version: '3.1.0'
+    api group: 'com.auth0', name: 'java-jwt', version: '3.1.0'
 
-    compile group: 'ch.qos.logback', name: 'logback-classic', version: '1.1.11'
+    api group: 'ch.qos.logback', name: 'logback-classic', version: '1.1.11'
 
-    compile "javax.servlet:javax.servlet-api:3.1.0"
+    api "javax.servlet:javax.servlet-api:3.1.0"
 
-    compile 'net.jodah:expiringmap:0.5.8'
-    compile group: 'org.graalvm', name: 'graal-sdk', version: '1.0.0-rc7'
-    compile group: 'com.oracle.truffle', name: 'truffle-api', version: '1.0.0-rc7'
-    compile files('libs/graaljs.jar')
-    compile files('libs/tregex.jar')
+    // springboot 3 requires Jakarta EE 10 at minimum
+    // https://github.com/spring-projects/spring-boot/wiki/Spring-Boot-3.0-Migration-Guide#jakarta-ee
+    api "jakarta.platform:jakarta.jakartaee-api:10.0.0"
+
+    api 'net.jodah:expiringmap:0.5.8'
+    api group: 'org.graalvm', name: 'graal-sdk', version: '1.0.0-rc7'
+    api group: 'com.oracle.truffle', name: 'truffle-api', version: '1.0.0-rc7'
+    api files('libs/graaljs.jar')
+    api files('libs/tregex.jar')
 
 
-    compile group: 'org.apache.velocity', name: 'velocity-engine-core', version: '2.0'
-    //	compile group: 'org.apache.velocity', name: 'velocity-engine-scripting', version: '2.0'
+    api group: 'org.apache.velocity', name: 'velocity-engine-core', version: '2.0'
+    //	api group: 'org.apache.velocity', name: 'velocity-engine-scripting', version: '2.0'
 
     testImplementation group: 'org.hamcrest', name: 'hamcrest-all', version: '1.3'
     testImplementation group: 'org.hamcrest', name: 'hamcrest', version: '2.2'
