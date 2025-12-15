@@ -1,5 +1,8 @@
 ## Unreleased
 
+## [0.3.22 - 12/15/25]
+- LIFT-1230: Support ``maxIdleTimeExcessConnections`` configuration for c3p0
+
 ## [0.3.21 - 4/28/25]
 - LIFTBAU-3259: support integration with Spring Boot 3
 

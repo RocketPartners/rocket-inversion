@@ -90,7 +90,9 @@ public class SqlDb extends Db
    protected String        ignoreTablePrefixes      = "";
    protected int           poolMin                  = MIN_POOL_SIZE;
    protected int           poolMax                  = MAX_POOL_SIZE;
-   protected int           idleConnectionTestPeriod = 3600; // in seconds
+   protected int           idleConnectionTestPeriod = 3600;
+   protected int           maxIdleTimeExcessConnections = 0; // in seconds
+// in seconds
 
    protected SqlDb readOnly = null;
 
@@ -220,6 +222,10 @@ public class SqlDb extends Db
       dataSource.setMinPoolSize(getPoolMin());
       dataSource.setMaxPoolSize(getPoolMax());
       dataSource.setIdleConnectionTestPeriod(getIdleConnectionTestPeriod());
+      if(maxIdleTimeExcessConnections > 0){
+         dataSource.setMaxIdleTimeExcessConnections(getMaxIdleTimeExcessConnections());
+
+      }
       return dataSource;
    }
 
@@ -745,6 +751,16 @@ public class SqlDb extends Db
    public void setIdleConnectionTestPeriod(int idleConnectionTestPeriod)
    {
       this.idleConnectionTestPeriod = idleConnectionTestPeriod;
+   }
+
+   public int getMaxIdleTimeExcessConnections()
+   {
+      return maxIdleTimeExcessConnections;
+   }
+
+   public void setMaxIdleTimeExcessConnections(int maxIdleTimeExcessConnections)
+   {
+      this.maxIdleTimeExcessConnections = maxIdleTimeExcessConnections;
    }
 
    public boolean isCalcRowsFound()
