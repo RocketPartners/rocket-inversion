@@ -1,15 +1,12 @@
 package io.rcktapp.api.handler.firehose;
 
 import com.amazonaws.services.kinesisfirehose.AmazonKinesisFirehoseAsync;
-import com.amazonaws.services.kinesisfirehose.AmazonKinesisFirehoseAsyncClient;
 import com.amazonaws.services.kinesisfirehose.AmazonKinesisFirehoseAsyncClientBuilder;
 import org.atteo.evo.inflector.English;
 
 import com.amazonaws.auth.AWSStaticCredentialsProvider;
 import com.amazonaws.auth.BasicAWSCredentials;
 import com.amazonaws.services.kinesisfirehose.AmazonKinesisFirehose;
-import com.amazonaws.services.kinesisfirehose.AmazonKinesisFirehoseClientBuilder;
-import com.amazonaws.services.s3.AmazonS3ClientBuilder;
 
 import io.forty11.j.J;
 import io.rcktapp.api.Collection;
