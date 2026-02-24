@@ -33,6 +33,7 @@ import software.amazon.awssdk.services.s3.model.ListObjectsRequest;
 import software.amazon.awssdk.services.s3.model.ListObjectsResponse;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 import software.amazon.awssdk.services.s3.model.PutObjectResponse;
+import software.amazon.awssdk.services.s3.model.S3Exception;
 import software.amazon.awssdk.utils.IoUtils;
 
 /**
@@ -178,7 +179,7 @@ public class S3Db extends Db
       GetObjectRequest gob = GetObjectRequest.builder()
               .bucket(req.getBucket())
               .key(req.getKey())
-              .ifNoneMatch(req.getEtag()) //TODO CONNOR: test
+              .ifNoneMatch(req.getEtag())
               .build();
       return client.getObject(gob);
    }
@@ -189,7 +190,6 @@ public class S3Db extends Db
       HeadObjectRequest hob = HeadObjectRequest.builder()
               .bucket(req.getBucket())
               .key(req.getKey())
-              .ifNoneMatch(req.getEtag()) //TODO CONNOR: test
               .build();
       return client.headObject(hob); //TODO CONNOR: ensure calling methods are adding prefix to key
    }

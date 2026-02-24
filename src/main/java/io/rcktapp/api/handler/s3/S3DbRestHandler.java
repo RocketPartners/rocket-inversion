@@ -56,6 +56,7 @@ import software.amazon.awssdk.services.s3.model.GetObjectResponse;
 import software.amazon.awssdk.services.s3.model.HeadObjectResponse;
 import software.amazon.awssdk.services.s3.model.ListObjectsResponse;
 import software.amazon.awssdk.services.s3.model.PutObjectResponse;
+import software.amazon.awssdk.services.s3.model.S3Exception;
 import software.amazon.awssdk.services.s3.model.S3Object;
 import software.amazon.awssdk.utils.IoUtils;
 
@@ -152,15 +153,22 @@ public class S3DbRestHandler implements Handler
          // path == /s3/bucketName?eq(key,filename)&download
 
          // If a prefix exists, it must be tacked onto the key.
-         ResponseInputStream<GetObjectResponse> s3File = db.getDownload(s3Req);
+         ResponseInputStream<GetObjectResponse> s3File = null;
+         try {
+            s3File = db.getDownload(s3Req);
+         } catch (S3Exception exception) {
+            if (exception.statusCode() == 304) {
+               // This is how the aws api reacts to downloading something that doesn't match its constraint. -> https://docs.aws.amazon.com/AmazonS3/latest/API/API_GetObject.html
+               log.info("File {} from bucket {} was not modified since it was last retrieved", s3Req.getKey(), s3Req.getBucket());
+            }
+            log.error("Failed to download file {} from bucket {}", s3Req.getKey(), s3Req.getBucket(), exception);
+         }
 
-         // This is how the aws api reacts to downloading something that doesn't match its constraint.
-         if (s3File == null) { //TODO CONNOR: check this. can it be null??
+         if (s3File == null) {
            res.setStatus(SC.SC_204_NO_CONTENT);
            return;
          } else {
-
-           GetObjectResponse response = s3File.response(); //TODO CONNOR: check that this isn't closing the inputstream before the servlet
+           GetObjectResponse response = s3File.response();
            // relies on Servlet to close the stream.
            res.setInputStream(s3File);
            res.setContentType(response.contentType());
@@ -234,7 +242,7 @@ public class S3DbRestHandler implements Handler
       js.put("checksumSHA1", response.checksumSHA1());
       js.put("checksumSHA256", response.checksumSHA256());
       js.put("checksumType", response.checksumType());
-      js.put("eTag", response.eTag());
+      js.put("eTag", response.eTag().replace("\"", "")); // etag can be surrounded in quotes
       js.put("missingMeta", response.missingMeta());
       js.put("versionId", response.versionId());
       js.put("cacheControl", response.cacheControl());
