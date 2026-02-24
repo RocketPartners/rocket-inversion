@@ -18,11 +18,13 @@ package io.rcktapp.api.handler.s3;
 import java.security.DigestInputStream;
 import java.security.MessageDigest;
 import java.text.SimpleDateFormat;
+import java.time.Instant;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -47,6 +49,7 @@ import io.rcktapp.api.service.Service;
 import io.rcktapp.rql.Rql;
 import io.rcktapp.rql.s3.S3Rql;
 import software.amazon.awssdk.core.ResponseInputStream;
+import software.amazon.awssdk.core.SdkField;
 import software.amazon.awssdk.services.s3.model.CommonPrefix;
 import software.amazon.awssdk.services.s3.model.CopyObjectResult;
 import software.amazon.awssdk.services.s3.model.GetObjectResponse;
@@ -181,7 +184,7 @@ public class S3DbRestHandler implements Handler
          {
             HeadObjectResponse headResponse = db.headObject(s3Req);
 
-            json = JS.toJSObject(mapper.writeValueAsString(headResponse));
+            json = convertToJSObject(headResponse);
             String pathPrefix = req.getPath().substring(0, req.getPath().indexOf(req.getSubpath()));
             json.put("href", req.getApiUrl() + pathPrefix + s3Req.getBucket() + "/" + s3Req.getKey());
 
@@ -214,6 +217,50 @@ public class S3DbRestHandler implements Handler
       }
 
       res.setStatus(SC.SC_200_OK);
+   }
+
+   private JSObject convertToJSObject(HeadObjectResponse response) throws JsonProcessingException {
+      JSObject js = new JSObject();
+      js.put("deleteMarker", response.deleteMarker());
+      js.put("acceptRanges", response.acceptRanges());
+      js.put("expiration", response.expiration());
+      js.put("restore", response.restore());
+      js.put("archiveStatus", response.archiveStatus());
+      js.put("lastModified", response.lastModified());
+      js.put("contentLength", response.contentLength());
+      js.put("checksumCRC32", response.checksumCRC32());
+      js.put("checksumCRC32C", response.checksumCRC32C());
+      js.put("checksumCRC64NVME", response.checksumCRC64NVME());
+      js.put("checksumSHA1", response.checksumSHA1());
+      js.put("checksumSHA256", response.checksumSHA256());
+      js.put("checksumType", response.checksumType());
+      js.put("eTag", response.eTag());
+      js.put("missingMeta", response.missingMeta());
+      js.put("versionId", response.versionId());
+      js.put("cacheControl", response.cacheControl());
+      js.put("contentDisposition", response.contentDisposition());
+      js.put("contentEncoding", response.contentEncoding());
+      js.put("contentLanguage", response.contentLanguage());
+      js.put("contentType", response.contentType());
+      js.put("contentRange", response.contentRange());
+      js.put("expires", response.expires());
+      js.put("websiteRedirectLocation", response.websiteRedirectLocation());
+      js.put("serverSideEncryption", response.serverSideEncryption());
+      js.put("sseCustomerAlgorithm", response.sseCustomerAlgorithm());
+      js.put("sseCustomerKeyMD5", response.sseCustomerKeyMD5());
+      js.put("ssekmsKeyId", response.ssekmsKeyId());
+      js.put("bucketKeyEnabled", response.bucketKeyEnabled());
+      js.put("storageClass", response.storageClass());
+      js.put("requestCharged", response.requestCharged());
+      js.put("replicationStatus", response.replicationStatus());
+      js.put("partsCount", response.partsCount());
+      js.put("tagCount", response.tagCount());
+      js.put("objectLockMode", response.objectLockMode());
+      js.put("objectLockRetainUntilDate", response.objectLockRetainUntilDate());
+      js.put("objectLockLegalHoldStatus", response.objectLockLegalHoldStatus());
+      js.put("expiresString", response.expiresString());
+      js.put("userMetadata", mapper.writeValueAsString(response.metadata()));
+      return js;
    }
 
    private void getObjectsList(Request req, Response res, S3Request s3Req, S3Db db, ObjectMapper mapper) throws Exception
