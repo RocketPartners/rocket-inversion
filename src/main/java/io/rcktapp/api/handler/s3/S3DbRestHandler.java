@@ -50,6 +50,7 @@ import software.amazon.awssdk.core.ResponseInputStream;
 import software.amazon.awssdk.services.s3.model.CommonPrefix;
 import software.amazon.awssdk.services.s3.model.CopyObjectResult;
 import software.amazon.awssdk.services.s3.model.GetObjectResponse;
+import software.amazon.awssdk.services.s3.model.HeadObjectResponse;
 import software.amazon.awssdk.services.s3.model.ListObjectsResponse;
 import software.amazon.awssdk.services.s3.model.PutObjectResponse;
 import software.amazon.awssdk.services.s3.model.S3Object;
@@ -178,9 +179,9 @@ public class S3DbRestHandler implements Handler
 
          try
          {
-            Map<String, String> meta = db.getExtendedMetaData(s3Req);
+            HeadObjectResponse headResponse = db.headObject(s3Req);
 
-            json = JS.toJSObject(mapper.writeValueAsString(meta));
+            json = JS.toJSObject(mapper.writeValueAsString(headResponse));
             String pathPrefix = req.getPath().substring(0, req.getPath().indexOf(req.getSubpath()));
             json.put("href", req.getApiUrl() + pathPrefix + s3Req.getBucket() + "/" + s3Req.getKey());
 

@@ -27,6 +27,8 @@ import software.amazon.awssdk.services.s3.model.CopyObjectResponse;
 import software.amazon.awssdk.services.s3.model.CopyObjectResult;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 import software.amazon.awssdk.services.s3.model.GetObjectResponse;
+import software.amazon.awssdk.services.s3.model.HeadObjectRequest;
+import software.amazon.awssdk.services.s3.model.HeadObjectResponse;
 import software.amazon.awssdk.services.s3.model.ListObjectsRequest;
 import software.amazon.awssdk.services.s3.model.ListObjectsResponse;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
@@ -181,9 +183,15 @@ public class S3Db extends Db
       return client.getObject(gob);
    }
 
-   public Map<String, String> getExtendedMetaData(S3Request req)
+   public HeadObjectResponse headObject(S3Request req)
    {
-      return getDownload(req).response().metadata(); //TODO CONNOR: ensure calling methods are adding prefix to key
+      client = getS3Client();
+      HeadObjectRequest hob = HeadObjectRequest.builder()
+              .bucket(req.getBucket())
+              .key(req.getKey())
+              .ifNoneMatch(req.getEtag()) //TODO CONNOR: test
+              .build();
+      return client.headObject(hob); //TODO CONNOR: ensure calling methods are adding prefix to key
    }
 
    public PutObjectResponse saveFile(InputStream inputStream, String bucketName, String key, String contentType, Long contentLength, Map<String, String> userMetadata) throws IOException {
@@ -206,15 +214,16 @@ public class S3Db extends Db
    {
       client = getS3Client();
 
-      ListObjectsRequest req = ListObjectsRequest.builder()
+      ListObjectsRequest.Builder reqBuilder = ListObjectsRequest.builder()
               .bucket(s3Req.getBucket())
-              .maxKeys(s3Req.getSize()) // TODO fix pagesize...currently always set to 1000 ... tied to 'size' but not 'pagesize'?
               .delimiter("/")
               .marker(s3Req.getMarker())
-              .prefix(s3Req.getKey())
-              .build();
+              .prefix(s3Req.getKey());
 
-      return client.listObjects(req);
+      if (s3Req.getSize() >= 0) {
+         reqBuilder.maxKeys(s3Req.getSize()); // TODO fix pagesize...currently always set to 1000 ... tied to 'size' but not 'pagesize'?
+      }
+      return client.listObjects(reqBuilder.build());
    }
 
    public CopyObjectResult updateObject(String bucket, String key, String newBucket, String newKey, Map<String, String> meta)
