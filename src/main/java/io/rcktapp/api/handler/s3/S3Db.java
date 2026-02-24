@@ -1,25 +1,11 @@
 package io.rcktapp.api.handler.s3;
 
+import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-
-import com.amazonaws.auth.AWSStaticCredentialsProvider;
-import com.amazonaws.auth.BasicAWSCredentials;
-import com.amazonaws.services.s3.AmazonS3;
-import com.amazonaws.services.s3.AmazonS3ClientBuilder;
-import com.amazonaws.services.s3.model.Bucket;
-import com.amazonaws.services.s3.model.CopyObjectRequest;
-import com.amazonaws.services.s3.model.CopyObjectResult;
-import com.amazonaws.services.s3.model.GetObjectMetadataRequest;
-import com.amazonaws.services.s3.model.GetObjectRequest;
-import com.amazonaws.services.s3.model.ListObjectsRequest;
-import com.amazonaws.services.s3.model.ObjectListing;
-import com.amazonaws.services.s3.model.ObjectMetadata;
-import com.amazonaws.services.s3.model.PutObjectRequest;
-import com.amazonaws.services.s3.model.PutObjectResult;
-import com.amazonaws.services.s3.model.S3Object;
+import java.util.Map;
 
 import io.rcktapp.api.Attribute;
 import io.rcktapp.api.Collection;
@@ -28,14 +14,32 @@ import io.rcktapp.api.Db;
 import io.rcktapp.api.Entity;
 import io.rcktapp.api.Table;
 import io.rcktapp.rql.s3.S3Rql;
+import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
+import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
+import software.amazon.awssdk.core.ResponseInputStream;
+import software.amazon.awssdk.core.sync.RequestBody;
+import software.amazon.awssdk.regions.Region;
+import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.S3ClientBuilder;
+import software.amazon.awssdk.services.s3.model.Bucket;
+import software.amazon.awssdk.services.s3.model.CopyObjectRequest;
+import software.amazon.awssdk.services.s3.model.CopyObjectResponse;
+import software.amazon.awssdk.services.s3.model.CopyObjectResult;
+import software.amazon.awssdk.services.s3.model.GetObjectRequest;
+import software.amazon.awssdk.services.s3.model.GetObjectResponse;
+import software.amazon.awssdk.services.s3.model.ListObjectsRequest;
+import software.amazon.awssdk.services.s3.model.ListObjectsResponse;
+import software.amazon.awssdk.services.s3.model.PutObjectRequest;
+import software.amazon.awssdk.services.s3.model.PutObjectResponse;
+import software.amazon.awssdk.utils.IoUtils;
 
 /**
  * Bucket ~= Table
  * Bucket Object field key value ~= Column
  * Only mapping the key field since it is the only way to query anything within S3,
- * since, as of now, you can't request files by size, or content-type, or some 
+ * since, as of now, you can't request files by size, or content-type, or some
  * custom header.
- * 
+ *
  * @author kfrankic
  *
  */
@@ -58,14 +62,14 @@ public class S3Db extends Db
    protected String  secretKey       = null;
    protected String  awsRegion       = null;
 
-   // If you want to limit which buckets are included, set this to a csv of bucket names. 
+   // If you want to limit which buckets are included, set this to a csv of bucket names.
    // Leave this null if you want to configure all buckets in the account.
    protected String  buckets         = null;
 
    // Set this to true if you would like the default behavior to download the file instead of returning the files meta data
    protected boolean defaultDownload = false;
 
-   private AmazonS3  client          = null;
+   private S3Client client          = null;
 
    /**
     * @see io.rcktapp.api.Db#bootstrapApi()
@@ -85,11 +89,11 @@ public class S3Db extends Db
       }
       else
       {
-         // get all of the buckets this account has access to.  
-         List<Bucket> bucketList = client.listBuckets();
+         // get all the buckets this account has access to.
+         List<Bucket> bucketList = client.listBuckets().buckets();
          for (Bucket bucket : bucketList)
          {
-            bucketNames.add(bucket.getName());
+            bucketNames.add(bucket.name());
          }
       }
 
@@ -98,7 +102,7 @@ public class S3Db extends Db
          Table table = new Table(this, bucketName.trim());
 
          // Hardcoding 'key' as the only column as there is no useful way to use the other metadata
-         // for querying 
+         // for querying
          // Other core metadata includes: eTag, size, lastModified, storageClass
          table.addColumn(new Column(table, "key", "java.lang.String", false));
          addTable(table);
@@ -106,7 +110,7 @@ public class S3Db extends Db
 
       configApi();
 
-      client.shutdown();
+      client.close();
 
    }
 
@@ -143,100 +147,105 @@ public class S3Db extends Db
       }
    }
 
-   private AmazonS3 getS3Client()
+   private S3Client getS3Client()
    {
       if (client != null)
          return client;
 
-      AmazonS3ClientBuilder builder = null;
+      S3ClientBuilder builder;
       if (accessKey != null)
       {
-         BasicAWSCredentials creds = new BasicAWSCredentials(accessKey, secretKey);
-         builder = AmazonS3ClientBuilder.standard().withCredentials(new AWSStaticCredentialsProvider(creds));
+         AwsBasicCredentials creds = AwsBasicCredentials.create(accessKey, secretKey);
+         builder = S3Client.builder().credentialsProvider(StaticCredentialsProvider.create(creds));
       }
       else
       {
-         builder = AmazonS3ClientBuilder.standard();
+         builder = S3Client.builder();
       }
 
       if (awsRegion != null)
       {
-         builder.withRegion(awsRegion);
+         builder.region(Region.of(awsRegion));
       }
       return builder.build();
    }
 
-   public S3Object getDownload(S3Request req)
+   public ResponseInputStream<GetObjectResponse> getDownload(S3Request req)
    {
       client = getS3Client();
-      GetObjectRequest gor = new GetObjectRequest(req.getBucket(), req.getKey());
-      if (req.getEtag() != null) gor.withNonmatchingETagConstraint(req.getEtag());
-      return client.getObject(gor);
+      GetObjectRequest gob = GetObjectRequest.builder()
+              .bucket(req.getBucket())
+              .key(req.getKey())
+              .ifNoneMatch(req.getEtag()) //TODO CONNOR: test
+              .build();
+      return client.getObject(gob);
    }
 
-   public ObjectMetadata getExtendedMetaData(S3Request req)
+   public Map<String, String> getExtendedMetaData(S3Request req)
    {
-      String key = req.getKey();
-      String prefix = req.getPrefix();
-
-      client = getS3Client();
-      return client.getObjectMetadata(new GetObjectMetadataRequest(req.getBucket(), prefix != null ? prefix + key : key));
+      return getDownload(req).response().metadata(); //TODO CONNOR: ensure calling methods are adding prefix to key
    }
 
-   public PutObjectResult saveFile(InputStream inputStream, String bucketName, String key, ObjectMetadata meta)
-   {
+   public PutObjectResponse saveFile(InputStream inputStream, String bucketName, String key, String contentType, Long contentLength, Map<String, String> userMetadata) throws IOException {
       client = getS3Client();
-      return client.putObject(new PutObjectRequest(bucketName, key, inputStream, meta));
+      return client.putObject(PutObjectRequest.builder()
+              .bucket(bucketName)
+              .key(key)
+              .contentType(contentType)
+              .contentLength(contentLength)
+              .metadata(userMetadata)
+              .build(), RequestBody.fromBytes(IoUtils.toByteArray(inputStream)));
    }
 
    /**
-    * 
+    *
     * @param s3Req - the s3 request
     * @return
     */
-   public ObjectListing getCoreMetaData(S3Request s3Req)
+   public ListObjectsResponse getCoreMetaData(S3Request s3Req)
    {
-      String prefix = s3Req.getPrefix();
-      String key = s3Req.getKey();
-
-      if (prefix != null)
-      {
-         if (key != null)
-            key = prefix + key;
-         else
-            key = prefix;
-      }
-
       client = getS3Client();
 
-      ListObjectsRequest req = new ListObjectsRequest();
-      req.setBucketName(s3Req.getBucket());
-      req.setMaxKeys(s3Req.getSize()); // TODO fix pagesize...currently always set to 1000 ... tied to 'size' but not 'pagesize'?
-      req.setDelimiter("/");
-      req.setMarker(s3Req.getMarker());
-      req.setPrefix(prefix);
+      ListObjectsRequest req = ListObjectsRequest.builder()
+              .bucket(s3Req.getBucket())
+              .maxKeys(s3Req.getSize()) // TODO fix pagesize...currently always set to 1000 ... tied to 'size' but not 'pagesize'?
+              .delimiter("/")
+              .marker(s3Req.getMarker())
+              .prefix(s3Req.getKey())
+              .build();
 
       return client.listObjects(req);
    }
 
-   public CopyObjectResult updateObject(String bucket, String key, String newBucket, String newKey, ObjectMetadata meta)
+   public CopyObjectResult updateObject(String bucket, String key, String newBucket, String newKey, Map<String, String> meta)
    {
       client = getS3Client();
 
-      CopyObjectRequest copyReq = null;
+      CopyObjectRequest copyReq;
 
       if (meta != null)
       {
-         copyReq = new CopyObjectRequest(bucket, key, newBucket, newKey).withNewObjectMetadata(meta);
+         copyReq = CopyObjectRequest.builder()
+                 .sourceBucket(bucket)
+                 .sourceBucket(key)
+                 .destinationBucket(newBucket)
+                 .destinationKey(newKey)
+                 .metadata(meta) //TODO CONNOR: check this meta data mapping is right
+                 .build();
       }
       else
       {
          // rename or move request
-         copyReq = new CopyObjectRequest(bucket, key, newBucket, newKey);
+         copyReq = CopyObjectRequest.builder()
+                 .sourceBucket(bucket)
+                 .sourceBucket(key)
+                 .destinationBucket(newBucket)
+                 .destinationKey(newKey)
+                 .build();
       }
 
       // TODO if the key and newKey are not equal, (or the bucket and newBucket) delete the old key file
-      return client.copyObject(copyReq);
+      return client.copyObject(copyReq).copyObjectResult();
    }
 
    public String getBuckets()

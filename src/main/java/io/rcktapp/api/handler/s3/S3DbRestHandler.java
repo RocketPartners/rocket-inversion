@@ -19,18 +19,13 @@ import java.security.DigestInputStream;
 import java.security.MessageDigest;
 import java.text.SimpleDateFormat;
 import java.util.Date;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.amazonaws.services.s3.model.CopyObjectResult;
-import com.amazonaws.services.s3.model.ObjectListing;
-import com.amazonaws.services.s3.model.ObjectMetadata;
-import com.amazonaws.services.s3.model.PutObjectResult;
-import com.amazonaws.services.s3.model.S3Object;
-import com.amazonaws.services.s3.model.S3ObjectSummary;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import io.forty11.web.js.JS;
@@ -51,6 +46,14 @@ import io.rcktapp.api.Table;
 import io.rcktapp.api.service.Service;
 import io.rcktapp.rql.Rql;
 import io.rcktapp.rql.s3.S3Rql;
+import software.amazon.awssdk.core.ResponseInputStream;
+import software.amazon.awssdk.services.s3.model.CommonPrefix;
+import software.amazon.awssdk.services.s3.model.CopyObjectResult;
+import software.amazon.awssdk.services.s3.model.GetObjectResponse;
+import software.amazon.awssdk.services.s3.model.ListObjectsResponse;
+import software.amazon.awssdk.services.s3.model.PutObjectResponse;
+import software.amazon.awssdk.services.s3.model.S3Object;
+import software.amazon.awssdk.utils.IoUtils;
 
 /**
  * Accepts RQL parameters and responds with json or files to the client.
@@ -145,20 +148,21 @@ public class S3DbRestHandler implements Handler
          // path == /s3/bucketName?eq(key,filename)&download
 
          // If a prefix exists, it must be tacked onto the key.
-         S3Object s3File = db.getDownload(s3Req);
+         ResponseInputStream<GetObjectResponse> s3File = db.getDownload(s3Req);
 
          // This is how the aws api reacts to downloading something that doesn't match its constraint.
-         if (s3File == null) {
+         if (s3File == null) { //TODO CONNOR: check this. can it be null??
            res.setStatus(SC.SC_204_NO_CONTENT);
            return;
          } else {
 
+           GetObjectResponse response = s3File.response(); //TODO CONNOR: check that this isn't closing the inputstream before the servlet
            // relies on Servlet to close the stream.
-           res.setInputStream(s3File.getObjectContent());
-           res.setContentType(s3File.getObjectMetadata().getContentType());
+           res.setInputStream(s3File);
+           res.setContentType(response.contentType());
 
-           res.addHeader("Content-Type", s3File.getObjectMetadata().getContentType());
-           res.addHeader("Content-Length", Long.toString(s3File.getObjectMetadata().getContentLength()));
+           res.addHeader("Content-Type", response.contentType());
+           res.addHeader("Content-Length", Long.toString(response.contentLength()));
          }
       }
       else if (s3Req.getKey() != null)
@@ -174,7 +178,7 @@ public class S3DbRestHandler implements Handler
 
          try
          {
-            ObjectMetadata meta = db.getExtendedMetaData(s3Req);
+            Map<String, String> meta = db.getExtendedMetaData(s3Req);
 
             json = JS.toJSObject(mapper.writeValueAsString(meta));
             String pathPrefix = req.getPath().substring(0, req.getPath().indexOf(req.getSubpath()));
@@ -199,7 +203,7 @@ public class S3DbRestHandler implements Handler
             // that start with this prefix...meaning, NO inner directories or files will be returned.
             // To work around this limitation, if the user wants to specify a directory & file prefix, the 'sw' function should 
             // be used.  ex: sw(key,media/c) will return all files/directories that are within the media folder and start with 'c'
-            getObjectsList(req, res, new S3Request(s3Req.getBucket(), s3Req.getKey() + "/", null, s3Req.getSize(), false, s3Req.isMeta(), s3Req.getMarker(), req.getHeader("If-None-Match")), db, mapper);
+            getObjectsList(req, res, new S3Request(s3Req.getBucket(), s3Req.getKey() + "/", s3Req.getSize(), false, s3Req.isMeta(), s3Req.getMarker(), req.getHeader("If-None-Match")), db, mapper);
          }
 
       }
@@ -217,7 +221,7 @@ public class S3DbRestHandler implements Handler
       // path == /s3/bucketName/inner/folder
       // retrieve as much meta data as possible about the files in the bucket
 
-      ObjectListing listing = db.getCoreMetaData(s3Req);
+      ListObjectsResponse listing = db.getCoreMetaData(s3Req);
 
       JSObject json = new JSObject();
 
@@ -229,30 +233,30 @@ public class S3DbRestHandler implements Handler
       // "prev": null, - could know, if passed as req param.
       // "next": "http://localhost:8080/api/lift/us/elastic/ads?&pageSize=100&sort=id&source=id,json.id,json.modifiedat&pageNum=2"
       JSObject jsMeta = new JSObject();
-      jsMeta.put("pageSize", listing.getMaxKeys());
+      jsMeta.put("pageSize", listing.maxKeys());
       jsMeta.put("prev", null);
       String nextMarker = "";
       if (listing.isTruncated())
       {
          String query = req.getUrl().getQuery();
-         nextMarker = (query.length() == 0 ? ("?marker=" + listing.getNextMarker()) : ("&marker=" + listing.getNextMarker()));
+         nextMarker = (query.length() == 0 ? ("?marker=" + listing.nextMarker()) : ("&marker=" + listing.nextMarker()));
       }
       jsMeta.put("next", listing.isTruncated() ? req.getUrl().toString() + nextMarker : null);
       json.put("meta", jsMeta);
 
-      List<String> directoryList = listing.getCommonPrefixes();
-      List<S3ObjectSummary> fileList = listing.getObjectSummaries();
+      List<CommonPrefix> directoryList = listing.commonPrefixes();
+      List<S3Object> fileList = listing.contents();
 
       JSArray data = new JSArray();
 
       // alphabetize the data returned to the client...
       while (!directoryList.isEmpty())
       {
-         String directory = directoryList.get(0);
+         CommonPrefix directory = directoryList.get(0);
          if (!fileList.isEmpty())
          {
-            S3ObjectSummary file = fileList.get(0);
-            if (directory.compareToIgnoreCase(file.getKey()) < 0)
+            S3Object file = fileList.get(0);
+            if (directory.prefix().compareToIgnoreCase(file.key()) < 0)
             {
                // directory name comes before file name
                data.add(buildListObj(req.getApiUrl() + req.getPath() + directory, null, null, false));
@@ -261,7 +265,7 @@ public class S3DbRestHandler implements Handler
             else
             {
                // file name comes before directory
-               data.add(buildListObj(req.getApiUrl() + req.getPath() + file.getKey(), file.getLastModified(), file.getSize(), true));
+               data.add(buildListObj(req.getApiUrl() + req.getPath() + file.key(), Date.from(file.lastModified()), file.size(), true));
                fileList.remove(0);
             }
          }
@@ -274,8 +278,8 @@ public class S3DbRestHandler implements Handler
 
       while (!fileList.isEmpty())
       {
-         S3ObjectSummary file = fileList.remove(0);
-         data.add(buildListObj(req.getApiUrl() + req.getPath() + file.getKey(), file.getLastModified(), file.getSize(), true));
+         S3Object file = fileList.remove(0);
+         data.add(buildListObj(req.getApiUrl() + req.getPath() + file.key(), Date.from(file.lastModified()), file.size(), true));
       }
 
       json.put("data", data);
@@ -331,7 +335,8 @@ public class S3DbRestHandler implements Handler
 
          uploadStream = new DigestInputStream(upload.getInputStream(), MessageDigest.getInstance("MD5"));
 
-         ObjectMetadata meta = new ObjectMetadata();
+         Map<String, String> meta = new HashMap<>();
+         String contentType = null;
 
          String metaParam = req.getParam("meta");
 
@@ -347,7 +352,7 @@ public class S3DbRestHandler implements Handler
 
                if (metaKey.equalsIgnoreCase("content-type"))
                {
-                  meta.setContentType(entry.getValue());
+                  meta.put("Content-Type", entry.getValue());
                }
                else if (metaKey.equalsIgnoreCase("name"))
                {
@@ -355,17 +360,16 @@ public class S3DbRestHandler implements Handler
                }
                else
                {
-                  meta.addUserMetadata(metaKey, entry.getValue());
+                  meta.put(metaKey, entry.getValue());
                }
             }
 
          }
 
-         meta.setContentLength(upload.getFileSize());
-
-         PutObjectResult result = db.saveFile(uploadStream, s3Req.getBucket(), key, meta);
-         if (result == null)
+         PutObjectResponse result = db.saveFile(uploadStream, s3Req.getBucket(), key, contentType, upload.getFileSize(), meta);
+         if (result == null) {
             throw new ApiException(SC.SC_500_INTERNAL_SERVER_ERROR, "Failed to POST/PUT file to s3: " + key);
+         }
 
          // not including the result object as it contains confusing/pointless data.
          // such as a 'content-length' of 0, because it's the content-length of the response, not the 
@@ -403,7 +407,7 @@ public class S3DbRestHandler implements Handler
       }
 
       // All previous metadata will be wiped out.
-      ObjectMetadata meta = buildMetadata(metaJson);
+      Map<String, String> meta = buildMetadata(metaJson);
 
       CopyObjectResult copy = db.updateObject(table.getName(), key, table.getName(), key, meta);
 
@@ -434,14 +438,14 @@ public class S3DbRestHandler implements Handler
       return collection;
    }
 
-   private ObjectMetadata buildMetadata(JSObject metaJs)
+   private Map<String, String> buildMetadata(JSObject metaJs)
    {
-      ObjectMetadata meta = null;
+      Map<String, String> meta = null;
 
       if (metaJs != null)
       {
          // All previous metadata will be wiped out.
-         meta = new ObjectMetadata();
+         meta = new HashMap<>();
 
          Map<String, String> metaMap = metaJs.asMap();
 
@@ -452,13 +456,13 @@ public class S3DbRestHandler implements Handler
             switch (metaKey.toLowerCase())
             {
                case "content-type":
-                  meta.setContentType(entry.getValue());
+                  meta.put("Content-Type", entry.getValue());
                   break;
                case "name":
                case "tenantid":
                   break;
                default :
-                  meta.addUserMetadata(metaKey, entry.getValue());
+                  meta.put(metaKey, entry.getValue());
             }
          }
       }
