@@ -310,11 +310,11 @@ public class S3DbRestHandler implements Handler
       // alphabetize the data returned to the client...
       while (!directoryList.isEmpty())
       {
-         CommonPrefix directory = directoryList.get(0);
+         String directory = directoryList.get(0).prefix();
          if (!fileList.isEmpty())
          {
             S3Object file = fileList.get(0);
-            if (directory.prefix().compareToIgnoreCase(file.key()) < 0)
+            if (directory.compareToIgnoreCase(file.key()) < 0)
             {
                // directory name comes before file name
                data.add(buildListObj(req.getApiUrl() + req.getPath() + directory, null, null, false));
