@@ -23,7 +23,6 @@ import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.S3ClientBuilder;
 import software.amazon.awssdk.services.s3.model.Bucket;
 import software.amazon.awssdk.services.s3.model.CopyObjectRequest;
-import software.amazon.awssdk.services.s3.model.CopyObjectResponse;
 import software.amazon.awssdk.services.s3.model.CopyObjectResult;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 import software.amazon.awssdk.services.s3.model.GetObjectResponse;
@@ -33,7 +32,6 @@ import software.amazon.awssdk.services.s3.model.ListObjectsRequest;
 import software.amazon.awssdk.services.s3.model.ListObjectsResponse;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 import software.amazon.awssdk.services.s3.model.PutObjectResponse;
-import software.amazon.awssdk.services.s3.model.S3Exception;
 import software.amazon.awssdk.utils.IoUtils;
 
 /**
@@ -186,10 +184,13 @@ public class S3Db extends Db
 
    public HeadObjectResponse headObject(S3Request req)
    {
+      String key = req.getKey();
+      String prefix = req.getPrefix();
+
       client = getS3Client();
       HeadObjectRequest hob = HeadObjectRequest.builder()
               .bucket(req.getBucket())
-              .key(req.getKey())
+              .key(prefix != null ? prefix + key : key)
               .build();
       return client.headObject(hob);
    }
@@ -218,7 +219,7 @@ public class S3Db extends Db
               .bucket(s3Req.getBucket())
               .delimiter("/")
               .marker(s3Req.getMarker())
-              .prefix(s3Req.getKey());
+              .prefix(s3Req.getPrefix());
 
       if (s3Req.getSize() >= 0) {
          reqBuilder.maxKeys(s3Req.getSize()); // TODO fix pagesize...currently always set to 1000 ... tied to 'size' but not 'pagesize'?

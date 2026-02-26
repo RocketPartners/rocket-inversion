@@ -63,7 +63,7 @@ public class S3Rql extends Rql
          // TODO check for a prefix to add to the key if it exists.
          String prefix = determinePrefixFromPath(req.getCollectionKey(), req.getSubpath());
          String key = prefix == null ? req.getUploads().get(0).getFileName() : prefix + "/" + req.getUploads().get(0).getFileName();
-         s3Req = new S3Request(table.getName(), key, null, false, false, null, req.getHeader("If-None-Match"));
+         s3Req = new S3Request(table.getName(), null, key, null, false, false, null, req.getHeader("If-None-Match"));
       }
 
       if (s3Req == null)
@@ -76,7 +76,7 @@ public class S3Rql extends Rql
          if (req.getParams().size() == 1 && req.getParam("tenantid") != null)
          {
             String prefix = determinePrefixFromPath(req.getCollectionKey(), URLDecoder.decode(req.getSubpath(), StandardCharsets.UTF_8.name()));
-            s3Req = new S3Request(stmt.table.getName(), prefix, stmt.pagesize, isDownloadRequest, isMetaRequest, marker, req.getHeader("If-None-Match"));
+            s3Req = new S3Request(stmt.table.getName(), null, prefix, stmt.pagesize, isDownloadRequest, isMetaRequest, marker, req.getHeader("If-None-Match"));
          }
          else
          {
@@ -135,10 +135,7 @@ public class S3Rql extends Rql
          }
       }
 
-      String finalKey = prefix != null && key != null ? prefix + key
-              : prefix != null ? prefix
-              : key;
-      return new S3Request(stmt.table.getName(), finalKey, stmt.maxRows, isDownload, isMetaRequest, marker, termetag);
+      return new S3Request(stmt.table.getName(), prefix, key, stmt.maxRows, isDownload, isMetaRequest, marker, termetag);
    }
 
    private String determinePrefixFromPath(String tableName, String path)
