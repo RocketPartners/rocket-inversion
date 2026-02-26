@@ -301,8 +301,9 @@ public class S3DbRestHandler implements Handler
       jsMeta.put("next", listing.isTruncated() ? req.getUrl().toString() + nextMarker : null);
       json.put("meta", jsMeta);
 
-      List<CommonPrefix> directoryList = listing.commonPrefixes();
-      List<S3Object> fileList = new ArrayList<>(listing.contents()); // S3 SDK returns an unmodifiable list, but we remove from this fileList below
+      // S3 SDK returns unmodifiable lists, but we modify and rebuild the lists below
+      List<CommonPrefix> directoryList = new ArrayList<>(listing.commonPrefixes());
+      List<S3Object> fileList = new ArrayList<>(listing.contents());
 
       JSArray data = new JSArray();
 
