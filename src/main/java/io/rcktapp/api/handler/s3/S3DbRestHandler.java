@@ -51,6 +51,7 @@ import io.rcktapp.rql.Rql;
 import io.rcktapp.rql.s3.S3Rql;
 import software.amazon.awssdk.core.ResponseInputStream;
 import software.amazon.awssdk.services.s3.model.CommonPrefix;
+import software.amazon.awssdk.services.s3.model.CopyObjectResponse;
 import software.amazon.awssdk.services.s3.model.CopyObjectResult;
 import software.amazon.awssdk.services.s3.model.GetObjectResponse;
 import software.amazon.awssdk.services.s3.model.HeadObjectResponse;
@@ -465,16 +466,29 @@ public class S3DbRestHandler implements Handler
 
       // All previous metadata will be wiped out.
       Map<String, String> meta = buildMetadata(metaJson);
-      CopyObjectResult copy = db.updateObject(table.getName(), key, table.getName(), key, meta);
+      CopyObjectResponse copy = db.updateObject(table.getName(), key, table.getName(), key, meta);
 
-      // the copy result doesn't contain much helpful data.
-      JSObject json = JS.toJSObject(mapper.writeValueAsString(copy)); //TODO CONNOR:
+      JSObject json = convertToJSObject(copy);
 
       json.put("href", req.getApiUrl() + req.getPath() + key);
 
       res.setJson(json);
       res.setStatus(SC.SC_200_OK);
+   }
 
+   private JSObject convertToJSObject(CopyObjectResponse copyResponse) {
+      JSObject json = new JSObject();
+      json.put("versionId", copyResponse.versionId());
+      json.put("expiration", copyResponse.expiration());
+      json.put("requestCharged", copyResponse.requestCharged());
+      json.put("serverSideEncryption", copyResponse.serverSideEncryption());
+      json.put("sseCustomerAlgorithm", copyResponse.sseCustomerAlgorithm());
+      json.put("sseCustomerKeyMd5", copyResponse.sseCustomerKeyMD5());
+
+      CopyObjectResult copyResult = copyResponse.copyObjectResult();
+      json.put("etag", copyResult.eTag());
+      json.put("lastModified", copyResult.lastModified().toEpochMilli());
+      return json;
    }
 
    private Collection findCollectionOrThrow404(Api api, Chain chain, Request req) throws Exception

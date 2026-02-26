@@ -23,6 +23,7 @@ import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.S3ClientBuilder;
 import software.amazon.awssdk.services.s3.model.Bucket;
 import software.amazon.awssdk.services.s3.model.CopyObjectRequest;
+import software.amazon.awssdk.services.s3.model.CopyObjectResponse;
 import software.amazon.awssdk.services.s3.model.CopyObjectResult;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 import software.amazon.awssdk.services.s3.model.GetObjectResponse;
@@ -228,7 +229,7 @@ public class S3Db extends Db
       return client.listObjects(reqBuilder.build());
    }
 
-   public CopyObjectResult updateObject(String bucket, String key, String newBucket, String newKey, Map<String, String> meta)
+   public CopyObjectResponse updateObject(String bucket, String key, String newBucket, String newKey, Map<String, String> meta)
    {
       client = getS3Client();
 
@@ -247,7 +248,7 @@ public class S3Db extends Db
       }
 
       // TODO if the key and newKey are not equal, (or the bucket and newBucket) delete the old key file
-      return client.copyObject(copyReq.build()).copyObjectResult();
+      return client.copyObject(copyReq.build());
    }
 
    public String getBuckets()
