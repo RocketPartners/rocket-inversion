@@ -19,6 +19,7 @@ import java.security.DigestInputStream;
 import java.security.MessageDigest;
 import java.text.SimpleDateFormat;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
@@ -301,7 +302,7 @@ public class S3DbRestHandler implements Handler
       json.put("meta", jsMeta);
 
       List<CommonPrefix> directoryList = listing.commonPrefixes();
-      List<S3Object> fileList = listing.contents();
+      List<S3Object> fileList = new ArrayList<>(listing.contents()); // S3 SDK returns an unmodifiable list, but we remove from this fileList below
 
       JSArray data = new JSArray();
 
