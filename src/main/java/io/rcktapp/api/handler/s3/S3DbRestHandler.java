@@ -454,15 +454,11 @@ public class S3DbRestHandler implements Handler
 
       JSObject metaJson = req.getJson();
 
-      String key = null;
-      try
-      {
-         key = metaJson.getString("name");
-      }
-      catch (Exception e)
-      {
+      if (metaJson == null || metaJson.getString("name") == null) {
          throw new ApiException("When updating metadata, a 'name' must be specified");
       }
+
+      String key = metaJson.getString("name");
 
       // All previous metadata will be wiped out.
       Map<String, String> meta = buildMetadata(metaJson);
@@ -486,7 +482,7 @@ public class S3DbRestHandler implements Handler
       json.put("sseCustomerKeyMd5", copyResponse.sseCustomerKeyMD5());
 
       CopyObjectResult copyResult = copyResponse.copyObjectResult();
-      json.put("etag", copyResult.eTag());
+      json.put("etag", copyResult.eTag().replace("\"", "")); // etag can be surrounded in quotes
       json.put("lastModified", copyResult.lastModified().toEpochMilli());
       return json;
    }

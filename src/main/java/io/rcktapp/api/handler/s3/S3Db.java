@@ -241,7 +241,7 @@ public class S3Db extends Db
 
       if (meta != null)
       {
-         copyReq.metadata(meta); //TODO CONNOR: check this meta data mapping is right
+         copyReq.metadata(meta);
       }
       if (bucket.equals(newBucket) && key.equals(newKey)) {
          copyReq.metadataDirective(MetadataDirective.REPLACE);
