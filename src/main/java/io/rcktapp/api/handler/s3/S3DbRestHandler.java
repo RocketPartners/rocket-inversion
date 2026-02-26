@@ -234,7 +234,7 @@ public class S3DbRestHandler implements Handler
       js.put("expiration", response.expiration());
       js.put("restore", response.restore());
       js.put("archiveStatus", response.archiveStatus());
-      js.put("lastModified", response.lastModified());
+      js.put("lastModified", response.lastModified().toEpochMilli());
       js.put("contentLength", response.contentLength());
       js.put("checksumCRC32", response.checksumCRC32());
       js.put("checksumCRC32C", response.checksumCRC32C());
@@ -267,7 +267,7 @@ public class S3DbRestHandler implements Handler
       js.put("objectLockRetainUntilDate", response.objectLockRetainUntilDate());
       js.put("objectLockLegalHoldStatus", response.objectLockLegalHoldStatus());
       js.put("expiresString", response.expiresString());
-      js.put("userMetadata", mapper.writeValueAsString(response.metadata()));
+      js.put("userMetadata", JS.toJSObject(mapper.writeValueAsString(response.metadata())));
       return js;
    }
 
