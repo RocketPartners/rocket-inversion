@@ -101,7 +101,7 @@ public class S3Rql extends Rql
                {
                   case "key":
                      if (prefix == null)
-                        prefix = pred.getTerms().get(1).toString(); //TODO CONNOR: check that prefix is adding "/" to the end, or do it below where "prefix" is used
+                        prefix = pred.getTerms().get(1).toString();
                      else
                         throw new ApiException(SC.SC_500_INTERNAL_SERVER_ERROR, "S3 RQL has already set a 'sw' value.");
                }
