@@ -135,7 +135,10 @@ public class S3Rql extends Rql
          }
       }
 
-      return new S3Request(stmt.table.getName(), prefix + key, stmt.maxRows, isDownload, isMetaRequest, marker, termetag);
+      String finalKey = prefix != null && key != null ? prefix + key
+              : prefix != null ? prefix
+              : key;
+      return new S3Request(stmt.table.getName(), finalKey, stmt.maxRows, isDownload, isMetaRequest, marker, termetag);
    }
 
    private String determinePrefixFromPath(String tableName, String path)

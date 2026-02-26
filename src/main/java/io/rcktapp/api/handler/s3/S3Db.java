@@ -191,7 +191,7 @@ public class S3Db extends Db
               .bucket(req.getBucket())
               .key(req.getKey())
               .build();
-      return client.headObject(hob); //TODO CONNOR: ensure calling methods are adding prefix to key
+      return client.headObject(hob);
    }
 
    public PutObjectResponse saveFile(InputStream inputStream, String bucketName, String key, String contentType, Long contentLength, Map<String, String> userMetadata) throws IOException {
