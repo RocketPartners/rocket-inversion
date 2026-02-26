@@ -30,6 +30,7 @@ import software.amazon.awssdk.services.s3.model.HeadObjectRequest;
 import software.amazon.awssdk.services.s3.model.HeadObjectResponse;
 import software.amazon.awssdk.services.s3.model.ListObjectsRequest;
 import software.amazon.awssdk.services.s3.model.ListObjectsResponse;
+import software.amazon.awssdk.services.s3.model.MetadataDirective;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 import software.amazon.awssdk.services.s3.model.PutObjectResponse;
 import software.amazon.awssdk.utils.IoUtils;
@@ -231,31 +232,22 @@ public class S3Db extends Db
    {
       client = getS3Client();
 
-      CopyObjectRequest copyReq;
+      CopyObjectRequest.Builder copyReq = CopyObjectRequest.builder()
+              .sourceBucket(bucket)
+              .sourceKey(key)
+              .destinationBucket(newBucket)
+              .destinationKey(newKey);
 
       if (meta != null)
       {
-         copyReq = CopyObjectRequest.builder()
-                 .sourceBucket(bucket)
-                 .sourceBucket(key)
-                 .destinationBucket(newBucket)
-                 .destinationKey(newKey)
-                 .metadata(meta) //TODO CONNOR: check this meta data mapping is right
-                 .build();
+         copyReq.metadata(meta); //TODO CONNOR: check this meta data mapping is right
       }
-      else
-      {
-         // rename or move request
-         copyReq = CopyObjectRequest.builder()
-                 .sourceBucket(bucket)
-                 .sourceBucket(key)
-                 .destinationBucket(newBucket)
-                 .destinationKey(newKey)
-                 .build();
+      if (bucket.equals(newBucket) && key.equals(newKey)) {
+         copyReq.metadataDirective(MetadataDirective.REPLACE);
       }
 
       // TODO if the key and newKey are not equal, (or the bucket and newBucket) delete the old key file
-      return client.copyObject(copyReq).copyObjectResult();
+      return client.copyObject(copyReq.build()).copyObjectResult();
    }
 
    public String getBuckets()

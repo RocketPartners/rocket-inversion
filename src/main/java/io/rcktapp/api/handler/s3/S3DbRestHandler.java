@@ -18,6 +18,7 @@ package io.rcktapp.api.handler.s3;
 import java.security.DigestInputStream;
 import java.security.MessageDigest;
 import java.text.SimpleDateFormat;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.HashMap;
@@ -408,6 +409,7 @@ public class S3DbRestHandler implements Handler
                if (metaKey.equalsIgnoreCase("content-type"))
                {
                   meta.put("Content-Type", entry.getValue());
+                  contentType = entry.getValue();
                }
                else if (metaKey.equalsIgnoreCase("name"))
                {
@@ -463,11 +465,10 @@ public class S3DbRestHandler implements Handler
 
       // All previous metadata will be wiped out.
       Map<String, String> meta = buildMetadata(metaJson);
-
       CopyObjectResult copy = db.updateObject(table.getName(), key, table.getName(), key, meta);
 
       // the copy result doesn't contain much helpful data.
-      JSObject json = JS.toJSObject(mapper.writeValueAsString(copy));
+      JSObject json = JS.toJSObject(mapper.writeValueAsString(copy)); //TODO CONNOR:
 
       json.put("href", req.getApiUrl() + req.getPath() + key);
 
