@@ -13,7 +13,7 @@ project.docsDirName = '../docs/0.3.x/'
 
 configurations.all { resolutionStrategy.cacheChangingModulesFor 0, 'seconds' }
 
-version = '0.3.22'
+version = '0.3.23-SNAPSHOT'
 group = 'com.github.RocketPartners'
 sourceCompatibility = JavaVersion.VERSION_17
 targetCompatibility = JavaVersion.VERSION_17
@@ -22,6 +22,7 @@ ext {
     archiveRepoUser = System.getenv('GHP_USER')
     archiveRepoPassword = System.getenv('GHP_PASSWORD')
     junitVersion = '5.8.1'
+    awsSdkV2Version = '2.41.34'
 
     bash = { opts = [:] ->
         opts += [
@@ -140,8 +141,11 @@ dependencies {
     // required for the Redis client
     api group: 'redis.clients', name: 'jedis', version: '5.2.0'
 
-    api 'com.amazonaws:aws-java-sdk-s3:1.11.390'
-    api 'com.amazonaws:aws-java-sdk-dynamodb:1.11.390'
+    api "software.amazon.awssdk:s3:$awsSdkV2Version"
+    api('com.amazonaws:aws-java-sdk-dynamodb:1.11.390') {
+        //TODO: remove exclude with https://circlek.atlassian.net/browse/LIFT-1805
+        exclude group: "com.amazonaws", module: "aws-java-sdk-s3"
+    }
     api 'com.amazonaws:aws-java-sdk-kinesis:1.11.390'
     api 'com.amazonaws:aws-java-sdk-rds:1.11.542'
 

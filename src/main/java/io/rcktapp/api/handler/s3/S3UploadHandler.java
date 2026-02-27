@@ -26,13 +26,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import com.amazonaws.auth.AWSStaticCredentialsProvider;
-import com.amazonaws.auth.BasicAWSCredentials;
-import com.amazonaws.services.s3.AmazonS3;
-import com.amazonaws.services.s3.AmazonS3ClientBuilder;
-import com.amazonaws.services.s3.model.ObjectMetadata;
-import com.amazonaws.services.s3.model.PutObjectRequest;
-
 import io.forty11.j.J;
 import io.forty11.web.js.JSObject;
 import io.rcktapp.api.Action;
@@ -45,6 +38,14 @@ import io.rcktapp.api.Request.Upload;
 import io.rcktapp.api.Response;
 import io.rcktapp.api.SC;
 import io.rcktapp.api.service.Service;
+import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
+import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
+import software.amazon.awssdk.core.sync.RequestBody;
+import software.amazon.awssdk.regions.Region;
+import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.S3ClientBuilder;
+import software.amazon.awssdk.services.s3.model.PutObjectRequest;
+import software.amazon.awssdk.utils.IoUtils;
 
 /**
  * Sends browser multi-part file uploads to a defined S3 location
@@ -156,18 +157,22 @@ public class S3UploadHandler implements Handler
 
    private Map<String, Object> saveFile(Chain chain, InputStream inputStream, String fileName, String requestPath) throws Exception
    {
-      AmazonS3 s3 = buildS3Client(chain);
-      String bucket = chain.getConfig("s3Bucket", this.s3Bucket);
-      String pathAndFileName = buildFullPath(chain, requestPath, fileName);
+      try (S3Client s3 = buildS3Client(chain)) {
+         String bucket = chain.getConfig("s3Bucket", this.s3Bucket);
+         String pathAndFileName = buildFullPath(chain, requestPath, fileName);
 
-      s3.putObject(new PutObjectRequest(bucket, pathAndFileName, inputStream, new ObjectMetadata()));
+         s3.putObject(PutObjectRequest.builder()
+                 .bucket(bucket)
+                 .key(pathAndFileName)
+                 .build(), RequestBody.fromBytes(IoUtils.toByteArray(inputStream)));
 
-      Map<String, Object> resp = new HashMap<>();
-      resp.put("url", "http://" + bucket + ".s3.amazonaws.com/" + pathAndFileName);
-      resp.put("fileName", fileName);
-      resp.put("path", pathAndFileName);
+         Map<String, Object> resp = new HashMap<>();
+         resp.put("url", "http://" + bucket + ".s3.amazonaws.com/" + pathAndFileName);
+         resp.put("fileName", fileName);
+         resp.put("path", pathAndFileName);
 
-      return resp;
+         return resp;
+      }
    }
 
    private String buildFullPath(Chain chain, String requestPath, String name)
@@ -205,26 +210,26 @@ public class S3UploadHandler implements Handler
       return sb.toString();
    }
 
-   private AmazonS3 buildS3Client(Chain chain)
+   private S3Client buildS3Client(Chain chain)
    {
       String accessKey = chain.getConfig("s3AccessKey", this.s3AccessKey);
       String secretKey = chain.getConfig("s3SecretKey", this.s3SecretKey);
       String awsRegion = chain.getConfig("s3AwsRegion", this.s3AwsRegion);
 
-      AmazonS3ClientBuilder builder = null;
+      S3ClientBuilder builder;
       if (accessKey != null)
       {
-         BasicAWSCredentials creds = new BasicAWSCredentials(accessKey, secretKey);
-         builder = AmazonS3ClientBuilder.standard().withCredentials(new AWSStaticCredentialsProvider(creds));
+         AwsBasicCredentials creds = AwsBasicCredentials.create(accessKey, secretKey);
+         builder = S3Client.builder().credentialsProvider(StaticCredentialsProvider.create(creds));
       }
       else
       {
-         builder = AmazonS3ClientBuilder.standard();
+         builder = S3Client.builder();
       }
 
       if (awsRegion != null)
       {
-         builder.withRegion(awsRegion);
+         builder.region(Region.of(awsRegion));
       }
       return builder.build();
    }
