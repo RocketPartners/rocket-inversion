@@ -28,7 +28,7 @@ project.docsDirName = '../docs/0.3.x/'
 configurations.all { resolutionStrategy.cacheChangingModulesFor 0, 'seconds' }
 
 
-version = '0.4.4'
+version = '0.4.4-SNAPSHOT'
 group = 'com.github.RocketPartners'
 sourceCompatibility = JavaVersion.VERSION_17
 
@@ -36,6 +36,7 @@ ext {
     archiveRepo = "https://maven.pkg.github.com/RocketPartners/artifacts"
     archiveRepoUser = System.env.GHP_USER
     archiveRepoPassword = System.env.GHP_PASSWORD
+    awsSdkV2Version = '2.41.34'
 }
 
 repositories {
@@ -74,8 +75,11 @@ dependencies {
     api group: 'org.apache.httpcomponents', name: 'httpmime', version: '4.5.5'
 
     //aws libs
-    api 'com.amazonaws:aws-java-sdk-s3:1.11.390'
-    api 'com.amazonaws:aws-java-sdk-dynamodb:1.11.390'
+    api "software.amazon.awssdk:s3:$awsSdkV2Version"
+    api('com.amazonaws:aws-java-sdk-dynamodb:1.11.390') {
+        //TODO: remove exclude with https://circlek.atlassian.net/browse/LIFT-1805
+        exclude group: "com.amazonaws", module: "aws-java-sdk-s3"
+    }
     api 'com.amazonaws:aws-java-sdk-kinesis:1.11.390'
     api 'com.amazonaws:aws-lambda-java-core:1.2.0'
     api 'com.amazonaws:aws-java-sdk-rds:1.11.542'

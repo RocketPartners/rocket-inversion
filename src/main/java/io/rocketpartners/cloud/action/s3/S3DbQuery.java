@@ -1,10 +1,7 @@
 package io.rocketpartners.cloud.action.s3;
 
+import java.util.ArrayList;
 import java.util.List;
-
-import com.amazonaws.services.s3.model.ListObjectsRequest;
-import com.amazonaws.services.s3.model.ObjectListing;
-import com.amazonaws.services.s3.model.S3ObjectSummary;
 
 import io.rocketpartners.cloud.model.Results;
 import io.rocketpartners.cloud.model.Table;
@@ -17,6 +14,10 @@ import io.rocketpartners.cloud.rql.Term;
 import io.rocketpartners.cloud.rql.Where;
 import io.rocketpartners.cloud.service.Chain;
 import io.rocketpartners.cloud.utils.Rows.Row;
+import software.amazon.awssdk.services.s3.model.CommonPrefix;
+import software.amazon.awssdk.services.s3.model.ListObjectsRequest;
+import software.amazon.awssdk.services.s3.model.ListObjectsResponse;
+import software.amazon.awssdk.services.s3.model.S3Object;
 
 /**
  * @author tc-rocket, wells
@@ -46,12 +47,12 @@ public class S3DbQuery extends Query<S3DbQuery, S3Db, Table, Select<Select<Selec
    {
       // path == /s3/bucketName
       // path == /s3/bucketName/inner/folder
-      // retrieve as much meta data as possible about the files in the bucket
+      // retrieve as much metadata as possible about the files in the bucket
 
-      ListObjectsRequest req = new ListObjectsRequest();
-      req.setBucketName(table().getName());
-      req.setMaxKeys(page().getLimit()); // TODO fix pagesize...currently always set to 1000 ... tied to 'size' but not 'pagesize'?
-      req.setDelimiter("/");
+      ListObjectsRequest.Builder reqBuilder = ListObjectsRequest.builder()
+              .bucket(table().getName())
+              .delimiter("/")
+              .maxKeys(page().getLimit()); // TODO fix pagesize...currently always set to 1000 ... tied to 'size' but not 'pagesize'?
 
       String prefix = Chain.peek().getRequest().getSubpath();
 
@@ -61,28 +62,29 @@ public class S3DbQuery extends Query<S3DbQuery, S3Db, Table, Select<Select<Selec
       while (prefix.endsWith("/"))
          prefix = prefix.substring(0, prefix.length() - 1);
 
-      req.setPrefix(prefix);
+      reqBuilder.prefix(prefix);
 
-      ObjectListing listing = getDb().getS3Client().listObjects(req);
+      ListObjectsResponse listing = getDb().getS3Client().listObjects(reqBuilder.build());
 
       Results results = new Results(this);
 
       if (listing.isTruncated())
       {
-         results.withNext(Term.term(null, "after", listing.getNextMarker()));
+         results.withNext(Term.term(null, "after", listing.nextMarker()));
       }
 
-      List<String> directoryList = listing.getCommonPrefixes();
-      List<S3ObjectSummary> fileList = listing.getObjectSummaries();
+      // S3 SDK returns unmodifiable lists, but we may modify and rebuild the lists below
+      List<CommonPrefix> directoryList = new ArrayList<>(listing.commonPrefixes());
+      List<S3Object> fileList = new ArrayList<>(listing.contents());
 
       // alphabetize the data returned to the client...
       while (!directoryList.isEmpty())
       {
-         String directory = directoryList.get(0);
+         String directory = directoryList.get(0).prefix();
          if (!fileList.isEmpty())
          {
-            S3ObjectSummary file = fileList.get(0);
-            if (directory.compareToIgnoreCase(file.getKey()) < 0)
+            S3Object file = fileList.get(0);
+            if (directory.compareToIgnoreCase(file.key()) < 0)
             {
                // directory name comes before file name
                //results.withRow(buildListObj(req.getApiUrl() + req.getPath() + directory, null, null, false));
@@ -104,7 +106,7 @@ public class S3DbQuery extends Query<S3DbQuery, S3Db, Table, Select<Select<Selec
 
       while (!fileList.isEmpty())
       {
-         S3ObjectSummary file = fileList.remove(0);
+         S3Object file = fileList.remove(0);
          //results.withRow(buildListObj(req.getApiUrl() + req.getPath() + file.getKey(), file.getLastModified(), file.getSize(), true));
       }
 
