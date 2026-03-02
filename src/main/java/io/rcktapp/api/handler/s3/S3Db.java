@@ -213,7 +213,7 @@ public class S3Db extends Db
               .contentType(contentType)
               .contentLength(contentLength)
               .metadata(userMetadata)
-              .build(), RequestBody.fromBytes(IoUtils.toByteArray(inputStream)));
+              .build(), RequestBody.fromInputStream(inputStream, contentLength));
    }
 
    /**

@@ -91,6 +91,7 @@ public class S3UploadHandler implements Handler
       String fileName = null;
       Long fileSize = null;
       DigestInputStream uploadStream = null;
+      Long contentLength = null;
 
       try
       {
@@ -98,6 +99,7 @@ public class S3UploadHandler implements Handler
          if (uploads.size() > 0)
          {
             Upload upload = uploads.get(0);
+            contentLength = upload.getFileSize();
 
             uploadStream = new DigestInputStream(upload.getInputStream(), MessageDigest.getInstance("MD5"));
             String[] fileNameParts = upload.getFileName().split("[.]");
@@ -120,7 +122,7 @@ public class S3UploadHandler implements Handler
 
          try
          {
-            responseContent = saveFile(chain, uploadStream, fileName, requestPath);
+            responseContent = saveFile(chain, uploadStream, contentLength, fileName, requestPath);
          }
          catch (Exception e)
          {
@@ -155,7 +157,7 @@ public class S3UploadHandler implements Handler
 
    }
 
-   private Map<String, Object> saveFile(Chain chain, InputStream inputStream, String fileName, String requestPath) throws Exception
+   private Map<String, Object> saveFile(Chain chain, InputStream inputStream, Long contentLength, String fileName, String requestPath) throws Exception
    {
       try (S3Client s3 = buildS3Client(chain)) {
          String bucket = chain.getConfig("s3Bucket", this.s3Bucket);
@@ -164,7 +166,7 @@ public class S3UploadHandler implements Handler
          s3.putObject(PutObjectRequest.builder()
                  .bucket(bucket)
                  .key(pathAndFileName)
-                 .build(), RequestBody.fromBytes(IoUtils.toByteArray(inputStream)));
+                 .build(), RequestBody.fromInputStream(inputStream, contentLength));
 
          Map<String, Object> resp = new HashMap<>();
          resp.put("url", "http://" + bucket + ".s3.amazonaws.com/" + pathAndFileName);
