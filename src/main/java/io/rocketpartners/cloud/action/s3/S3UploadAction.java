@@ -208,7 +208,7 @@ public class S3UploadAction extends Action<S3UploadAction>
       return sb.toString();
    }
 
-   private S3Client buildS3Client(Chain chain)
+   S3Client buildS3Client(Chain chain)
    {
       //TODO make this work like dynamo client config as art of db
       
