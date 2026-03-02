@@ -116,7 +116,7 @@ class S3DbRestHandlerTest {
     }
 
     @Test
-    void testDoGet_s3ExceptionReturns204() throws Exception {
+    void testDoGet_s3NotModifiedReturns204() throws Exception {
         setupCommonMocks();
 
         S3Request s3Request = new S3Request("test-bucket", null, "test-key", 100, true, false, null);
@@ -138,6 +138,30 @@ class S3DbRestHandlerTest {
             handler.service(service, api, endpoint, action, chain, request, response);
 
             assertEquals(SC.SC_204_NO_CONTENT, response.getStatus());
+        }
+    }
+
+    @Test
+    void testDoGet_s3ExceptionReturns204() throws Exception {
+        setupCommonMocks();
+
+        S3Request s3Request = new S3Request("test-bucket", null, "test-key", 100, true, false, null);
+
+        when(request.getMethod()).thenReturn("GET");
+        when(request.getParam("pageSize")).thenReturn(null);
+
+        try (MockedStatic<Rql> rqlMock = mockStatic(Rql.class)) {
+            rqlMock.when(() -> Rql.getRql(anyString())).thenReturn(s3Rql);
+            when(s3Rql.buildS3Request(any(), any(), any())).thenReturn(s3Request);
+
+            S3Exception s3Exception = (S3Exception) S3Exception.builder()
+                    .statusCode(404)
+                    .message("Not Found")
+                    .build();
+
+            when(s3Db.getDownload(any())).thenThrow(s3Exception);
+
+            assertThrows(S3Exception.class, () -> handler.service(service, api, endpoint, action, chain, request, response));
         }
     }
 

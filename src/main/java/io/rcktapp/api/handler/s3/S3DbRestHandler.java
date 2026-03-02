@@ -160,8 +160,10 @@ public class S3DbRestHandler implements Handler
             if (exception.statusCode() == 304) {
                // This is how the aws api reacts to downloading something that doesn't match its constraint. -> https://docs.aws.amazon.com/AmazonS3/latest/API/API_GetObject.html
                log.info("File {} from bucket {} was not modified since it was last retrieved", s3Req.getKey(), s3Req.getBucket());
+            } else {
+               log.error("Failed to download file {} from bucket {}", s3Req.getKey(), s3Req.getBucket(), exception);
+               throw exception;
             }
-            log.error("Failed to download file {} from bucket {}", s3Req.getKey(), s3Req.getBucket(), exception);
          }
 
          if (s3File == null) {
