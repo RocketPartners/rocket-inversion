@@ -44,7 +44,6 @@ import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.S3ClientBuilder;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
-import software.amazon.awssdk.utils.IoUtils;
 
 /**
  * Sends browser multi-part file uploads to a defined S3 location
@@ -158,21 +157,22 @@ public class S3UploadAction extends Action<S3UploadAction>
 
    private Map<String, Object> saveFile(Chain chain, InputStream inputStream, Long contentLength, String fileName, String requestPath) throws Exception
    {
-      S3Client s3 = buildS3Client(chain);
-      String bucket = chain.getConfig("s3Bucket", this.s3Bucket);
-      String pathAndFileName = buildFullPath(chain, requestPath, fileName);
+      try (S3Client s3 = buildS3Client(chain)) {
+         String bucket = chain.getConfig("s3Bucket", this.s3Bucket);
+         String pathAndFileName = buildFullPath(chain, requestPath, fileName);
 
-      s3.putObject(PutObjectRequest.builder()
-              .bucket(bucket)
-              .key(pathAndFileName)
-              .build(), RequestBody.fromInputStream(inputStream, contentLength));
+         s3.putObject(PutObjectRequest.builder()
+                 .bucket(bucket)
+                 .key(pathAndFileName)
+                 .build(), RequestBody.fromInputStream(inputStream, contentLength));
 
-      Map<String, Object> resp = new HashMap<>();
-      resp.put("url", "http://" + bucket + ".s3.amazonaws.com/" + pathAndFileName);
-      resp.put("fileName", fileName);
-      resp.put("path", pathAndFileName);
+         Map<String, Object> resp = new HashMap<>();
+         resp.put("url", "http://" + bucket + ".s3.amazonaws.com/" + pathAndFileName);
+         resp.put("fileName", fileName);
+         resp.put("path", pathAndFileName);
 
-      return resp;
+         return resp;
+      }
    }
 
    private String buildFullPath(Chain chain, String requestPath, String name)
