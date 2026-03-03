@@ -63,6 +63,13 @@ public class S3Db extends Db<S3Db>
    }
 
    @Override
+   protected void shutdown0() {
+      if (client != null) {
+         client.close();
+      }
+   }
+
+   @Override
    public Results<Row> select(Table table, List<Term> columnMappedTerms) throws Exception
    {
       S3DbQuery query = new S3DbQuery(table, columnMappedTerms);
