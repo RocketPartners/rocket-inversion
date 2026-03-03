@@ -16,9 +16,9 @@ public class S3Request
    private boolean meta = false;
    private String etag = null;
 
-  public S3Request(String bucket, String prefix, String key, Integer size, boolean download, boolean meta, String marker)
+   public S3Request(String bucket, String prefix, String key, Integer size, boolean download, boolean meta, String marker)
    {
-       this(bucket, prefix, key, size, download, meta, marker, null);
+      this(bucket, prefix, key, size, download, meta, marker, null);
    }
 
    public S3Request(String bucket, String prefix, String key, Integer size, boolean download, boolean meta, String marker, String etag)
