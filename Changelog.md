@@ -1,5 +1,8 @@
 ## Unreleased
 
+## [0.3.23 - 02/27/26]
+- LIFT-1804: aws s3 sdk v2
+
 ## [0.3.22 - 12/15/25]
 - LIFT-1230: Support ``maxIdleTimeExcessConnections`` configuration for c3p0
 

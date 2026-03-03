@@ -18,19 +18,16 @@ package io.rcktapp.api.handler.s3;
 import java.security.DigestInputStream;
 import java.security.MessageDigest;
 import java.text.SimpleDateFormat;
+import java.util.ArrayList;
 import java.util.Date;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.amazonaws.services.s3.model.CopyObjectResult;
-import com.amazonaws.services.s3.model.ObjectListing;
-import com.amazonaws.services.s3.model.ObjectMetadata;
-import com.amazonaws.services.s3.model.PutObjectResult;
-import com.amazonaws.services.s3.model.S3Object;
-import com.amazonaws.services.s3.model.S3ObjectSummary;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import io.forty11.web.js.JS;
@@ -51,6 +48,16 @@ import io.rcktapp.api.Table;
 import io.rcktapp.api.service.Service;
 import io.rcktapp.rql.Rql;
 import io.rcktapp.rql.s3.S3Rql;
+import software.amazon.awssdk.core.ResponseInputStream;
+import software.amazon.awssdk.services.s3.model.CommonPrefix;
+import software.amazon.awssdk.services.s3.model.CopyObjectResponse;
+import software.amazon.awssdk.services.s3.model.CopyObjectResult;
+import software.amazon.awssdk.services.s3.model.GetObjectResponse;
+import software.amazon.awssdk.services.s3.model.HeadObjectResponse;
+import software.amazon.awssdk.services.s3.model.ListObjectsResponse;
+import software.amazon.awssdk.services.s3.model.PutObjectResponse;
+import software.amazon.awssdk.services.s3.model.S3Exception;
+import software.amazon.awssdk.services.s3.model.S3Object;
 
 /**
  * Accepts RQL parameters and responds with json or files to the client.
@@ -145,20 +152,30 @@ public class S3DbRestHandler implements Handler
          // path == /s3/bucketName?eq(key,filename)&download
 
          // If a prefix exists, it must be tacked onto the key.
-         S3Object s3File = db.getDownload(s3Req);
+         ResponseInputStream<GetObjectResponse> s3File = null;
+         try {
+            s3File = db.getDownload(s3Req);
+         } catch (S3Exception exception) {
+            if (exception.statusCode() == 304) {
+               // This is how the aws api reacts to downloading something that doesn't match its constraint. -> https://docs.aws.amazon.com/AmazonS3/latest/API/API_GetObject.html
+               log.info("File {} from bucket {} was not modified since it was last retrieved", s3Req.getKey(), s3Req.getBucket());
+            } else {
+               log.error("Failed to download file {} from bucket {}", s3Req.getKey(), s3Req.getBucket(), exception);
+               throw exception;
+            }
+         }
 
-         // This is how the aws api reacts to downloading something that doesn't match its constraint.
          if (s3File == null) {
-           res.setStatus(SC.SC_204_NO_CONTENT);
-           return;
+            res.setStatus(SC.SC_204_NO_CONTENT);
+            return;
          } else {
+            GetObjectResponse response = s3File.response();
+            // relies on Servlet to close the stream.
+            res.setInputStream(s3File);
+            res.setContentType(response.contentType());
 
-           // relies on Servlet to close the stream.
-           res.setInputStream(s3File.getObjectContent());
-           res.setContentType(s3File.getObjectMetadata().getContentType());
-
-           res.addHeader("Content-Type", s3File.getObjectMetadata().getContentType());
-           res.addHeader("Content-Length", Long.toString(s3File.getObjectMetadata().getContentLength()));
+            res.addHeader("Content-Type", response.contentType());
+            res.addHeader("Content-Length", Long.toString(response.contentLength()));
          }
       }
       else if (s3Req.getKey() != null)
@@ -174,9 +191,9 @@ public class S3DbRestHandler implements Handler
 
          try
          {
-            ObjectMetadata meta = db.getExtendedMetaData(s3Req);
+            HeadObjectResponse headResponse = db.headObject(s3Req);
 
-            json = JS.toJSObject(mapper.writeValueAsString(meta));
+            json = convertToJSObject(headResponse);
             String pathPrefix = req.getPath().substring(0, req.getPath().indexOf(req.getSubpath()));
             json.put("href", req.getApiUrl() + pathPrefix + s3Req.getBucket() + "/" + s3Req.getKey());
 
@@ -211,13 +228,57 @@ public class S3DbRestHandler implements Handler
       res.setStatus(SC.SC_200_OK);
    }
 
+   private JSObject convertToJSObject(HeadObjectResponse response) throws JsonProcessingException {
+      JSObject js = new JSObject();
+      js.put("deleteMarker", response.deleteMarker());
+      js.put("acceptRanges", response.acceptRanges());
+      js.put("expiration", response.expiration());
+      js.put("restore", response.restore());
+      js.put("archiveStatus", response.archiveStatus());
+      js.put("lastModified", response.lastModified().toEpochMilli());
+      js.put("contentLength", response.contentLength());
+      js.put("checksumCRC32", response.checksumCRC32());
+      js.put("checksumCRC32C", response.checksumCRC32C());
+      js.put("checksumCRC64NVME", response.checksumCRC64NVME());
+      js.put("checksumSHA1", response.checksumSHA1());
+      js.put("checksumSHA256", response.checksumSHA256());
+      js.put("checksumType", response.checksumType());
+      js.put("eTag", response.eTag().replace("\"", "")); // etag can be surrounded in quotes
+      js.put("missingMeta", response.missingMeta());
+      js.put("versionId", response.versionId());
+      js.put("cacheControl", response.cacheControl());
+      js.put("contentDisposition", response.contentDisposition());
+      js.put("contentEncoding", response.contentEncoding());
+      js.put("contentLanguage", response.contentLanguage());
+      js.put("contentType", response.contentType());
+      js.put("contentRange", response.contentRange());
+      js.put("expires", response.expires());
+      js.put("websiteRedirectLocation", response.websiteRedirectLocation());
+      js.put("serverSideEncryption", response.serverSideEncryption());
+      js.put("sseCustomerAlgorithm", response.sseCustomerAlgorithm());
+      js.put("sseCustomerKeyMD5", response.sseCustomerKeyMD5());
+      js.put("ssekmsKeyId", response.ssekmsKeyId());
+      js.put("bucketKeyEnabled", response.bucketKeyEnabled());
+      js.put("storageClass", response.storageClass());
+      js.put("requestCharged", response.requestCharged());
+      js.put("replicationStatus", response.replicationStatus());
+      js.put("partsCount", response.partsCount());
+      js.put("tagCount", response.tagCount());
+      js.put("objectLockMode", response.objectLockMode());
+      js.put("objectLockRetainUntilDate", response.objectLockRetainUntilDate());
+      js.put("objectLockLegalHoldStatus", response.objectLockLegalHoldStatus());
+      js.put("expiresString", response.expiresString());
+      js.put("userMetadata", JS.toJSObject(mapper.writeValueAsString(response.metadata())));
+      return js;
+   }
+
    private void getObjectsList(Request req, Response res, S3Request s3Req, S3Db db, ObjectMapper mapper) throws Exception
    {
       // path == /s3/bucketName
       // path == /s3/bucketName/inner/folder
       // retrieve as much meta data as possible about the files in the bucket
 
-      ObjectListing listing = db.getCoreMetaData(s3Req);
+      ListObjectsResponse listing = db.getCoreMetaData(s3Req);
 
       JSObject json = new JSObject();
 
@@ -229,30 +290,31 @@ public class S3DbRestHandler implements Handler
       // "prev": null, - could know, if passed as req param.
       // "next": "http://localhost:8080/api/lift/us/elastic/ads?&pageSize=100&sort=id&source=id,json.id,json.modifiedat&pageNum=2"
       JSObject jsMeta = new JSObject();
-      jsMeta.put("pageSize", listing.getMaxKeys());
+      jsMeta.put("pageSize", listing.maxKeys());
       jsMeta.put("prev", null);
       String nextMarker = "";
       if (listing.isTruncated())
       {
          String query = req.getUrl().getQuery();
-         nextMarker = (query.length() == 0 ? ("?marker=" + listing.getNextMarker()) : ("&marker=" + listing.getNextMarker()));
+         nextMarker = (query.length() == 0 ? ("?marker=" + listing.nextMarker()) : ("&marker=" + listing.nextMarker()));
       }
       jsMeta.put("next", listing.isTruncated() ? req.getUrl().toString() + nextMarker : null);
       json.put("meta", jsMeta);
 
-      List<String> directoryList = listing.getCommonPrefixes();
-      List<S3ObjectSummary> fileList = listing.getObjectSummaries();
+      // S3 SDK returns unmodifiable lists, but we modify and rebuild the lists below
+      List<CommonPrefix> directoryList = new ArrayList<>(listing.commonPrefixes());
+      List<S3Object> fileList = new ArrayList<>(listing.contents());
 
       JSArray data = new JSArray();
 
       // alphabetize the data returned to the client...
       while (!directoryList.isEmpty())
       {
-         String directory = directoryList.get(0);
+         String directory = directoryList.get(0).prefix();
          if (!fileList.isEmpty())
          {
-            S3ObjectSummary file = fileList.get(0);
-            if (directory.compareToIgnoreCase(file.getKey()) < 0)
+            S3Object file = fileList.get(0);
+            if (directory.compareToIgnoreCase(file.key()) < 0)
             {
                // directory name comes before file name
                data.add(buildListObj(req.getApiUrl() + req.getPath() + directory, null, null, false));
@@ -261,7 +323,7 @@ public class S3DbRestHandler implements Handler
             else
             {
                // file name comes before directory
-               data.add(buildListObj(req.getApiUrl() + req.getPath() + file.getKey(), file.getLastModified(), file.getSize(), true));
+               data.add(buildListObj(req.getApiUrl() + req.getPath() + file.key(), Date.from(file.lastModified()), file.size(), true));
                fileList.remove(0);
             }
          }
@@ -274,8 +336,8 @@ public class S3DbRestHandler implements Handler
 
       while (!fileList.isEmpty())
       {
-         S3ObjectSummary file = fileList.remove(0);
-         data.add(buildListObj(req.getApiUrl() + req.getPath() + file.getKey(), file.getLastModified(), file.getSize(), true));
+         S3Object file = fileList.remove(0);
+         data.add(buildListObj(req.getApiUrl() + req.getPath() + file.key(), Date.from(file.lastModified()), file.size(), true));
       }
 
       json.put("data", data);
@@ -331,7 +393,8 @@ public class S3DbRestHandler implements Handler
 
          uploadStream = new DigestInputStream(upload.getInputStream(), MessageDigest.getInstance("MD5"));
 
-         ObjectMetadata meta = new ObjectMetadata();
+         Map<String, String> meta = new HashMap<>();
+         String contentType = null;
 
          String metaParam = req.getParam("meta");
 
@@ -347,7 +410,8 @@ public class S3DbRestHandler implements Handler
 
                if (metaKey.equalsIgnoreCase("content-type"))
                {
-                  meta.setContentType(entry.getValue());
+                  meta.put("Content-Type", entry.getValue());
+                  contentType = entry.getValue();
                }
                else if (metaKey.equalsIgnoreCase("name"))
                {
@@ -355,17 +419,16 @@ public class S3DbRestHandler implements Handler
                }
                else
                {
-                  meta.addUserMetadata(metaKey, entry.getValue());
+                  meta.put(metaKey, entry.getValue());
                }
             }
 
          }
 
-         meta.setContentLength(upload.getFileSize());
-
-         PutObjectResult result = db.saveFile(uploadStream, s3Req.getBucket(), key, meta);
-         if (result == null)
+         PutObjectResponse result = db.saveFile(uploadStream, s3Req.getBucket(), key, contentType, upload.getFileSize(), meta);
+         if (result == null) {
             throw new ApiException(SC.SC_500_INTERNAL_SERVER_ERROR, "Failed to POST/PUT file to s3: " + key);
+         }
 
          // not including the result object as it contains confusing/pointless data.
          // such as a 'content-length' of 0, because it's the content-length of the response, not the 
@@ -392,29 +455,37 @@ public class S3DbRestHandler implements Handler
 
       JSObject metaJson = req.getJson();
 
-      String key = null;
-      try
-      {
-         key = metaJson.getString("name");
-      }
-      catch (Exception e)
-      {
+      if (metaJson == null || metaJson.getString("name") == null) {
          throw new ApiException("When updating metadata, a 'name' must be specified");
       }
 
+      String key = metaJson.getString("name");
+
       // All previous metadata will be wiped out.
-      ObjectMetadata meta = buildMetadata(metaJson);
+      Map<String, String> meta = buildMetadata(metaJson);
+      CopyObjectResponse copy = db.updateObject(table.getName(), key, table.getName(), key, meta);
 
-      CopyObjectResult copy = db.updateObject(table.getName(), key, table.getName(), key, meta);
-
-      // the copy result doesn't contain much helpful data.
-      JSObject json = JS.toJSObject(mapper.writeValueAsString(copy));
+      JSObject json = convertToJSObject(copy);
 
       json.put("href", req.getApiUrl() + req.getPath() + key);
 
       res.setJson(json);
       res.setStatus(SC.SC_200_OK);
+   }
 
+   private JSObject convertToJSObject(CopyObjectResponse copyResponse) {
+      JSObject json = new JSObject();
+      json.put("versionId", copyResponse.versionId());
+      json.put("expiration", copyResponse.expiration());
+      json.put("requestCharged", copyResponse.requestCharged());
+      json.put("serverSideEncryption", copyResponse.serverSideEncryption());
+      json.put("sseCustomerAlgorithm", copyResponse.sseCustomerAlgorithm());
+      json.put("sseCustomerKeyMd5", copyResponse.sseCustomerKeyMD5());
+
+      CopyObjectResult copyResult = copyResponse.copyObjectResult();
+      json.put("etag", copyResult.eTag().replace("\"", "")); // etag can be surrounded in quotes
+      json.put("lastModified", copyResult.lastModified().toEpochMilli());
+      return json;
    }
 
    private Collection findCollectionOrThrow404(Api api, Chain chain, Request req) throws Exception
@@ -434,14 +505,14 @@ public class S3DbRestHandler implements Handler
       return collection;
    }
 
-   private ObjectMetadata buildMetadata(JSObject metaJs)
+   private Map<String, String> buildMetadata(JSObject metaJs)
    {
-      ObjectMetadata meta = null;
+      Map<String, String> meta = null;
 
       if (metaJs != null)
       {
          // All previous metadata will be wiped out.
-         meta = new ObjectMetadata();
+         meta = new HashMap<>();
 
          Map<String, String> metaMap = metaJs.asMap();
 
@@ -452,13 +523,13 @@ public class S3DbRestHandler implements Handler
             switch (metaKey.toLowerCase())
             {
                case "content-type":
-                  meta.setContentType(entry.getValue());
+                  meta.put("Content-Type", entry.getValue());
                   break;
                case "name":
                case "tenantid":
                   break;
                default :
-                  meta.addUserMetadata(metaKey, entry.getValue());
+                  meta.put(metaKey, entry.getValue());
             }
          }
       }
