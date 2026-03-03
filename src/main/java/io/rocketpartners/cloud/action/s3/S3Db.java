@@ -1,22 +1,7 @@
 package io.rocketpartners.cloud.action.s3;
 
-import java.io.InputStream;
 import java.util.List;
 import java.util.Map;
-
-import com.amazonaws.auth.AWSStaticCredentialsProvider;
-import com.amazonaws.auth.BasicAWSCredentials;
-import com.amazonaws.services.s3.AmazonS3;
-import com.amazonaws.services.s3.AmazonS3ClientBuilder;
-import com.amazonaws.services.s3.model.Bucket;
-import com.amazonaws.services.s3.model.CopyObjectRequest;
-import com.amazonaws.services.s3.model.CopyObjectResult;
-import com.amazonaws.services.s3.model.GetObjectMetadataRequest;
-import com.amazonaws.services.s3.model.GetObjectRequest;
-import com.amazonaws.services.s3.model.ObjectMetadata;
-import com.amazonaws.services.s3.model.PutObjectRequest;
-import com.amazonaws.services.s3.model.PutObjectResult;
-import com.amazonaws.services.s3.model.S3Object;
 
 import io.rocketpartners.cloud.model.Db;
 import io.rocketpartners.cloud.model.Results;
@@ -24,6 +9,12 @@ import io.rocketpartners.cloud.model.Table;
 import io.rocketpartners.cloud.rql.Term;
 import io.rocketpartners.cloud.utils.Rows.Row;
 import io.rocketpartners.cloud.utils.Utils;
+import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
+import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
+import software.amazon.awssdk.regions.Region;
+import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.S3ClientBuilder;
+import software.amazon.awssdk.services.s3.model.Bucket;
 
 /**
  * Bucket ~= Table
@@ -45,7 +36,7 @@ public class S3Db extends Db<S3Db>
    protected String basePath     = null;
    protected String includePaths = null;
 
-   private AmazonS3 client       = null;
+   private S3Client client       = null;
 
    /**
     * @see io.rcktapp.api.Db#bootstrapApi()
@@ -53,14 +44,14 @@ public class S3Db extends Db<S3Db>
    @Override
    protected void startup0()
    {
-      AmazonS3 client = getS3Client();
+      S3Client client = getS3Client();
 
-      // get all of the buckets this account has access to.  
-      List<Bucket> bucketList = client.listBuckets();
+      // get all the buckets this account has access to.
+      List<Bucket> bucketList = client.listBuckets().buckets();
 
       for (Bucket bucket : bucketList)
       {
-         Table table = new Table(this, bucket.getName());
+         Table table = new Table(this, bucket.name());
          // Hardcoding 'key' as the only column as there is no useful way to use the other metadata
          // for querying 
          // Other core metadata includes: eTag, size, lastModified, storageClass
@@ -71,26 +62,12 @@ public class S3Db extends Db<S3Db>
       }
    }
 
-//   public S3Object getDownload(S3Request req)
-//   {
-//      AmazonS3 client = getS3Client();
-//      return client.getObject(new GetObjectRequest(req.getBucket(), req.getKey()));
-//   }
-//
-//   public ObjectMetadata getExtendedMetaData(S3Request req)
-//   {
-//      String key = req.getKey();
-//      String prefix = req.getPrefix();
-//
-//      AmazonS3 client = getS3Client();
-//      return client.getObjectMetadata(new GetObjectMetadataRequest(req.getBucket(), prefix != null ? prefix + key : key));
-//   }
-//
-//   public PutObjectResult saveFile(InputStream inputStream, String bucketName, String key, ObjectMetadata meta)
-//   {
-//      AmazonS3 client = getS3Client();
-//      return client.putObject(new PutObjectRequest(bucketName, key, inputStream, meta));
-//   }
+   @Override
+   protected void shutdown0() {
+      if (client != null) {
+         client.close();
+      }
+   }
 
    @Override
    public Results<Row> select(Table table, List<Term> columnMappedTerms) throws Exception
@@ -113,64 +90,12 @@ public class S3Db extends Db<S3Db>
       return null;
    }
 
-   //   /**
-   //    * 
-   //    * @param bucketName
-   //    * @param size - number of files returned in the listing
-   //    * @param startFile - the starting point in which the list begins after.
-   //    * @return
-   //    */
-   //   public ObjectListing getCoreMetaData(S3Request s3Req)
-   //   {
-   //      String prefix = s3Req.getPrefix();
-   //      String key = s3Req.getKey();
-   //
-   //      if (prefix != null)
-   //      {
-   //         if (key != null)
-   //            key = prefix + key;
-   //         else
-   //            key = prefix;
-   //      }
-   //
-   //      AmazonS3 client = getS3Client();
-   //
-   //      ListObjectsRequest req = new ListObjectsRequest();
-   //      req.setBucketName(s3Req.getBucket());
-   //      req.setMaxKeys(s3Req.getSize()); // TODO fix pagesize...currently always set to 1000 ... tied to 'size' but not 'pagesize'?
-   //      req.setDelimiter("/");
-   //      req.setMarker(s3Req.getMarker());
-   //      req.setPrefix(prefix);
-   //
-   //      return client.listObjects(req);
-   //   }
-   //
-   //   public CopyObjectResult updateObject(String bucket, String key, String newBucket, String newKey, ObjectMetadata meta)
-   //   {
-   //      AmazonS3 client = getS3Client();
-   //
-   //      CopyObjectRequest copyReq = null;
-   //
-   //      if (meta != null)
-   //      {
-   //         copyReq = new CopyObjectRequest(bucket, key, newBucket, newKey).withNewObjectMetadata(meta);
-   //      }
-   //      else
-   //      {
-   //         // rename or move request
-   //         copyReq = new CopyObjectRequest(bucket, key, newBucket, newKey);
-   //      }
-   //
-   //      // TODO if the key and newKey are not equal, (or the bucket and newBucket) delete the old key file
-   //      return client.copyObject(copyReq);
-   //   }
-
-   public AmazonS3 getS3Client()
+   public S3Client getS3Client()
    {
       return getS3Client(awsRegion, awsAccessKey, awsSecretKey);
    }
 
-   public AmazonS3 getS3Client(String awsRegion, String awsAccessKey, String awsSecretKey)
+   public S3Client getS3Client(String awsRegion, String awsAccessKey, String awsSecretKey)
    {
       if (this.client == null)
       {
@@ -182,15 +107,15 @@ public class S3Db extends Db<S3Db>
                awsAccessKey = Utils.findSysEnvPropStr(getName() + ".awsAccessKey", awsAccessKey);
                awsSecretKey = Utils.findSysEnvPropStr(getName() + ".awsSecretKey", awsSecretKey);
 
-               AmazonS3ClientBuilder builder = AmazonS3ClientBuilder.standard();
+               S3ClientBuilder builder = S3Client.builder();
 
                if (!Utils.empty(awsRegion))
-                  builder.withRegion(awsRegion);
+                  builder.region(Region.of(awsRegion));
 
                if (!Utils.empty(awsAccessKey) && !Utils.empty(awsSecretKey))
                {
-                  BasicAWSCredentials creds = new BasicAWSCredentials(awsAccessKey, awsSecretKey);
-                  builder.withCredentials(new AWSStaticCredentialsProvider(creds));
+                  AwsBasicCredentials creds = AwsBasicCredentials.create(awsAccessKey, awsSecretKey);
+                  builder.credentialsProvider(StaticCredentialsProvider.create(creds));
                }
 
                client = builder.build();

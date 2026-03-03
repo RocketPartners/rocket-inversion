@@ -28,7 +28,7 @@ project.docsDirName = '../docs/0.3.x/'
 configurations.all { resolutionStrategy.cacheChangingModulesFor 0, 'seconds' }
 
 
-version = '0.4.4'
+version = '0.4.5'
 group = 'com.github.RocketPartners'
 sourceCompatibility = JavaVersion.VERSION_17
 
@@ -36,6 +36,8 @@ ext {
     archiveRepo = "https://maven.pkg.github.com/RocketPartners/artifacts"
     archiveRepoUser = System.env.GHP_USER
     archiveRepoPassword = System.env.GHP_PASSWORD
+    junitVersion = '5.8.1'
+    awsSdkV2Version = '2.41.34'
 }
 
 repositories {
@@ -74,8 +76,11 @@ dependencies {
     api group: 'org.apache.httpcomponents', name: 'httpmime', version: '4.5.5'
 
     //aws libs
-    api 'com.amazonaws:aws-java-sdk-s3:1.11.390'
-    api 'com.amazonaws:aws-java-sdk-dynamodb:1.11.390'
+    api "software.amazon.awssdk:s3:$awsSdkV2Version"
+    api('com.amazonaws:aws-java-sdk-dynamodb:1.11.390') {
+        //TODO: remove exclude with https://circlek.atlassian.net/browse/LIFT-1805
+        exclude group: "com.amazonaws", module: "aws-java-sdk-s3"
+    }
     api 'com.amazonaws:aws-java-sdk-kinesis:1.11.390'
     api 'com.amazonaws:aws-lambda-java-core:1.2.0'
     api 'com.amazonaws:aws-java-sdk-rds:1.11.542'
@@ -106,6 +111,12 @@ dependencies {
     api group: 'org.apache.velocity', name: 'velocity-engine-core', version: '2.0'
 
     api 'junit:junit:4.12'
+
+    testImplementation "org.junit.jupiter:junit-jupiter:$junitVersion"
+    testImplementation group: 'org.junit.jupiter', name: 'junit-jupiter-api', version: '5.9.2'
+    testImplementation 'org.mockito:mockito-junit-jupiter:4.3.1'
+    testImplementation 'org.mockito:mockito-inline:4.3.1'
+    testRuntimeOnly "org.junit.jupiter:junit-jupiter-engine:$junitVersion"
 }
 
 
@@ -141,7 +152,7 @@ javadoc {
 }
 
 test {
-    exclude '**/*'
+    useJUnitPlatform()
 }
 
 publishing {

@@ -26,13 +26,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import com.amazonaws.auth.AWSStaticCredentialsProvider;
-import com.amazonaws.auth.BasicAWSCredentials;
-import com.amazonaws.services.s3.AmazonS3;
-import com.amazonaws.services.s3.AmazonS3ClientBuilder;
-import com.amazonaws.services.s3.model.ObjectMetadata;
-import com.amazonaws.services.s3.model.PutObjectRequest;
-
 import io.rocketpartners.cloud.model.Action;
 import io.rocketpartners.cloud.model.Api;
 import io.rocketpartners.cloud.model.Endpoint;
@@ -44,6 +37,13 @@ import io.rocketpartners.cloud.model.Request.Upload;
 import io.rocketpartners.cloud.service.Chain;
 import io.rocketpartners.cloud.utils.Utils;
 import io.rocketpartners.cloud.service.Service;
+import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
+import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
+import software.amazon.awssdk.core.sync.RequestBody;
+import software.amazon.awssdk.regions.Region;
+import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.S3ClientBuilder;
+import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 
 /**
  * Sends browser multi-part file uploads to a defined S3 location
@@ -89,6 +89,7 @@ public class S3UploadAction extends Action<S3UploadAction>
       String fileName = null;
       Long fileSize = null;
       DigestInputStream uploadStream = null;
+      Long contentLength = null;
 
       try
       {
@@ -96,6 +97,7 @@ public class S3UploadAction extends Action<S3UploadAction>
          if (uploads.size() > 0)
          {
             Upload upload = uploads.get(0);
+            contentLength = upload.getFileSize();
 
             uploadStream = new DigestInputStream(upload.getInputStream(), MessageDigest.getInstance("MD5"));
             String[] fileNameParts = upload.getFileName().split("[.]");
@@ -118,7 +120,7 @@ public class S3UploadAction extends Action<S3UploadAction>
 
          try
          {
-            responseContent = saveFile(chain, uploadStream, fileName, requestPath);
+            responseContent = saveFile(chain, uploadStream, contentLength, fileName, requestPath);
          }
          catch (Exception e)
          {
@@ -153,20 +155,24 @@ public class S3UploadAction extends Action<S3UploadAction>
 
    }
 
-   private Map<String, Object> saveFile(Chain chain, InputStream inputStream, String fileName, String requestPath) throws Exception
+   private Map<String, Object> saveFile(Chain chain, InputStream inputStream, Long contentLength, String fileName, String requestPath) throws Exception
    {
-      AmazonS3 s3 = buildS3Client(chain);
-      String bucket = chain.getConfig("s3Bucket", this.s3Bucket);
-      String pathAndFileName = buildFullPath(chain, requestPath, fileName);
+      try (S3Client s3 = buildS3Client(chain)) {
+         String bucket = chain.getConfig("s3Bucket", this.s3Bucket);
+         String pathAndFileName = buildFullPath(chain, requestPath, fileName);
 
-      s3.putObject(new PutObjectRequest(bucket, pathAndFileName, inputStream, new ObjectMetadata()));
+         s3.putObject(PutObjectRequest.builder()
+                 .bucket(bucket)
+                 .key(pathAndFileName)
+                 .build(), RequestBody.fromInputStream(inputStream, contentLength));
 
-      Map<String, Object> resp = new HashMap<>();
-      resp.put("url", "http://" + bucket + ".s3.amazonaws.com/" + pathAndFileName);
-      resp.put("fileName", fileName);
-      resp.put("path", pathAndFileName);
+         Map<String, Object> resp = new HashMap<>();
+         resp.put("url", "http://" + bucket + ".s3.amazonaws.com/" + pathAndFileName);
+         resp.put("fileName", fileName);
+         resp.put("path", pathAndFileName);
 
-      return resp;
+         return resp;
+      }
    }
 
    private String buildFullPath(Chain chain, String requestPath, String name)
@@ -204,7 +210,7 @@ public class S3UploadAction extends Action<S3UploadAction>
       return sb.toString();
    }
 
-   private AmazonS3 buildS3Client(Chain chain)
+   S3Client buildS3Client(Chain chain)
    {
       //TODO make this work like dynamo client config as art of db
       
@@ -212,20 +218,20 @@ public class S3UploadAction extends Action<S3UploadAction>
       String secretKey = chain.getConfig("s3SecretKey", this.s3SecretKey);
       String awsRegion = chain.getConfig("s3AwsRegion", this.s3AwsRegion);
 
-      AmazonS3ClientBuilder builder = null;
+      S3ClientBuilder builder;
       if (accessKey != null)
       {
-         BasicAWSCredentials creds = new BasicAWSCredentials(accessKey, secretKey);
-         builder = AmazonS3ClientBuilder.standard().withCredentials(new AWSStaticCredentialsProvider(creds));
+         AwsBasicCredentials creds = AwsBasicCredentials.create(accessKey, secretKey);
+         builder = S3Client.builder().credentialsProvider(StaticCredentialsProvider.create(creds));
       }
       else
       {
-         builder = AmazonS3ClientBuilder.standard();
+         builder = S3Client.builder();
       }
 
       if (awsRegion != null)
       {
-         builder.withRegion(awsRegion);
+         builder.region(Region.of(awsRegion));
       }
       return builder.build();
    }
