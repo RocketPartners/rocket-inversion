@@ -86,10 +86,7 @@ dependencies {
    api group: 'redis.clients', name: 'jedis', version: '5.2.0'
 
    api "software.amazon.awssdk:s3:$awsSdkV2Version"
-   api('com.amazonaws:aws-java-sdk-dynamodb:1.11.390') {
-      //TODO: remove exclude with https://circlek.atlassian.net/browse/LIFT-1805
-      exclude group: "com.amazonaws", module: "aws-java-sdk-s3"
-   }
+   api "software.amazon.awssdk:dynamodb:$awsSdkV2Version"
    api 'com.amazonaws:aws-java-sdk-kinesis:1.11.390'
    api 'com.amazonaws:aws-java-sdk-rds:1.11.542'
 
