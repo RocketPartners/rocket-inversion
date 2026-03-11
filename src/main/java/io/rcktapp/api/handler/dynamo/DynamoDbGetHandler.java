@@ -23,17 +23,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import com.amazonaws.services.dynamodbv2.document.Item;
-import com.amazonaws.services.dynamodbv2.document.ItemCollection;
-import com.amazonaws.services.dynamodbv2.document.KeyAttribute;
-import com.amazonaws.services.dynamodbv2.document.QueryOutcome;
-import com.amazonaws.services.dynamodbv2.document.RangeKeyCondition;
-import com.amazonaws.services.dynamodbv2.document.ScanOutcome;
-import com.amazonaws.services.dynamodbv2.document.api.QueryApi;
-import com.amazonaws.services.dynamodbv2.document.spec.QuerySpec;
-import com.amazonaws.services.dynamodbv2.document.spec.ScanSpec;
-import com.amazonaws.services.dynamodbv2.model.AttributeValue;
-
 import io.forty11.web.js.JSArray;
 import io.forty11.web.js.JSObject;
 import io.rcktapp.api.Action;
@@ -50,6 +39,12 @@ import io.rcktapp.rql.Predicate;
 import io.rcktapp.rql.Rql;
 import io.rcktapp.rql.dynamo.DynamoExpression;
 import io.rcktapp.rql.dynamo.DynamoRql;
+import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
+import software.amazon.awssdk.services.dynamodb.model.AttributeValue;
+import software.amazon.awssdk.services.dynamodb.model.QueryRequest;
+import software.amazon.awssdk.services.dynamodb.model.QueryResponse;
+import software.amazon.awssdk.services.dynamodb.model.ScanRequest;
+import software.amazon.awssdk.services.dynamodb.model.ScanResponse;
 
 /**
  * @author tc-rocket
@@ -70,7 +65,8 @@ public class DynamoDbGetHandler extends DynamoDbHandler
       Collection collection = api.getCollection(req.getCollectionKey(), DynamoDb.class);
       Table table = collection.getEntity().getTable();
       DynamoDb db = (DynamoDb) table.getDb();
-      com.amazonaws.services.dynamodbv2.document.Table dynamoTable = db.getDynamoTable(table.getName());
+      DynamoDbClient dynamoClient = db.getDynamoDbClient();
+      String tableName = table.getName();
 
       String tenantIdOrCode = null;
       if (req.getApi().isMultiTenant())
@@ -117,30 +113,30 @@ public class DynamoDbGetHandler extends DynamoDbHandler
 
       }
 
-      KeyAttribute[] nextKeys = null;
+      Map<String, AttributeValue> exclusiveStartKey = null;
 
       if (next != null)
       {
-         List<KeyAttribute> keyAttrList = new ArrayList<>();
+         exclusiveStartKey = new HashMap<>();
          String[] sArr = next.split(nextKeyDelimeter);
          String nextPkVal = sArr[0];
          if (api.isMultiTenant() && appendTenantIdToPk)
          {
             nextPkVal = addTenantIdToKey(tenantIdOrCode, nextPkVal);
          }
-         keyAttrList.add(new KeyAttribute(pk, nextPkVal));
+         exclusiveStartKey.put(pk, AttributeValue.builder().s(nextPkVal).build());
 
          if (sArr.length > 1)
          {
-            keyAttrList.add(new KeyAttribute(sk, DynamoDb.cast(sArr[1], sk, table)));
+            Object castVal = DynamoDb.cast(sArr[1], sk, table);
+            exclusiveStartKey.put(sk, DynamoV2Utils.toAttributeValue(castVal));
          }
 
          if (sArr.length > 2 && order != null && !sk.equals(order.col))
          {
-            keyAttrList.add(new KeyAttribute(order.col, DynamoDb.cast(sArr[2], order.col, table)));
+            Object castVal = DynamoDb.cast(sArr[2], order.col, table);
+            exclusiveStartKey.put(order.col, DynamoV2Utils.toAttributeValue(castVal));
          }
-
-         nextKeys = keyAttrList.toArray(new KeyAttribute[keyAttrList.size()]);
       }
 
       Object partitionKeyValue = null;
@@ -160,18 +156,18 @@ public class DynamoDbGetHandler extends DynamoDbHandler
       if (partitionKeyValue != null)
       {
          // Query
-         dynamoResult = doQuery(dynamoExpression, dynamoTable, chain, res, pageSize, nextKeys, pk, partitionKeyValue);
+         dynamoResult = doQuery(dynamoExpression, dynamoClient, tableName, chain, res, pageSize, exclusiveStartKey, pk, partitionKeyValue);
       }
       else
       {
          // Scan
-         dynamoResult = doScan(dynamoExpression, dynamoTable, chain, res, pageSize, nextKeys);
+         dynamoResult = doScan(dynamoExpression, dynamoClient, tableName, chain, res, pageSize, exclusiveStartKey);
       }
 
       String returnNext = null;
       if (dynamoResult != null && dynamoResult.lastKey != null && !dynamoResult.lastKey.isEmpty())
       {
-         returnNext = dynamoResult.lastKey.get(pk).getS();
+         returnNext = dynamoResult.lastKey.get(pk).s();
          if (api.isMultiTenant() && appendTenantIdToPk)
          {
             returnNext = removeTenantIdFromKey(tenantIdOrCode, returnNext);
@@ -216,9 +212,9 @@ public class DynamoDbGetHandler extends DynamoDbHandler
 
    }
 
-   DynamoResult doQuery(DynamoExpression dynamoExpression, com.amazonaws.services.dynamodbv2.document.Table dynamoTable, Chain chain, Response res, int pageSize, KeyAttribute[] nextKeys, String pk, Object primaryKeyValue)
+   DynamoResult doQuery(DynamoExpression dynamoExpression, DynamoDbClient dynamoClient, String tableName, Chain chain, Response res, int pageSize, Map<String, AttributeValue> exclusiveStartKey, String pk, Object primaryKeyValue)
    {
-      String expressionStr = dynamoExpression.buildExpression();
+      String filterExpressionStr = dynamoExpression.buildExpression();
       Order order = dynamoExpression.getOrder();
       String orderCol = order != null ? order.col : "";
       String orderDir = order != null ? order.dir : null;
@@ -229,90 +225,108 @@ public class DynamoDbGetHandler extends DynamoDbHandler
          res.debug("Partition Key:      " + pk + " = " + primaryKeyValue);
       }
 
-      QueryApi queryApi = dynamoTable;
+      // Build key condition expression
+      Map<String, String> expressionNames = new HashMap<>();
+      Map<String, AttributeValue> expressionValues = new HashMap<>();
+
+      expressionNames.put("#pk", pk);
+      expressionValues.put(":pkval", DynamoV2Utils.toAttributeValue(primaryKeyValue));
+      String keyConditionExpression = "#pk = :pkval";
+
+      Predicate skPred = dynamoExpression.getExcludedPredicate(orderCol);
+      if (skPred != null)
+      {
+         KeyConditionFragment kcf = DynamoDb.predicateToKeyConditionFragment(skPred, dynamoExpression.getTable());
+         keyConditionExpression = keyConditionExpression + " AND " + kcf.getExpression();
+         expressionNames.put(kcf.getNameKey(), kcf.getNameValue());
+         expressionValues.put(kcf.getValueKey(), DynamoV2Utils.toAttributeValue(kcf.getValueObject()));
+
+         if (chain.getRequest().isDebug())
+         {
+            res.debug("Sort Key:           " + kcf.getNameValue() + " " + kcf.getExpression() + " " + kcf.getValueObject());
+         }
+      }
+
+      QueryRequest.Builder queryBuilder = QueryRequest.builder()
+         .tableName(tableName)
+         .keyConditionExpression(keyConditionExpression)
+         .expressionAttributeNames(expressionNames)
+         .expressionAttributeValues(expressionValues)
+         .limit(pageSize);
+
       if (dynamoExpression.getIndex() != null && !dynamoExpression.getIndex().getType().equals(DynamoDb.PRIMARY_TYPE))
       {
-         queryApi = dynamoTable.getIndex(dynamoExpression.getIndex().getName());
+         queryBuilder.indexName(dynamoExpression.getIndex().getName());
          if (chain.getRequest().isDebug())
          {
             res.debug("Index:              " + dynamoExpression.getIndex().getName());
          }
       }
 
-      QuerySpec querySpec = new QuerySpec()//
-                                           .withHashKey(pk, primaryKeyValue)//
-                                           .withMaxPageSize(pageSize)//
-                                           .withMaxResultSize(pageSize);
-
-      Predicate skPred = dynamoExpression.getExcludedPredicate(orderCol);
-      if (skPred != null)
-      {
-         RangeKeyCondition rkc = DynamoDb.predicateToRangeKeyCondition(skPred, dynamoExpression.getTable());
-         querySpec = querySpec.withRangeKeyCondition(rkc);
-
-         if (chain.getRequest().isDebug())
-         {
-            res.debug("Sort Key:           " + rkc.getAttrName() + " " + rkc.getKeyCondition() + " " + rkc.getValues()[0]);
-         }
-      }
-
       if (orderDir != null)
       {
          boolean scanForward = !orderDir.equalsIgnoreCase("DESC");
-         querySpec.withScanIndexForward(scanForward);
+         queryBuilder.scanIndexForward(scanForward);
          if (chain.getRequest().isDebug())
          {
             res.debug("Sorting By:         " + orderCol + " " + orderDir);
          }
       }
 
-      if (nextKeys != null)
+      if (exclusiveStartKey != null)
       {
-         querySpec = querySpec.withExclusiveStartKey(nextKeys);
+         queryBuilder.exclusiveStartKey(exclusiveStartKey);
       }
 
       if (!dynamoExpression.getFields().isEmpty())
       {
-         querySpec = querySpec.withFilterExpression(expressionStr)//
-                              .withNameMap(dynamoExpression.getFields());
+         // Merge filter expression attribute names with key condition names
+         Map<String, String> mergedNames = new HashMap<>(expressionNames);
+         mergedNames.putAll(dynamoExpression.getFields());
+         queryBuilder.expressionAttributeNames(mergedNames);
 
+         // Merge filter expression attribute values with key condition values
          if (!dynamoExpression.getArgs().isEmpty())
          {
-            querySpec = querySpec.withValueMap(dynamoExpression.getArgs());
+            Map<String, AttributeValue> mergedValues = new HashMap<>(expressionValues);
+            mergedValues.putAll(DynamoV2Utils.toExpressionAttributeValues(dynamoExpression.getArgs()));
+            queryBuilder.expressionAttributeValues(mergedValues);
          }
+
+         queryBuilder.filterExpression(filterExpressionStr);
 
          if (chain.getRequest().isDebug())
          {
             res.debug("Filter:");
-            res.debug(expressionStr);
+            res.debug(filterExpressionStr);
             res.debug(dynamoExpression.getFields());
             res.debug(filterArgsToString(dynamoExpression.getArgs()));
          }
       }
 
-      ItemCollection<QueryOutcome> queryResults = queryApi.query(querySpec);
+      QueryResponse queryResponse = dynamoClient.query(queryBuilder.build());
 
       List<Map> items = new ArrayList<>();
       Map<String, AttributeValue> lastKey = null;
 
-      if (queryResults != null)
+      if (queryResponse.hasItems())
       {
-         for (Item item : queryResults)
+         for (Map<String, AttributeValue> item : queryResponse.items())
          {
-            items.add(item.asMap());
+            items.add(DynamoV2Utils.fromItemMap(item));
          }
       }
 
-      if (queryResults.getLastLowLevelResult() != null)
+      if (queryResponse.lastEvaluatedKey() != null && !queryResponse.lastEvaluatedKey().isEmpty())
       {
-         lastKey = queryResults.getLastLowLevelResult().getQueryResult().getLastEvaluatedKey();
+         lastKey = queryResponse.lastEvaluatedKey();
       }
 
       return new DynamoResult(items, lastKey);
 
    }
 
-   DynamoResult doScan(DynamoExpression dynamoExpression, com.amazonaws.services.dynamodbv2.document.Table dynamoTable, Chain chain, Response res, int pageSize, KeyAttribute[] nextKeys)
+   DynamoResult doScan(DynamoExpression dynamoExpression, DynamoDbClient dynamoClient, String tableName, Chain chain, Response res, int pageSize, Map<String, AttributeValue> exclusiveStartKey)
    {
       String expressionStr = dynamoExpression.buildExpression();
 
@@ -321,18 +335,18 @@ public class DynamoDbGetHandler extends DynamoDbHandler
          res.debug("Query Type:         Scan");
       }
 
-      ScanSpec scanSpec = new ScanSpec()//
-                                        .withMaxPageSize(pageSize)//
-                                        .withMaxResultSize(pageSize);
+      ScanRequest.Builder scanBuilder = ScanRequest.builder()
+         .tableName(tableName)
+         .limit(pageSize);
 
       if (!dynamoExpression.getFields().isEmpty())
       {
-         scanSpec = scanSpec.withFilterExpression(expressionStr)//
-                            .withNameMap(dynamoExpression.getFields());
+         scanBuilder.filterExpression(expressionStr)
+                    .expressionAttributeNames(dynamoExpression.getFields());
 
          if (!dynamoExpression.getArgs().isEmpty())
          {
-            scanSpec = scanSpec.withValueMap(dynamoExpression.getArgs());
+            scanBuilder.expressionAttributeValues(DynamoV2Utils.toExpressionAttributeValues(dynamoExpression.getArgs()));
          }
 
          if (chain.getRequest().isDebug())
@@ -344,24 +358,27 @@ public class DynamoDbGetHandler extends DynamoDbHandler
          }
       }
 
-      if (nextKeys != null)
+      if (exclusiveStartKey != null)
       {
-         scanSpec = scanSpec.withExclusiveStartKey(nextKeys);
+         scanBuilder.exclusiveStartKey(exclusiveStartKey);
       }
 
-      ItemCollection<ScanOutcome> scanResults = dynamoTable.scan(scanSpec);
+      ScanResponse scanResponse = dynamoClient.scan(scanBuilder.build());
 
       List<Map> items = new ArrayList<>();
       Map<String, AttributeValue> lastKey = null;
 
-      for (Item item : scanResults)
+      if (scanResponse.hasItems())
       {
-         items.add(item.asMap());
+         for (Map<String, AttributeValue> item : scanResponse.items())
+         {
+            items.add(DynamoV2Utils.fromItemMap(item));
+         }
       }
 
-      if (scanResults.getLastLowLevelResult() != null)
+      if (scanResponse.lastEvaluatedKey() != null && !scanResponse.lastEvaluatedKey().isEmpty())
       {
-         lastKey = scanResults.getLastLowLevelResult().getScanResult().getLastEvaluatedKey();
+         lastKey = scanResponse.lastEvaluatedKey();
       }
 
       return new DynamoResult(items, lastKey);

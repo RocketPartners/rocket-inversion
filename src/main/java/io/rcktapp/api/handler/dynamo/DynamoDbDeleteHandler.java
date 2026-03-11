@@ -19,11 +19,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import com.amazonaws.services.dynamodbv2.document.KeyAttribute;
-import com.amazonaws.services.dynamodbv2.document.spec.DeleteItemSpec;
-import com.amazonaws.services.dynamodbv2.document.utils.ValueMap;
-import com.amazonaws.services.dynamodbv2.model.ConditionalCheckFailedException;
-
 import io.rcktapp.api.Action;
 import io.rcktapp.api.Api;
 import io.rcktapp.api.ApiException;
@@ -35,6 +30,10 @@ import io.rcktapp.api.Response;
 import io.rcktapp.api.SC;
 import io.rcktapp.api.Table;
 import io.rcktapp.api.service.Service;
+import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
+import software.amazon.awssdk.services.dynamodb.model.AttributeValue;
+import software.amazon.awssdk.services.dynamodb.model.ConditionalCheckFailedException;
+import software.amazon.awssdk.services.dynamodb.model.DeleteItemRequest;
 
 /**
  * @author tc-rocket
@@ -49,7 +48,8 @@ public class DynamoDbDeleteHandler extends DynamoDbHandler
       Collection collection = api.getCollection(req.getCollectionKey(), DynamoDb.class);
       Table table = collection.getEntity().getTable();
       DynamoDb db = (DynamoDb) table.getDb();
-      com.amazonaws.services.dynamodbv2.document.Table dynamoTable = db.getDynamoTable(table.getName());
+      DynamoDbClient dynamoClient = db.getDynamoDbClient();
+      String tableName = table.getName();
       DynamoIndex dynamoIdx = DynamoDb.findIndexByName(table, DynamoDb.PRIMARY_INDEX);
       String pk = dynamoIdx.getPartitionKey();
       String sk = dynamoIdx.getSortKey();
@@ -77,25 +77,23 @@ public class DynamoDbDeleteHandler extends DynamoDbHandler
          List l = (List) payloadObj;
          for (Object obj : l)
          {
-            deleteMapFromDynamo((Map) obj, dynamoTable, pk, sk, tenantIdOrCode, api.isMultiTenant(), appendTenantIdToPk);
+            deleteMapFromDynamo((Map) obj, dynamoClient, tableName, pk, sk, tenantIdOrCode, api.isMultiTenant(), appendTenantIdToPk);
          }
       }
       else if (payloadObj instanceof Map)
       {
-         deleteMapFromDynamo((Map) payloadObj, dynamoTable, pk, sk, tenantIdOrCode, api.isMultiTenant(), appendTenantIdToPk);
+         deleteMapFromDynamo((Map) payloadObj, dynamoClient, tableName, pk, sk, tenantIdOrCode, api.isMultiTenant(), appendTenantIdToPk);
       }
 
       res.setStatus(SC.SC_200_OK);
 
    }
 
-   void deleteMapFromDynamo(Map json, com.amazonaws.services.dynamodbv2.document.Table dynamoTable, String pk, String sk, Object tenantIdOrCode, boolean isMultiTenant, boolean appendTenantIdToPk)
+   void deleteMapFromDynamo(Map json, DynamoDbClient dynamoClient, String tableName, String pk, String sk, Object tenantIdOrCode, boolean isMultiTenant, boolean appendTenantIdToPk)
    {
       try
       {
          Map m = new HashMap<>(json);
-
-         KeyAttribute[] keys = null;
 
          if (!m.containsKey(pk) || (sk != null && !m.containsKey(sk)))
          {
@@ -113,24 +111,27 @@ public class DynamoDbDeleteHandler extends DynamoDbHandler
          {
             pkValue = addTenantIdToKey(tenantIdOrCode, pkValue);
          }
-         KeyAttribute pkAttr = new KeyAttribute(pk, pkValue);
-         keys = new KeyAttribute[]{pkAttr};
+
+         Map<String, AttributeValue> keyMap = new HashMap<>();
+         keyMap.put(pk, AttributeValue.builder().s(pkValue).build());
          if (sk != null)
          {
-            KeyAttribute skAttr = new KeyAttribute(sk, m.get(sk));
-            keys = new KeyAttribute[]{pkAttr, skAttr};
+            keyMap.put(sk, DynamoV2Utils.toAttributeValue(m.get(sk)));
          }
 
-         DeleteItemSpec spec = new DeleteItemSpec()//
-                                                   .withPrimaryKey(keys);
+         DeleteItemRequest.Builder deleteBuilder = DeleteItemRequest.builder()
+            .tableName(tableName)
+            .key(keyMap);
 
          if (isMultiTenant)
          {
-            spec = spec.withConditionExpression("tenantid = :val")//
-                       .withValueMap(new ValueMap().with(":val", tenantIdOrCode));
+            Map<String, AttributeValue> expressionValues = new HashMap<>();
+            expressionValues.put(":val", DynamoV2Utils.toAttributeValue(tenantIdOrCode));
+            deleteBuilder.conditionExpression("tenantid = :val")
+                         .expressionAttributeValues(expressionValues);
          }
 
-         dynamoTable.deleteItem(spec);
+         dynamoClient.deleteItem(deleteBuilder.build());
       }
       catch (ConditionalCheckFailedException ccfe)
       {

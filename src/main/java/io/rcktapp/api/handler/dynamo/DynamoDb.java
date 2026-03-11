@@ -15,23 +15,13 @@
  */
 package io.rcktapp.api.handler.dynamo;
 
-import com.amazonaws.auth.AWSStaticCredentialsProvider;
-import com.amazonaws.auth.BasicAWSCredentials;
-import com.amazonaws.services.dynamodbv2.AmazonDynamoDB;
-import com.amazonaws.services.dynamodbv2.AmazonDynamoDBClientBuilder;
-import com.amazonaws.services.dynamodbv2.document.DynamoDB;
-import com.amazonaws.services.dynamodbv2.document.Item;
-import com.amazonaws.services.dynamodbv2.document.ItemCollection;
-import com.amazonaws.services.dynamodbv2.document.QueryOutcome;
-import com.amazonaws.services.dynamodbv2.document.RangeKeyCondition;
-import com.amazonaws.services.dynamodbv2.document.ScanOutcome;
-import com.amazonaws.services.dynamodbv2.document.spec.QuerySpec;
-import com.amazonaws.services.dynamodbv2.document.spec.ScanSpec;
-import com.amazonaws.services.dynamodbv2.model.AttributeValue;
-import com.amazonaws.services.dynamodbv2.model.GlobalSecondaryIndexDescription;
-import com.amazonaws.services.dynamodbv2.model.KeySchemaElement;
-import com.amazonaws.services.dynamodbv2.model.LocalSecondaryIndexDescription;
-import com.amazonaws.services.dynamodbv2.model.TableDescription;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
+import org.atteo.evo.inflector.English;
+
 import io.forty11.j.J;
 import io.rcktapp.api.Api;
 import io.rcktapp.api.ApiException;
@@ -46,15 +36,22 @@ import io.rcktapp.api.Table;
 import io.rcktapp.rql.Parser;
 import io.rcktapp.rql.Predicate;
 import io.rcktapp.rql.dynamo.DynamoRql;
-import lombok.extern.slf4j.Slf4j;
-import org.atteo.evo.inflector.English;
+import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
+import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
+import software.amazon.awssdk.regions.Region;
+import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
+import software.amazon.awssdk.services.dynamodb.DynamoDbClientBuilder;
+import software.amazon.awssdk.services.dynamodb.model.AttributeValue;
+import software.amazon.awssdk.services.dynamodb.model.DescribeTableRequest;
+import software.amazon.awssdk.services.dynamodb.model.GlobalSecondaryIndexDescription;
+import software.amazon.awssdk.services.dynamodb.model.KeySchemaElement;
+import software.amazon.awssdk.services.dynamodb.model.LocalSecondaryIndexDescription;
+import software.amazon.awssdk.services.dynamodb.model.QueryRequest;
+import software.amazon.awssdk.services.dynamodb.model.QueryResponse;
+import software.amazon.awssdk.services.dynamodb.model.ScanRequest;
+import software.amazon.awssdk.services.dynamodb.model.ScanResponse;
+import software.amazon.awssdk.services.dynamodb.model.TableDescription;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-
-@Slf4j
 public class DynamoDb extends Db
 {
    public static final String PRIMARY_INDEX         = "Primary Index";
@@ -82,29 +79,24 @@ public class DynamoDb extends Db
 
    /**
     * A CSV of pipe delimited collection name to table name pairs.
-    * 
+    *
     * Example: dynamodb.tables=promo|promo-dev,loyalty-punchcard|loyalty-punchcard-dev
-    * 
+    *
     * Or if the collection name is the name as the table name you can just send a the name
-    * 
+    *
     * Example: dynamodb.includeTables=orders,users,events
     */
    protected String       includeTables;
 
    /**
     * Use to config which row is used to build the column/attribute model  (otherwise first row of scan will be used)
-    * 
+    *
     * FORMAT: collection name | primaryKey | sortKey (optional)
     */
    protected String       blueprintRow;
 
-   private AmazonDynamoDB dynamoClient = null;
+   private DynamoDbClient dynamoClient = null;
 
-
-   public DynamoDb() {
-        super();
-        setType("dynamo");
-   }
    @Override
    public void bootstrapApi() throws Exception
    {
@@ -153,27 +145,28 @@ public class DynamoDb extends Db
 
    }
 
-   Table buildTable(String tableName, String[] bluePrintArr, AmazonDynamoDB dynamoClient)
+   Table buildTable(String tableName, String[] bluePrintArr, DynamoDbClient dynamoClient)
    {
 
       Table table = new Table(this, tableName);
 
-      DynamoDB dynamoDB = new DynamoDB(dynamoClient);
-      com.amazonaws.services.dynamodbv2.document.Table dynamoTable = dynamoDB.getTable(tableName);
-      TableDescription tableDescription = dynamoTable.describe();
+      TableDescription tableDescription = dynamoClient.describeTable(
+         DescribeTableRequest.builder().tableName(tableName).build()
+      ).table();
+
       String pk = null;
       String sk = null;
 
-      List<KeySchemaElement> keySchema = tableDescription.getKeySchema();
+      List<KeySchemaElement> keySchema = tableDescription.keySchema();
       for (KeySchemaElement keyInfo : keySchema)
       {
-         if (keyInfo.getKeyType().equalsIgnoreCase("HASH"))
+         if (keyInfo.keyTypeAsString().equalsIgnoreCase("HASH"))
          {
-            pk = keyInfo.getAttributeName();
+            pk = keyInfo.attributeName();
          }
-         else if (keyInfo.getKeyType().equalsIgnoreCase("RANGE"))
+         else if (keyInfo.keyTypeAsString().equalsIgnoreCase("RANGE"))
          {
-            sk = keyInfo.getAttributeName();
+            sk = keyInfo.attributeName();
          }
       }
 
@@ -185,34 +178,48 @@ public class DynamoDb extends Db
       {
          String bluePrintPK = bluePrintArr[0];
 
-         QuerySpec querySpec = new QuerySpec()//
-                                              .withHashKey(pk, bluePrintPK)//
-                                              .withMaxPageSize(1)//
-                                              .withMaxResultSize(1);
+         Map<String, AttributeValue> expressionValues = new HashMap<>();
+         expressionValues.put(":pkval", DynamoV2Utils.toAttributeValue(bluePrintPK));
+
+         Map<String, String> expressionNames = new HashMap<>();
+         expressionNames.put("#pk", pk);
+
+         QueryRequest.Builder queryBuilder = QueryRequest.builder()
+            .tableName(tableName)
+            .keyConditionExpression("#pk = :pkval")
+            .expressionAttributeNames(expressionNames)
+            .expressionAttributeValues(expressionValues)
+            .limit(1);
+
          if (sk != null && bluePrintArr.length > 1)
          {
             String bluePrintSK = bluePrintArr[1];
-            querySpec = querySpec.withRangeKeyCondition(new RangeKeyCondition(sk).eq(bluePrintSK));
+            expressionValues.put(":skval", DynamoV2Utils.toAttributeValue(bluePrintSK));
+            expressionNames.put("#sk", sk);
+            queryBuilder.keyConditionExpression("#pk = :pkval AND #sk = :skval")
+                        .expressionAttributeValues(expressionValues)
+                        .expressionAttributeNames(expressionNames);
          }
 
-         ItemCollection<QueryOutcome> queryResults = dynamoTable.query(querySpec);
+         QueryResponse queryResponse = dynamoClient.query(queryBuilder.build());
 
-         for (Item item : queryResults)
+         if (queryResponse.hasItems() && !queryResponse.items().isEmpty())
          {
-            bluePrintMap = item.asMap();
+            bluePrintMap = DynamoV2Utils.fromItemMap(queryResponse.items().get(0));
          }
-
       }
       else
       {
-         ScanSpec scanSpec = new ScanSpec()//
-                                           .withMaxPageSize(1)//
-                                           .withMaxResultSize(1);
+         ScanRequest scanRequest = ScanRequest.builder()
+            .tableName(tableName)
+            .limit(1)
+            .build();
 
-         ItemCollection<ScanOutcome> scanResults = dynamoTable.scan(scanSpec);
-         for (Item item : scanResults)
+         ScanResponse scanResponse = dynamoClient.scan(scanRequest);
+
+         if (scanResponse.hasItems() && !scanResponse.items().isEmpty())
          {
-            bluePrintMap = item.asMap();
+            bluePrintMap = DynamoV2Utils.fromItemMap(scanResponse.items().get(0));
          }
       }
 
@@ -251,19 +258,19 @@ public class DynamoDb extends Db
          table.addIndex(index);
       }
 
-      if (tableDescription.getGlobalSecondaryIndexes() != null)
+      if (tableDescription.globalSecondaryIndexes() != null)
       {
-         for (GlobalSecondaryIndexDescription indexDesc : tableDescription.getGlobalSecondaryIndexes())
+         for (GlobalSecondaryIndexDescription indexDesc : tableDescription.globalSecondaryIndexes())
          {
-            addTableIndex(GLOBAL_SECONDARY_TYPE, indexDesc.getIndexName(), indexDesc.getKeySchema(), table);
+            addTableIndex(GLOBAL_SECONDARY_TYPE, indexDesc.indexName(), indexDesc.keySchema(), table);
          }
       }
 
-      if (tableDescription.getLocalSecondaryIndexes() != null)
+      if (tableDescription.localSecondaryIndexes() != null)
       {
-         for (LocalSecondaryIndexDescription indexDesc : tableDescription.getLocalSecondaryIndexes())
+         for (LocalSecondaryIndexDescription indexDesc : tableDescription.localSecondaryIndexes())
          {
-            addTableIndex(LOCAL_SECONDARY_TYPE, indexDesc.getIndexName(), indexDesc.getKeySchema(), table);
+            addTableIndex(LOCAL_SECONDARY_TYPE, indexDesc.indexName(), indexDesc.keySchema(), table);
          }
       }
 
@@ -278,18 +285,18 @@ public class DynamoDb extends Db
       for (KeySchemaElement keyInfo : keySchemaList)
       {
          Column column = table.getColumns().stream()//
-                              .filter(c -> c.getName().equals(keyInfo.getAttributeName()))//
+                              .filter(c -> c.getName().equals(keyInfo.attributeName()))//
                               .findFirst().orElse(null);
          index.addColumn(column);
 
-         if (keyInfo.getKeyType().equalsIgnoreCase("HASH"))
+         if (keyInfo.keyTypeAsString().equalsIgnoreCase("HASH"))
          {
-            index.setPartitionKey(keyInfo.getAttributeName());
+            index.setPartitionKey(keyInfo.attributeName());
          }
 
-         else if (keyInfo.getKeyType().equalsIgnoreCase("RANGE"))
+         else if (keyInfo.keyTypeAsString().equalsIgnoreCase("RANGE"))
          {
-            index.setSortKey(keyInfo.getAttributeName());
+            index.setSortKey(keyInfo.attributeName());
          }
       }
 
@@ -338,44 +345,31 @@ public class DynamoDb extends Db
       return entity;
    }
 
-   //   public AmazonDynamoDB getDynamoClient()
-   //   {
-   //      if (this.dynamoClient == null)
-   //      {
-   //         if (J.empty(awsRegion))
-   //         {
-   //            this.dynamoClient = AmazonDynamoDBClientBuilder.defaultClient();
-   //         }
-   //         else
-   //         {
-   //            this.dynamoClient = AmazonDynamoDBClientBuilder.standard().withRegion(awsRegion).build();
-   //         }
-   //      }
-   //
-   //      return dynamoClient;
-   //   }
-
-   public AmazonDynamoDB getDynamoClient()
+   public DynamoDbClient getDynamoClient()
    {
+      if (dynamoClient != null)
+      {
+         return dynamoClient;
+      }
 
-      AmazonDynamoDBClientBuilder builder = AmazonDynamoDBClientBuilder.standard();
+      DynamoDbClientBuilder builder = DynamoDbClient.builder();
       if (!J.empty(awsRegion))
       {
-         builder.withRegion(awsRegion);
+         builder.region(Region.of(awsRegion));
       }
       if (!J.empty(awsAccessKey) && !J.empty(awsSecretKey))
       {
-         BasicAWSCredentials creds = new BasicAWSCredentials(awsAccessKey, awsSecretKey);
-         builder.withCredentials(new AWSStaticCredentialsProvider(creds));
+         AwsBasicCredentials creds = AwsBasicCredentials.create(awsAccessKey, awsSecretKey);
+         builder.credentialsProvider(StaticCredentialsProvider.create(creds));
       }
-      AmazonDynamoDB dynamoClient = builder.build();
 
+      dynamoClient = builder.build();
       return dynamoClient;
    }
 
-   public com.amazonaws.services.dynamodbv2.document.Table getDynamoTable(String tableName)
+   public DynamoDbClient getDynamoDbClient()
    {
-      return new DynamoDB(getDynamoClient()).getTable(tableName);
+      return getDynamoClient();
    }
 
    public static DynamoIndex findIndexByName(Table table, String name)
@@ -503,54 +497,57 @@ public class DynamoDb extends Db
          switch (col.getType())
          {
             case "N":
-               return attr.getN();
+               return attr.n();
 
             case "BOOL":
-               return attr.getBOOL().toString();
+               return attr.bool().toString();
 
          }
       }
 
-      return attr.getS();
+      return attr.s();
    }
 
-   public static RangeKeyCondition predicateToRangeKeyCondition(Predicate pred, Table table)
+   public static KeyConditionFragment predicateToKeyConditionFragment(Predicate pred, Table table)
    {
       String name = pred.getTerms().get(0).getToken();
       Object val = DynamoDb.cast((String) pred.getTerms().get(1).getToken(), name, table);
 
-      RangeKeyCondition rkc = new RangeKeyCondition(name);
+      String nameKey = "#sk";
+      String valueKey = ":skval";
+      String operator;
+
       switch (pred.getToken())
       {
          case "eq":
-            rkc.eq(val);
+            operator = "=";
             break;
 
          case "gt":
-            rkc.gt(val);
+            operator = ">";
             break;
 
          case "ge":
-            rkc.ge(val);
+            operator = ">=";
             break;
 
          case "lt":
-            rkc.lt(val);
+            operator = "<";
             break;
 
          case "le":
-            rkc.le(val);
+            operator = "<=";
             break;
 
          case "sw":
-            rkc.beginsWith((String) val);
-            break;
+            return new KeyConditionFragment("begins_with(" + nameKey + ", " + valueKey + ")", nameKey, name, valueKey, val);
 
          default :
             throw new ApiException(SC.SC_400_BAD_REQUEST, "Operator '" + pred.getToken() + "' is not supported for a dynamo range key condition");
       }
 
-      return rkc;
+      String expression = nameKey + " " + operator + " " + valueKey;
+      return new KeyConditionFragment(expression, nameKey, name, valueKey, val);
    }
 
    public void setIncludeTables(String includeTables)
