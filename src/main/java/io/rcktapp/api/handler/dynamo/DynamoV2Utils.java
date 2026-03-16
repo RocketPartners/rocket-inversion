@@ -9,6 +9,9 @@ import software.amazon.awssdk.services.dynamodb.model.AttributeValue;
 
 public class DynamoV2Utils {
 
+   private DynamoV2Utils() {
+      /* This utility class should not be instantiated */
+   }
 
    public static AttributeValue toAttributeValue(Object value)
    {
