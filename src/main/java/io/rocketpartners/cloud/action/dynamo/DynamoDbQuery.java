@@ -157,7 +157,7 @@ public class DynamoDbQuery extends Query<DynamoDbQuery, DynamoDb, Table, Select<
          String sortKeyCol = sortKey.getToken(0);
          Object sortKeyVal = db.cast(table.getColumn(sortKeyCol).getType(), sortKey.getToken(1));
 
-         Chain.debug("DynamoDb GetItemRequest partKeyCol=" + partKeyCol + " partKeyVal=" + partKeyVal + " sortKeyCol=" + sortKeyCol + " sortKeyVal=" + sortKeyVal);
+         Chain.debug("DynamoDb  GetItemSpec partKeyCol=" + partKeyCol + " partKeyVal=" + partKeyVal + " sortKeyCol=" + sortKeyCol + " sortKeyVal=" + sortKeyVal);
 
          Map<String, AttributeValue> keyMap = new HashMap<>();
          keyMap.put(partKeyCol, DynamoV2Utils.toAttributeValue(partKeyVal));
@@ -195,7 +195,7 @@ public class DynamoDbQuery extends Query<DynamoDbQuery, DynamoDb, Table, Select<
 
       boolean doQuery = partKey != null && partKey.getTerm(1).isLeaf();
 
-      StringBuffer debug = new StringBuffer("DynamoDb ").append(doQuery ? "QueryRequest" : "ScanRequest").append(index != null ? ":'" + index.getName() + "'" : "");
+      StringBuffer debug = new StringBuffer("DynamoDb  ").append(doQuery ? "QuerySpec" : "ScanSpec").append(index != null ? ":'" + index.getName() + "'" : "");
 
       int pageSize = page().getPageSize();
       debug.append(" maxPageSize=" + pageSize);
@@ -282,17 +282,38 @@ public class DynamoDbQuery extends Query<DynamoDbQuery, DynamoDb, Table, Select<
             queryBuilder.expressionAttributeValues(expressionAttributeValues);
          }
 
-         QueryResponse queryResponse = dynamoClient.query(queryBuilder.build());
+         // Client-side pagination loop to match v1 Document API maxResultSize behavior.
+         // SDK v2 limit only caps items evaluated per call, not total results returned.
+         Map<String, AttributeValue> lastEvaluatedKey = null;
+         int totalCollected = 0;
 
-         if (queryResponse.hasItems())
+         do
          {
-            for (Map<String, AttributeValue> item : queryResponse.items())
+            QueryResponse queryResponse = dynamoClient.query(queryBuilder.build());
+
+            if (queryResponse.hasItems())
             {
-               result.withRow(DynamoV2Utils.fromItemMap(item));
+               for (Map<String, AttributeValue> item : queryResponse.items())
+               {
+                  result.withRow(DynamoV2Utils.fromItemMap(item));
+                  totalCollected++;
+               }
+            }
+
+            lastEvaluatedKey = queryResponse.lastEvaluatedKey();
+
+            if (lastEvaluatedKey != null && !lastEvaluatedKey.isEmpty() && totalCollected < pageSize)
+            {
+               queryBuilder.exclusiveStartKey(lastEvaluatedKey);
+            }
+            else
+            {
+               break;
             }
          }
+         while (true);
 
-         result.withNext(after(index, queryResponse.lastEvaluatedKey()));
+         result.withNext(after(index, lastEvaluatedKey));
       }
       else
       {
@@ -300,10 +321,14 @@ public class DynamoDbQuery extends Query<DynamoDbQuery, DynamoDb, Table, Select<
             .tableName(tableName)
             .limit(pageSize);
 
+         if (index != null && !index.isPrimaryIndex())
+         {
+            scanBuilder.indexName(index.getName());
+         }
+
          Term after = page().getAfter();
          if (after != null)
          {
-            DynamoDbIndex primaryIndex = (DynamoDbIndex) table().getPrimaryIndex();
             Column afterHashKeyCol = table().getColumn(after.getToken(0));
             Column afterSortKeyCol = after.size() > 2 ? table().getColumn(after.getToken(2)) : null;
 
@@ -341,17 +366,37 @@ public class DynamoDbQuery extends Query<DynamoDbQuery, DynamoDb, Table, Select<
             scanBuilder.expressionAttributeValues(expressionAttributeValues);
          }
 
-         ScanResponse scanResponse = dynamoClient.scan(scanBuilder.build());
+         // Client-side pagination loop to match v1 Document API maxResultSize behavior.
+         Map<String, AttributeValue> lastEvaluatedKey = null;
+         int totalCollected = 0;
 
-         if (scanResponse.hasItems())
+         do
          {
-            for (Map<String, AttributeValue> item : scanResponse.items())
+            ScanResponse scanResponse = dynamoClient.scan(scanBuilder.build());
+
+            if (scanResponse.hasItems())
             {
-               result.withRow(DynamoV2Utils.fromItemMap(item));
+               for (Map<String, AttributeValue> item : scanResponse.items())
+               {
+                  result.withRow(DynamoV2Utils.fromItemMap(item));
+                  totalCollected++;
+               }
+            }
+
+            lastEvaluatedKey = scanResponse.lastEvaluatedKey();
+
+            if (lastEvaluatedKey != null && !lastEvaluatedKey.isEmpty() && totalCollected < pageSize)
+            {
+               scanBuilder.exclusiveStartKey(lastEvaluatedKey);
+            }
+            else
+            {
+               break;
             }
          }
+         while (true);
 
-         result.withNext(after(index, scanResponse.lastEvaluatedKey()));
+         result.withNext(after(index, lastEvaluatedKey));
       }
 
       return result;
@@ -388,28 +433,21 @@ public class DynamoDbQuery extends Query<DynamoDbQuery, DynamoDb, Table, Select<
 
    protected Object getValue(AttributeValue v)
    {
-      if (v.s() != null)
-         return v.s();
-      if (v.n() != null)
-         return v.n();
-      if (v.b() != null)
-         return v.b();
-      if (v.hasSs())
-         return v.ss();
-      if (v.hasNs())
-         return v.ns();
-      if (v.hasBs())
-         return v.bs();
-      if (v.hasM())
-         return v.m();
-      if (v.hasL())
-         return v.l();
-      if (v.nul() != null)
-         return v.nul();
-      if (v.bool() != null)
-         return v.bool();
-
-      throw new ApiException(SC.SC_500_INTERNAL_SERVER_ERROR, "Unable to get value from AttributeValue: " + v);
+      switch (v.type())
+      {
+         case S:    return v.s();
+         case N:    return v.n();
+         case B:    return v.b();
+         case SS:   return v.ss();
+         case NS:   return v.ns();
+         case BS:   return v.bs();
+         case M:    return v.m();
+         case L:    return v.l();
+         case NUL:  return v.nul();
+         case BOOL: return v.bool();
+         default:
+            throw new ApiException(SC.SC_500_INTERNAL_SERVER_ERROR, "Unable to get value from AttributeValue: " + v);
+      }
    }
 
    /**
