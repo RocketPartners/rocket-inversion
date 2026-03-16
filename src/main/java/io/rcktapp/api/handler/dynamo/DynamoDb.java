@@ -36,6 +36,7 @@ import io.rcktapp.api.Table;
 import io.rcktapp.rql.Parser;
 import io.rcktapp.rql.Predicate;
 import io.rcktapp.rql.dynamo.DynamoRql;
+import lombok.extern.slf4j.Slf4j;
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
 import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
 import software.amazon.awssdk.regions.Region;
@@ -52,6 +53,7 @@ import software.amazon.awssdk.services.dynamodb.model.ScanRequest;
 import software.amazon.awssdk.services.dynamodb.model.ScanResponse;
 import software.amazon.awssdk.services.dynamodb.model.TableDescription;
 
+@Slf4j
 public class DynamoDb extends Db
 {
    public static final String PRIMARY_INDEX         = "Primary Index";
