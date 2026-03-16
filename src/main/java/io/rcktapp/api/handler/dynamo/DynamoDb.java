@@ -352,7 +352,7 @@ public class DynamoDb extends Db
          return dynamoClient;
       }
 
-     DynamoDbClientBuilder builder = DynamoDbClient.builder();
+      DynamoDbClientBuilder builder = DynamoDbClient.builder();
       if (!J.empty(awsRegion))
       {
          builder.region(Region.of(awsRegion));
@@ -370,6 +370,16 @@ public class DynamoDb extends Db
    public DynamoDbClient getDynamoDbClient()
    {
       return getDynamoClient();
+   }
+
+   @Override
+   public void shutdown()
+   {
+      if (dynamoClient != null)
+      {
+         dynamoClient.close();
+         dynamoClient = null;
+      }
    }
 
    public static DynamoIndex findIndexByName(Table table, String name)
