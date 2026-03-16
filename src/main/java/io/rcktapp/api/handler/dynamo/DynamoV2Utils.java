@@ -79,40 +79,32 @@ public class DynamoV2Utils {
 
    private static Object fromAttributeValue(AttributeValue av)
    {
-      if (av.s() != null)
+      switch (av.type())
       {
-         return av.s();
+         case S:
+            return av.s();
+         case N:
+            try
+            {
+               return Long.parseLong(av.n());
+            }
+            catch (NumberFormatException e)
+            {
+               return Double.parseDouble(av.n());
+            }
+         case BOOL:
+            return av.bool();
+         case NUL:
+            return null;
+         case L:
+            return av.l().stream()
+                     .map(DynamoV2Utils::fromAttributeValue)
+                     .collect(Collectors.toList());
+         case M:
+            return fromItemMap(av.m());
+         default:
+            return null;
       }
-      if (av.n() != null)
-      {
-         try
-         {
-            return Long.parseLong(av.n());
-         }
-         catch (NumberFormatException e)
-         {
-            return Double.parseDouble(av.n());
-         }
-      }
-      if (av.bool() != null)
-      {
-         return av.bool();
-      }
-      if (Boolean.TRUE.equals(av.nul()))
-      {
-         return null;
-      }
-      if (av.hasL())
-      {
-         return av.l().stream()
-                  .map(DynamoV2Utils::fromAttributeValue)
-                  .collect(Collectors.toList());
-      }
-      if (av.hasM())
-      {
-         return fromItemMap(av.m());
-      }
-      return null;
    }
 
 }
