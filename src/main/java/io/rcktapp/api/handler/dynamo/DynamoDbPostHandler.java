@@ -92,7 +92,7 @@ public class DynamoDbPostHandler extends DynamoDbHandler
          putMapToDynamo((Map) payloadObj, dynamoClient, tableName, pk, tenantIdOrCode, req.getApi().isMultiTenant(), appendTenantIdToPk, conditionalWriteConf);
       }
 
-      res.setStatus(SC.SC_200_OK);
+      res.setStatus(SC.SC_201_CREATED);
 
    }
 

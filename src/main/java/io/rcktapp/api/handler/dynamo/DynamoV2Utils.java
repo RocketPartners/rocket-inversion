@@ -52,10 +52,7 @@ public class DynamoV2Utils {
       Map<String, AttributeValue> item = new HashMap<>();
       for (Map.Entry<String, Object> entry : map.entrySet())
       {
-         if (entry.getValue() != null)
-         {
-            item.put(entry.getKey(), toAttributeValue(entry.getValue()));
-         }
+         item.put(entry.getKey(), toAttributeValue(entry.getValue()));
       }
       return item;
    }
@@ -105,6 +102,19 @@ public class DynamoV2Utils {
                      .collect(Collectors.toList());
          case M:
             return fromItemMap(av.m());
+         case SS:
+            return new java.util.ArrayList<>(av.ss());
+         case NS:
+            return av.ns().stream()
+                     .map(n -> {
+                        try { return (Object) Long.parseLong(n); }
+                        catch (NumberFormatException e) { return (Object) Double.parseDouble(n); }
+                     })
+                     .collect(Collectors.toList());
+         case BS:
+            return new java.util.ArrayList<>(av.bs());
+         case B:
+            return av.b();
          default:
             return null;
       }

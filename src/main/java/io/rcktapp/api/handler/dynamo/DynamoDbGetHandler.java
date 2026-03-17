@@ -318,6 +318,8 @@ public class DynamoDbGetHandler extends DynamoDbHandler
          {
             for (Map<String, AttributeValue> item : queryResponse.items())
             {
+               if (totalCollected >= pageSize)
+                  break;
                items.add(DynamoV2Utils.fromItemMap(item));
                totalCollected++;
             }
@@ -328,7 +330,8 @@ public class DynamoDbGetHandler extends DynamoDbHandler
 
          if (lastKey != null && totalCollected < pageSize)
          {
-            queryBuilder.exclusiveStartKey(lastKey);
+            queryBuilder.exclusiveStartKey(lastKey)
+                        .limit(pageSize - totalCollected);
          }
          else
          {
@@ -391,6 +394,8 @@ public class DynamoDbGetHandler extends DynamoDbHandler
          {
             for (Map<String, AttributeValue> item : scanResponse.items())
             {
+               if (totalCollected >= pageSize)
+                  break;
                items.add(DynamoV2Utils.fromItemMap(item));
                totalCollected++;
             }
@@ -401,7 +406,8 @@ public class DynamoDbGetHandler extends DynamoDbHandler
 
          if (lastKey != null && totalCollected < pageSize)
          {
-            scanBuilder.exclusiveStartKey(lastKey);
+            scanBuilder.exclusiveStartKey(lastKey)
+                       .limit(pageSize - totalCollected);
          }
          else
          {
