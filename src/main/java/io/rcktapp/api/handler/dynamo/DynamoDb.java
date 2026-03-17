@@ -374,6 +374,16 @@ public class DynamoDb extends Db
       return getDynamoClient();
    }
 
+   @Override
+   public void shutdown()
+   {
+      if (dynamoClient != null)
+      {
+         dynamoClient.close();
+         dynamoClient = null;
+      }
+   }
+
    public static DynamoIndex findIndexByName(Table table, String name)
    {
       if (table != null && table.getIndexes() != null)

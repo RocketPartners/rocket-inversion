@@ -132,7 +132,7 @@ public class DynamoDbGetHandler extends DynamoDbHandler
             exclusiveStartKey.put(sk, DynamoV2Utils.toAttributeValue(castVal));
          }
 
-         if (sArr.length > 2 && order != null && !sk.equals(order.col))
+         if (sArr.length > 2 && order != null && !order.col.equals(sk))
          {
             Object castVal = DynamoDb.cast(sArr[2], order.col, table);
             exclusiveStartKey.put(order.col, DynamoV2Utils.toAttributeValue(castVal));
