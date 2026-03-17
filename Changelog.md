@@ -1,4 +1,5 @@
 ## Unreleased
+- LIFT-1805: AWS DydnamoDB SDK V2 Upgrade
 
 ## [0.3.23 - 02/27/26]
 - LIFT-1804: aws s3 sdk v2
