@@ -333,6 +333,16 @@ public class DynamoDb extends Db<DynamoDb>
       return dynamoClient;
    }
 
+   @Override
+   protected void shutdown0()
+   {
+      if (dynamoClient != null)
+      {
+         dynamoClient.close();
+         dynamoClient = null;
+      }
+   }
+
    public DynamoDb withIncludeTables(String includeTables)
    {
       this.includeTables = includeTables;
