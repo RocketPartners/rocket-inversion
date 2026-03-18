@@ -100,7 +100,7 @@ public class DynamoDb extends Db
    @Override
    public void bootstrapApi() throws Exception
    {
-      this.dynamoClient = getDynamoClient();
+      this.dynamoClient = getDynamoDbClient();
 
       this.setType("dynamo");
 
@@ -345,8 +345,8 @@ public class DynamoDb extends Db
       return entity;
    }
 
-   public DynamoDbClient getDynamoClient()
-   {
+   public DynamoDbClient getDynamoDbClient() {
+
       if (dynamoClient != null)
       {
          return dynamoClient;
@@ -365,11 +365,6 @@ public class DynamoDb extends Db
 
       dynamoClient = builder.build();
       return dynamoClient;
-   }
-
-   public DynamoDbClient getDynamoDbClient()
-   {
-      return getDynamoClient();
    }
 
    @Override
