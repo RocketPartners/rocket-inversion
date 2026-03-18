@@ -8,6 +8,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 import io.rocketpartners.cloud.action.dynamo.DynamoDb.DynamoDbIndex;
 import io.rocketpartners.cloud.model.ApiException;
@@ -282,36 +283,17 @@ public class DynamoDbQuery extends Query<DynamoDbQuery, DynamoDb, Table, Select<
             queryBuilder.expressionAttributeValues(expressionAttributeValues);
          }
 
-         // Client-side pagination loop to match v1 Document API maxResultSize behavior.
-         // SDK v2 limit only caps items evaluated per call, not total results returned.
-         Map<String, AttributeValue> lastEvaluatedKey = null;
-         int totalCollected = 0;
+         QueryResponse queryResponse = dynamoClient.query(queryBuilder.build());
 
-         do
+         if (queryResponse.hasItems())
          {
-            QueryResponse queryResponse = dynamoClient.query(queryBuilder.build());
-
-            if (queryResponse.hasItems())
-            {
-               for (Map<String, AttributeValue> item : queryResponse.items())
-               {
-                  result.withRow(DynamoV2Utils.fromItemMap(item));
-                  totalCollected++;
-               }
-            }
-
-            lastEvaluatedKey = queryResponse.lastEvaluatedKey();
-
-            if (lastEvaluatedKey != null && !lastEvaluatedKey.isEmpty() && totalCollected < pageSize)
-            {
-               queryBuilder.exclusiveStartKey(lastEvaluatedKey);
-            }
-            else
-            {
-               break;
-            }
+            result.withRows(queryResponse.items().stream()
+               .map(DynamoV2Utils::fromItemMap)
+               .collect(Collectors.toList()));
          }
-         while (true);
+
+         Map<String, AttributeValue> lastEvaluatedKey = (queryResponse.lastEvaluatedKey() != null && !queryResponse.lastEvaluatedKey().isEmpty())
+            ? queryResponse.lastEvaluatedKey() : null;
 
          result.withNext(after(index, lastEvaluatedKey));
       }
@@ -366,35 +348,17 @@ public class DynamoDbQuery extends Query<DynamoDbQuery, DynamoDb, Table, Select<
             scanBuilder.expressionAttributeValues(expressionAttributeValues);
          }
 
-         // Client-side pagination loop to match v1 Document API maxResultSize behavior.
-         Map<String, AttributeValue> lastEvaluatedKey = null;
-         int totalCollected = 0;
+         ScanResponse scanResponse = dynamoClient.scan(scanBuilder.build());
 
-         do
+         if (scanResponse.hasItems())
          {
-            ScanResponse scanResponse = dynamoClient.scan(scanBuilder.build());
-
-            if (scanResponse.hasItems())
-            {
-               for (Map<String, AttributeValue> item : scanResponse.items())
-               {
-                  result.withRow(DynamoV2Utils.fromItemMap(item));
-                  totalCollected++;
-               }
-            }
-
-            lastEvaluatedKey = scanResponse.lastEvaluatedKey();
-
-            if (lastEvaluatedKey != null && !lastEvaluatedKey.isEmpty() && totalCollected < pageSize)
-            {
-               scanBuilder.exclusiveStartKey(lastEvaluatedKey);
-            }
-            else
-            {
-               break;
-            }
+            result.withRows(scanResponse.items().stream()
+               .map(DynamoV2Utils::fromItemMap)
+               .collect(Collectors.toList()));
          }
-         while (true);
+
+         Map<String, AttributeValue> lastEvaluatedKey = (scanResponse.lastEvaluatedKey() != null && !scanResponse.lastEvaluatedKey().isEmpty())
+            ? scanResponse.lastEvaluatedKey() : null;
 
          result.withNext(after(index, lastEvaluatedKey));
       }
