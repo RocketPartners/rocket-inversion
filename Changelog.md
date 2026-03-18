@@ -1,7 +1,7 @@
 ## Unreleased
 
 ## [0.4.6 - 03/17/26]
-- LIFT-1805: AWS DynaomDB SDK V2 upgrade
+- LIFT-1805: AWS DynamoDB SDK V2 upgrade
 
 ## [0.4.5 - 02/27/26]
 - LIFT-1804: aws s3 sdk v2

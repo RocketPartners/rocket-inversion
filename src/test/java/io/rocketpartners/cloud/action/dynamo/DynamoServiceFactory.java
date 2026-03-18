@@ -202,22 +202,21 @@ public class DynamoServiceFactory
 
    public static boolean tableExists(String tableName) throws Exception
    {
-      DynamoDbClient client = DynamoDb.buildDynamoClient(tableName);
-      try
-      {
-         client.describeTable(DescribeTableRequest.builder().tableName(tableName).build());
-         return true;
-      }
-      catch (ResourceNotFoundException e)
-      {
-         return false;
+      try (DynamoDbClient client = DynamoDb.buildDynamoClient(tableName)) {
+         try {
+            client.describeTable(DescribeTableRequest.builder().tableName(tableName).build());
+            return true;
+         } catch (ResourceNotFoundException e) {
+            return false;
+         }
       }
    }
 
    public static void deleteTable(String tableName) throws Exception
    {
-      DynamoDbClient client = DynamoDb.buildDynamoClient(tableName);
-      client.deleteTable(DeleteTableRequest.builder().tableName(tableName).build());
+      try(DynamoDbClient client = DynamoDb.buildDynamoClient(tableName)) {
+         client.deleteTable(DeleteTableRequest.builder().tableName(tableName).build());
+      }
    }
 
    public static void createNorthwind() throws Exception
@@ -275,25 +274,26 @@ public class DynamoServiceFactory
             KeySchemaElement.builder().attributeName("hk").keyType(KeyType.RANGE).build())
             .projection(allProjection).provisionedThroughput(gsiThroughput).build());
 
-      DynamoDbClient client = DynamoDb.buildDynamoClient("northwind");
+      try(DynamoDbClient client = DynamoDb.buildDynamoClient("northwind")) {
 
-      CreateTableRequest request = CreateTableRequest.builder()
-            .globalSecondaryIndexes(gsxs)
-            .localSecondaryIndexes(lsxs)
-            .tableName("test-northwind")
-            .keySchema(keys)
-            .attributeDefinitions(attrs)
-            .provisionedThroughput(ProvisionedThroughput.builder()
-               .readCapacityUnits(5L)
-               .writeCapacityUnits(5L)
-               .build())
-            .build();
+         CreateTableRequest request = CreateTableRequest.builder()
+                 .globalSecondaryIndexes(gsxs)
+                 .localSecondaryIndexes(lsxs)
+                 .tableName("test-northwind")
+                 .keySchema(keys)
+                 .attributeDefinitions(attrs)
+                 .provisionedThroughput(ProvisionedThroughput.builder()
+                         .readCapacityUnits(5L)
+                         .writeCapacityUnits(5L)
+                         .build())
+                 .build();
 
-      client.createTable(request);
 
-      try (DynamoDbWaiter waiter = DynamoDbWaiter.builder().client(client).build())
-      {
-         waiter.waitUntilTableExists(DescribeTableRequest.builder().tableName("test-northwind").build());
+         client.createTable(request);
+
+         try (DynamoDbWaiter waiter = DynamoDbWaiter.builder().client(client).build()) {
+            waiter.waitUntilTableExists(DescribeTableRequest.builder().tableName("test-northwind").build());
+         }
       }
    }
 
