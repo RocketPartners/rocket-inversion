@@ -304,41 +304,18 @@ public class DynamoDbGetHandler extends DynamoDbHandler
          }
       }
 
-      // Client-side pagination loop to match v1 Document API maxResultSize behavior.
-      // SDK v2 limit only caps items evaluated per call, not total results returned.
+      QueryResponse queryResponse = dynamoClient.query(queryBuilder.build());
+
       List<Map> items = new ArrayList<>();
-      Map<String, AttributeValue> lastKey = null;
-      int totalCollected = 0;
-
-      do
+      if (queryResponse.hasItems())
       {
-         QueryResponse queryResponse = dynamoClient.query(queryBuilder.build());
-
-         if (queryResponse.hasItems())
-         {
-            for (Map<String, AttributeValue> item : queryResponse.items())
-            {
-               if (totalCollected >= pageSize)
-                  break;
-               items.add(DynamoV2Utils.fromItemMap(item));
-               totalCollected++;
-            }
-         }
-
-         lastKey = (queryResponse.lastEvaluatedKey() != null && !queryResponse.lastEvaluatedKey().isEmpty())
-            ? queryResponse.lastEvaluatedKey() : null;
-
-         if (lastKey != null && totalCollected < pageSize)
-         {
-            queryBuilder.exclusiveStartKey(lastKey)
-                        .limit(pageSize - totalCollected);
-         }
-         else
-         {
-            break;
-         }
+         items.addAll(queryResponse.items().stream()
+            .map(DynamoV2Utils::fromItemMap)
+            .collect(Collectors.toList()));
       }
-      while (true);
+
+      Map<String, AttributeValue> lastKey = (queryResponse.lastEvaluatedKey() != null && !queryResponse.lastEvaluatedKey().isEmpty())
+         ? queryResponse.lastEvaluatedKey() : null;
 
       return new DynamoResult(items, lastKey);
 
@@ -381,40 +358,18 @@ public class DynamoDbGetHandler extends DynamoDbHandler
          scanBuilder.exclusiveStartKey(exclusiveStartKey);
       }
 
-      // Client-side pagination loop to match v1 Document API maxResultSize behavior.
+      ScanResponse scanResponse = dynamoClient.scan(scanBuilder.build());
+
       List<Map> items = new ArrayList<>();
-      Map<String, AttributeValue> lastKey = null;
-      int totalCollected = 0;
-
-      do
+      if (scanResponse.hasItems())
       {
-         ScanResponse scanResponse = dynamoClient.scan(scanBuilder.build());
-
-         if (scanResponse.hasItems())
-         {
-            for (Map<String, AttributeValue> item : scanResponse.items())
-            {
-               if (totalCollected >= pageSize)
-                  break;
-               items.add(DynamoV2Utils.fromItemMap(item));
-               totalCollected++;
-            }
-         }
-
-         lastKey = (scanResponse.lastEvaluatedKey() != null && !scanResponse.lastEvaluatedKey().isEmpty())
-            ? scanResponse.lastEvaluatedKey() : null;
-
-         if (lastKey != null && totalCollected < pageSize)
-         {
-            scanBuilder.exclusiveStartKey(lastKey)
-                       .limit(pageSize - totalCollected);
-         }
-         else
-         {
-            break;
-         }
+         items.addAll(scanResponse.items().stream()
+            .map(DynamoV2Utils::fromItemMap)
+            .collect(Collectors.toList()));
       }
-      while (true);
+
+      Map<String, AttributeValue> lastKey = (scanResponse.lastEvaluatedKey() != null && !scanResponse.lastEvaluatedKey().isEmpty())
+         ? scanResponse.lastEvaluatedKey() : null;
 
       return new DynamoResult(items, lastKey);
 
