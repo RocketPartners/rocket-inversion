@@ -26,9 +26,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
-
-import com.mchange.v2.c3p0.ComboPooledDataSource;
 import com.zaxxer.hikari.HikariConfig;
+import com.zaxxer.hikari.HikariDataSource;
 import org.apache.commons.lang3.StringUtils;
 import org.atteo.evo.inflector.English;
 
@@ -60,21 +59,22 @@ public class SqlDb extends Db
       }
    }
 
-   public static final int MIN_POOL_SIZE            = 5;
-   public static final int MAX_POOL_SIZE            = 10;
-
-   boolean                 shutdown                 = false;
-
+   public static final int MIN_POOL_SIZE = 5;
+   public static final int MAX_POOL_SIZE = 10;
+   protected String driver = null;
+   protected String url = null;
+   protected String user = null;
+   protected String pass = null;
+   protected int poolMin = MIN_POOL_SIZE;
+   protected int poolMax = MAX_POOL_SIZE;
+   protected int idleConnectionTestPeriod = 3600; // in seconds
+   protected int maxIdleTimeExcessConnections = 0;
+   protected Long connectionTimeout;
+   protected Long idleTimeout;
+   protected Long maxLifetime;
+   boolean shutdown = false;
    DataSource pool = null;
 
-   protected String        driver                   = null;
-   protected String        url                      = null;
-   protected String        user                     = null;
-   protected String        pass                     = null;
-   protected int           poolMin                  = MIN_POOL_SIZE;
-   protected int           poolMax                  = MAX_POOL_SIZE;
-   protected int           idleConnectionTestPeriod = 3600; // in seconds
-   protected int           maxIdleTimeExcessConnections = 0;
    protected boolean useIamAuth = false;
 
    // set this to false to turn off row total calculation
@@ -102,14 +102,15 @@ public class SqlDb extends Db
       return null;
    }
 
+   @Override
    public void shutdown()
    {
       shutdown = true;
 
       synchronized (this)
       {
-         if (pool instanceof ComboPooledDataSource) {
-            ((ComboPooledDataSource) pool).close();
+         if(pool instanceof HikariDataSource hikariDataSource){
+            hikariDataSource.close();
          }
       }
    }
@@ -136,6 +137,7 @@ public class SqlDb extends Db
             conn.setAutoCommit(false);
 
             ConnectionLocal.putConnection(this, conn);
+
          }
 
          return conn;
@@ -165,21 +167,25 @@ public class SqlDb extends Db
       return new RdsIamDataSource(config);
    }
 
-   private DataSource buildUsernameAndPasswordDataSource() throws PropertyVetoException {
-      ComboPooledDataSource dataSource = new ComboPooledDataSource();
-      dataSource.setDriverClass(getDriver());
-      dataSource.setJdbcUrl(getUrl());
-      dataSource.setUser(getUser());
-      dataSource.setPassword(getPass());
-      dataSource.setInitialPoolSize(getPoolMin());
-      dataSource.setMinPoolSize(getPoolMin());
-      dataSource.setMaxPoolSize(getPoolMax());
-      dataSource.setIdleConnectionTestPeriod(getIdleConnectionTestPeriod());
-      if(maxIdleTimeExcessConnections > 0){
-         dataSource.setMaxIdleTimeExcessConnections(getMaxIdleTimeExcessConnections());
+   private HikariDataSource buildUsernameAndPasswordDataSource() throws PropertyVetoException {
+     HikariConfig config = new HikariConfig();
+     config.setDriverClassName(getDriver());
+     config.setJdbcUrl(getUrl());
+     config.setUsername(getUser());
+     config.setPassword(getPass());
+     config.setMaximumPoolSize(Math.min(getPoolMax(), MAX_POOL_SIZE));
+     applyOptionalConfig(config);
 
-      }
-      return dataSource;
+      return new HikariDataSource(config);
+   }
+
+   private void applyOptionalConfig(HikariConfig config) {
+      if (connectionTimeout != null)
+         config.setConnectionTimeout(connectionTimeout);
+      if (idleTimeout != null)
+         config.setIdleTimeout(idleTimeout);
+      if (maxLifetime != null)
+         config.setMaxLifetime(maxLifetime);
    }
 
    public static class ConnectionLocal
