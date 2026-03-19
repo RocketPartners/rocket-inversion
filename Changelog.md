@@ -2,6 +2,7 @@
 
 ## [0.3.24 - 03/17/26]
 - LIFT-1805: AWS DydnamoDB SDK V2 Upgrade
+- LIFT-1804: fix etag capitalization from s3 sdk v2 upgrade
 
 ## [0.3.23 - 02/27/26]
 - LIFT-1804: aws s3 sdk v2
