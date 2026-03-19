@@ -158,6 +158,7 @@ public class SqlDb extends Db
          config.addDataSourceProperty("targetDataSourceProperties", targetDataSourceProps);
          return new RdsIamDataSource(config);
       } else {
+         config.setPassword(getPass());
          return new HikariDataSource(config);
       }
    }
