@@ -149,34 +149,22 @@ public class SqlDb extends Db
       }
    }
 
-   public DataSource getDataSource() throws PropertyVetoException {
-      return useIamAuth ? buildIamAuthDataSource() : buildUsernameAndPasswordDataSource();
-   }
-
-   private DataSource buildIamAuthDataSource() {
+   public DataSource getDataSource() {
       HikariConfig config = new HikariConfig();
       config.setDriverClassName(getDriver());
       config.setJdbcUrl(getUrl());
       config.setUsername(getUser());
       config.setMaximumPoolSize(Math.min(getPoolMax(), MAX_POOL_SIZE));
+      applyOptionalConfig(config);
 
-      Properties targetDataSourceProps = new Properties();
-      targetDataSourceProps.setProperty("wrapperPlugins", "iam");
-      config.addDataSourceProperty("targetDataSourceProperties", targetDataSourceProps);
-
-      return new RdsIamDataSource(config);
-   }
-
-   private HikariDataSource buildUsernameAndPasswordDataSource() throws PropertyVetoException {
-     HikariConfig config = new HikariConfig();
-     config.setDriverClassName(getDriver());
-     config.setJdbcUrl(getUrl());
-     config.setUsername(getUser());
-     config.setPassword(getPass());
-     config.setMaximumPoolSize(Math.min(getPoolMax(), MAX_POOL_SIZE));
-     applyOptionalConfig(config);
-
-      return new HikariDataSource(config);
+      if(useIamAuth) {
+         Properties targetDataSourceProps = new Properties();
+         targetDataSourceProps.setProperty("wrapperPlugins", "iam");
+         config.addDataSourceProperty("targetDataSourceProperties", targetDataSourceProps);
+         return new RdsIamDataSource(config);
+      } else {
+         return new HikariDataSource(config);
+      }
    }
 
    private void applyOptionalConfig(HikariConfig config) {
