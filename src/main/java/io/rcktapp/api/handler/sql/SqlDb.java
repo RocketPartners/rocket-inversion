@@ -15,7 +15,6 @@
  */
 package io.rcktapp.api.handler.sql;
 
-import java.beans.PropertyVetoException;
 import java.lang.reflect.Field;
 import java.sql.Connection;
 import java.sql.DatabaseMetaData;
@@ -59,16 +58,12 @@ public class SqlDb extends Db
       }
    }
 
-   public static final int MIN_POOL_SIZE = 5;
    public static final int MAX_POOL_SIZE = 10;
    protected String driver = null;
    protected String url = null;
    protected String user = null;
    protected String pass = null;
-   protected int poolMin = MIN_POOL_SIZE;
    protected int poolMax = MAX_POOL_SIZE;
-   protected int idleConnectionTestPeriod = 3600; // in seconds
-   protected int maxIdleTimeExcessConnections = 0;
    protected Long connectionTimeout;
    protected Long idleTimeout;
    protected Long maxLifetime;
@@ -157,7 +152,7 @@ public class SqlDb extends Db
       config.setMaximumPoolSize(Math.min(getPoolMax(), MAX_POOL_SIZE));
       applyOptionalConfig(config);
 
-      if(useIamAuth) {
+      if(isUseIamAuth()) {
          Properties targetDataSourceProps = new Properties();
          targetDataSourceProps.setProperty("wrapperPlugins", "iam");
          config.addDataSourceProperty("targetDataSourceProperties", targetDataSourceProps);
@@ -605,16 +600,6 @@ public class SqlDb extends Db
       return useIamAuth;
    }
 
-   public int getPoolMin()
-   {
-      return poolMin;
-   }
-
-   public void setPoolMin(int poolMin)
-   {
-      this.poolMin = poolMin;
-   }
-
    public int getPoolMax()
    {
       return poolMax;
@@ -623,26 +608,6 @@ public class SqlDb extends Db
    public void setPoolMax(int poolMax)
    {
       this.poolMax = poolMax;
-   }
-
-   public int getIdleConnectionTestPeriod()
-   {
-      return idleConnectionTestPeriod;
-   }
-
-   public void setIdleConnectionTestPeriod(int idleConnectionTestPeriod)
-   {
-      this.idleConnectionTestPeriod = idleConnectionTestPeriod;
-   }
-
-   public int getMaxIdleTimeExcessConnections()
-   {
-      return maxIdleTimeExcessConnections;
-   }
-
-   public void setMaxIdleTimeExcessConnections(int maxIdleTimeExcessConnections)
-   {
-      this.maxIdleTimeExcessConnections = maxIdleTimeExcessConnections;
    }
 
    public boolean isCalcRowsFound()
