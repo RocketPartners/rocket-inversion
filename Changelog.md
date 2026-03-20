@@ -1,5 +1,9 @@
 ## Unreleased
 
+## [0.3.6.13 - 03/19/26]
+- LIFT-1395: Migrate off c3p0 to HikariCP
+- LIFT-1804: fix etag capitalization from s3 sdk v2 upgrade
+
 ## [0.3.6.12 - 02/27/26]
 - LIFT-1804: aws s3 sdk v2
 

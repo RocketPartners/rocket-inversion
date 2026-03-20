@@ -244,7 +244,7 @@ public class S3DbRestHandler implements Handler
       js.put("checksumSHA1", response.checksumSHA1());
       js.put("checksumSHA256", response.checksumSHA256());
       js.put("checksumType", response.checksumType());
-      js.put("eTag", response.eTag().replace("\"", "")); // etag can be surrounded in quotes
+      js.put("etag", response.eTag().replace("\"", "")); // etag can be surrounded in quotes
       js.put("missingMeta", response.missingMeta());
       js.put("versionId", response.versionId());
       js.put("cacheControl", response.cacheControl());
