@@ -59,11 +59,13 @@ public class SqlDb extends Db
    }
 
    public static final int MAX_POOL_SIZE = 10;
+   public static final int MIN_POOL_SIZE = 5;
    protected String driver = null;
    protected String url = null;
    protected String user = null;
    protected String pass = null;
    protected int poolMax = MAX_POOL_SIZE;
+   protected int poolMin = MIN_POOL_SIZE;
    protected Long connectionTimeout;
    protected Long idleTimeout;
    protected Long maxLifetime;
@@ -150,6 +152,7 @@ public class SqlDb extends Db
       config.setJdbcUrl(getUrl());
       config.setUsername(getUser());
       config.setMaximumPoolSize(Math.min(getPoolMax(), MAX_POOL_SIZE));
+      config.setMinimumIdle(getPoolMin());
       applyOptionalConfig(config);
 
       if(isUseIamAuth()) {
@@ -609,6 +612,16 @@ public class SqlDb extends Db
    public void setPoolMax(int poolMax)
    {
       this.poolMax = poolMax;
+   }
+
+   public int getPoolMin()
+   {
+      return poolMin;
+   }
+
+   public void setPoolMin(int poolMin)
+   {
+      this.poolMin = poolMin;
    }
 
    public boolean isCalcRowsFound()
