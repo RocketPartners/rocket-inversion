@@ -22,24 +22,6 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 
-import com.amazonaws.auth.AWSStaticCredentialsProvider;
-import com.amazonaws.auth.BasicAWSCredentials;
-import com.amazonaws.services.dynamodbv2.AmazonDynamoDB;
-import com.amazonaws.services.dynamodbv2.AmazonDynamoDBClientBuilder;
-import com.amazonaws.services.dynamodbv2.document.DynamoDB;
-import com.amazonaws.services.dynamodbv2.document.Item;
-import com.amazonaws.services.dynamodbv2.document.ItemUtils;
-import com.amazonaws.services.dynamodbv2.model.AttributeDefinition;
-import com.amazonaws.services.dynamodbv2.model.AttributeValue;
-import com.amazonaws.services.dynamodbv2.model.BatchWriteItemRequest;
-import com.amazonaws.services.dynamodbv2.model.GlobalSecondaryIndexDescription;
-import com.amazonaws.services.dynamodbv2.model.KeySchemaElement;
-import com.amazonaws.services.dynamodbv2.model.LocalSecondaryIndexDescription;
-import com.amazonaws.services.dynamodbv2.model.PutRequest;
-import com.amazonaws.services.dynamodbv2.model.TableDescription;
-import com.amazonaws.services.dynamodbv2.model.WriteRequest;
-import com.oracle.truffle.js.builtins.SymbolPrototypeBuiltins.SymbolToStringNode;
-
 import io.rocketpartners.cloud.model.ApiException;
 import io.rocketpartners.cloud.model.Collection;
 import io.rocketpartners.cloud.model.Column;
@@ -53,6 +35,22 @@ import io.rocketpartners.cloud.rql.Term;
 import io.rocketpartners.cloud.service.Chain;
 import io.rocketpartners.cloud.utils.Rows.Row;
 import io.rocketpartners.cloud.utils.Utils;
+import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
+import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
+import software.amazon.awssdk.regions.Region;
+import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
+import software.amazon.awssdk.services.dynamodb.DynamoDbClientBuilder;
+import software.amazon.awssdk.services.dynamodb.model.AttributeDefinition;
+import software.amazon.awssdk.services.dynamodb.model.AttributeValue;
+import software.amazon.awssdk.services.dynamodb.model.BatchWriteItemRequest;
+import software.amazon.awssdk.services.dynamodb.model.DeleteItemRequest;
+import software.amazon.awssdk.services.dynamodb.model.DescribeTableRequest;
+import software.amazon.awssdk.services.dynamodb.model.GlobalSecondaryIndexDescription;
+import software.amazon.awssdk.services.dynamodb.model.KeySchemaElement;
+import software.amazon.awssdk.services.dynamodb.model.LocalSecondaryIndexDescription;
+import software.amazon.awssdk.services.dynamodb.model.PutRequest;
+import software.amazon.awssdk.services.dynamodb.model.TableDescription;
+import software.amazon.awssdk.services.dynamodb.model.WriteRequest;
 
 public class DynamoDb extends Db<DynamoDb>
 {
@@ -62,25 +60,25 @@ public class DynamoDb extends Db<DynamoDb>
 
    /**
     * A CSV of pipe delimited collection name to table name pairs.
-    * 
+    *
     * Example: dynamodb.tables=promo|promo-dev,loyalty-punchcard|loyalty-punchcard-dev
-    * 
+    *
     * Or if the collection name is the name as the table name you can just send a the name
-    * 
+    *
     * Example: dynamodb.includeTables=orders,users,events
     */
    protected String       includeTables;
 
    /**
     * Use to config which row is used to build the column/attribute model  (otherwise first row of scan will be used)
-    * 
+    *
     * FORMAT: collection name | primaryKey | sortKey (optional)
     */
    protected String       blueprintRow;
 
    protected int          batchMax     = 20;
 
-   private AmazonDynamoDB dynamoClient = null;
+   private DynamoDbClient dynamoClient = null;
 
    public DynamoDb()
    {
@@ -97,7 +95,7 @@ public class DynamoDb extends Db<DynamoDb>
    @Override
    public Results<Row> select(Table table, List<Term> columnMappedTerms) throws Exception
    {
-      DynamoDbQuery query = new DynamoDbQuery(table, columnMappedTerms).withDynamoTable(getDynamoTable(table));
+      DynamoDbQuery query = new DynamoDbQuery(table, columnMappedTerms).withDynamoClient(getDynamoClient(), table.getName());
       return query.doSelect();
    }
 
@@ -114,10 +112,10 @@ public class DynamoDb extends Db<DynamoDb>
    @Override
    public List<String> upsert(Table table, List<Map<String, Object>> rows) throws Exception
    {
-      AmazonDynamoDB dynamoClient = getDynamoClient();
+      DynamoDbClient dynamoClient = getDynamoClient();
       List keys = new ArrayList();
       List<WriteRequest> writeRequests = new LinkedList<WriteRequest>();
-      BatchWriteItemRequest batch = new BatchWriteItemRequest();
+
       for (int i = 0; i < rows.size(); i++)
       {
          Map<String, Object> row = rows.get(i);
@@ -134,23 +132,23 @@ public class DynamoDb extends Db<DynamoDb>
          if (i > 0 && i % batchMax == 0)
          {
             //write a batch to dynamo
-            batch.addRequestItemsEntry(table.getName(), writeRequests);
-            dynamoClient.batchWriteItem(batch);
-            batch.clearRequestItemsEntries();
+            Map<String, List<WriteRequest>> requestItems = new HashMap<>();
+            requestItems.put(table.getName(), writeRequests);
+            dynamoClient.batchWriteItem(BatchWriteItemRequest.builder().requestItems(requestItems).build());
             writeRequests.clear();
          }
-         //add to the current row to batch 
-         Map<String, AttributeValue> item = ItemUtils.fromSimpleMap(row);
+         //add to the current row to batch
+         Map<String, AttributeValue> item = DynamoV2Utils.toItemMap(row);
          Chain.debug("DynamoDb", "PutRequest", item);
-         PutRequest put = new PutRequest().withItem(item);
-         writeRequests.add(new WriteRequest(put));
+         PutRequest put = PutRequest.builder().item(item).build();
+         writeRequests.add(WriteRequest.builder().putRequest(put).build());
       }
 
       if (writeRequests.size() > 0)
       {
-         batch.addRequestItemsEntry(table.getName(), writeRequests);
-         getDynamoClient().batchWriteItem(batch);
-         batch.clearRequestItemsEntries();
+         Map<String, List<WriteRequest>> requestItems = new HashMap<>();
+         requestItems.put(table.getName(), writeRequests);
+         getDynamoClient().batchWriteItem(BatchWriteItemRequest.builder().requestItems(requestItems).build());
          writeRequests.clear();
       }
 
@@ -162,20 +160,22 @@ public class DynamoDb extends Db<DynamoDb>
    {
       Row key = table.decodeKey(entityKey);
 
-      com.amazonaws.services.dynamodbv2.document.Table dynamo = getDynamoTable(table);
+      Map<String, AttributeValue> keyMap = new HashMap<>();
+      keyMap.put(key.getKey(0), DynamoV2Utils.toAttributeValue(key.get(0)));
 
-      if (key.size() == 1)
+      if (key.size() == 2)
       {
-         dynamo.deleteItem(key.getKey(0), key.get(0));
+         keyMap.put(key.getKey(1), DynamoV2Utils.toAttributeValue(key.get(1)));
       }
-      else if (key.size() == 2)
-      {
-         dynamo.deleteItem(key.getKey(0), key.get(0), key.getKey(1), key.get(1));
-      }
-      else
+      else if (key.size() > 2)
       {
          throw new ApiException(SC.SC_400_BAD_REQUEST, "A dynamo delete must have a hash key and an optional sortKey and that is it: '" + entityKey + "'");
       }
+
+      getDynamoClient().deleteItem(DeleteItemRequest.builder()
+         .tableName(table.getName())
+         .key(keyMap)
+         .build());
    }
 
    @Override
@@ -227,47 +227,47 @@ public class DynamoDb extends Db<DynamoDb>
 
    Table buildTable(String tableName, String[] bluePrintArr)
    {
-      AmazonDynamoDB dynamoClient = getDynamoClient();
+      DynamoDbClient dynamoClient = getDynamoClient();
 
       Table table = new Table(this, tableName);
 
-      DynamoDB dynamoDB = new DynamoDB(dynamoClient);
-      com.amazonaws.services.dynamodbv2.document.Table dynamoTable = dynamoDB.getTable(tableName);
-      TableDescription tableDescription = dynamoTable.describe();
+      TableDescription tableDescription = dynamoClient.describeTable(
+         DescribeTableRequest.builder().tableName(tableName).build()
+      ).table();
 
-      for (AttributeDefinition attr : tableDescription.getAttributeDefinitions())
+      for (AttributeDefinition attr : tableDescription.attributeDefinitions())
       {
-         table.makeColumn(attr.getAttributeName(), attr.getAttributeType());
+         table.makeColumn(attr.attributeName(), attr.attributeTypeAsString());
       }
 
       DynamoDbIndex index = new DynamoDbIndex(table, DynamoDbIndex.PRIMARY_INDEX, DynamoDbIndex.PRIMARY_TYPE);
 
-      List<KeySchemaElement> keySchema = tableDescription.getKeySchema();
+      List<KeySchemaElement> keySchema = tableDescription.keySchema();
       for (KeySchemaElement keyInfo : keySchema)
       {
-         if (keyInfo.getKeyType().equalsIgnoreCase("HASH"))
+         if (keyInfo.keyTypeAsString().equalsIgnoreCase("HASH"))
          {
-            index.witHashKey(table.getColumn(keyInfo.getAttributeName()));
+            index.witHashKey(table.getColumn(keyInfo.attributeName()));
          }
-         else if (keyInfo.getKeyType().equalsIgnoreCase("RANGE"))
+         else if (keyInfo.keyTypeAsString().equalsIgnoreCase("RANGE"))
          {
-            index.withSortKey(table.getColumn(keyInfo.getAttributeName()));
-         }
-      }
-
-      if (tableDescription.getGlobalSecondaryIndexes() != null)
-      {
-         for (GlobalSecondaryIndexDescription indexDesc : tableDescription.getGlobalSecondaryIndexes())
-         {
-            addTableIndex(DynamoDbIndex.GLOBAL_SECONDARY_TYPE, indexDesc.getIndexName(), indexDesc.getKeySchema(), table);
+            index.withSortKey(table.getColumn(keyInfo.attributeName()));
          }
       }
 
-      if (tableDescription.getLocalSecondaryIndexes() != null)
+      if (tableDescription.globalSecondaryIndexes() != null)
       {
-         for (LocalSecondaryIndexDescription indexDesc : tableDescription.getLocalSecondaryIndexes())
+         for (GlobalSecondaryIndexDescription indexDesc : tableDescription.globalSecondaryIndexes())
          {
-            addTableIndex(DynamoDbIndex.LOCAL_SECONDARY_TYPE, indexDesc.getIndexName(), indexDesc.getKeySchema(), table);
+            addTableIndex(DynamoDbIndex.GLOBAL_SECONDARY_TYPE, indexDesc.indexName(), indexDesc.keySchema(), table);
+         }
+      }
+
+      if (tableDescription.localSecondaryIndexes() != null)
+      {
+         for (LocalSecondaryIndexDescription indexDesc : tableDescription.localSecondaryIndexes())
+         {
+            addTableIndex(DynamoDbIndex.LOCAL_SECONDARY_TYPE, indexDesc.indexName(), indexDesc.keySchema(), table);
          }
       }
 
@@ -299,37 +299,48 @@ public class DynamoDb extends Db<DynamoDb>
 
       for (KeySchemaElement keyInfo : keySchemaList)
       {
-         Column column = table.getColumn(keyInfo.getAttributeName());
+         Column column = table.getColumn(keyInfo.attributeName());
 
          index.withColumn(column);
 
-         if (keyInfo.getKeyType().equalsIgnoreCase("HASH"))
+         if (keyInfo.keyTypeAsString().equalsIgnoreCase("HASH"))
          {
-            index.witHashKey(table.getColumn(keyInfo.getAttributeName()));
+            index.witHashKey(table.getColumn(keyInfo.attributeName()));
          }
 
-         else if (keyInfo.getKeyType().equalsIgnoreCase("RANGE"))
+         else if (keyInfo.keyTypeAsString().equalsIgnoreCase("RANGE"))
          {
-            index.withSortKey(table.getColumn(keyInfo.getAttributeName()));
+            index.withSortKey(table.getColumn(keyInfo.attributeName()));
          }
       }
 
       table.withIndex(index);
    }
 
-   public com.amazonaws.services.dynamodbv2.document.Table getDynamoTable(Collection collection)
+   public DynamoDbClient getDynamoClient()
    {
-      return getDynamoTable(collection.getTable().getName());
+      if (this.dynamoClient == null)
+      {
+         synchronized (this)
+         {
+            if (this.dynamoClient == null)
+            {
+               this.dynamoClient = buildDynamoClient(name + ".", awsRegion, awsAccessKey, awsSecretKey);
+            }
+         }
+      }
+
+      return dynamoClient;
    }
 
-   public com.amazonaws.services.dynamodbv2.document.Table getDynamoTable(Table table)
+   @Override
+   protected void shutdown0()
    {
-      return getDynamoTable(table.getName());
-   }
-
-   public com.amazonaws.services.dynamodbv2.document.Table getDynamoTable(String tableName)
-   {
-      return new DynamoDB(getDynamoClient()).getTable(tableName);
+      if (dynamoClient != null)
+      {
+         dynamoClient.close();
+         dynamoClient = null;
+      }
    }
 
    public DynamoDb withIncludeTables(String includeTables)
@@ -370,7 +381,7 @@ public class DynamoDb extends Db<DynamoDb>
 
    /**
     * Used to keep track of Hash and Sort keys for a dynamo index.
-    * 
+    *
     * @author kfrankic
     *
     */
@@ -542,46 +553,29 @@ public class DynamoDb extends Db<DynamoDb>
       }
    }
 
-   public AmazonDynamoDB getDynamoClient()
-   {
-      if (this.dynamoClient == null)
-      {
-         synchronized (this)
-         {
-            if (this.dynamoClient == null)
-            {
-               this.dynamoClient = buildDynamoClient(name + ".", awsRegion, awsAccessKey, awsSecretKey);
-            }
-         }
-      }
-
-      return dynamoClient;
-   }
-
-   public static AmazonDynamoDB buildDynamoClient(String prefix)
+   public static DynamoDbClient buildDynamoClient(String prefix)
    {
       return buildDynamoClient(prefix, null, null, null);
    }
 
-   public static AmazonDynamoDB buildDynamoClient(String prefix, String awsRegion, String awsAccessKey, String awsSecretKey)
+   public static DynamoDbClient buildDynamoClient(String prefix, String awsRegion, String awsAccessKey, String awsSecretKey)
    {
       awsRegion = Utils.findSysEnvPropStr(prefix + ".awsRegion", awsRegion);
       awsAccessKey = Utils.findSysEnvPropStr(prefix + ".awsAccessKey", awsAccessKey);
       awsSecretKey = Utils.findSysEnvPropStr(prefix + ".awsSecretKey", awsSecretKey);
 
-      AmazonDynamoDBClientBuilder builder = AmazonDynamoDBClientBuilder.standard();
+      DynamoDbClientBuilder builder = DynamoDbClient.builder();
       if (!Utils.empty(awsRegion))
       {
-         builder.withRegion(awsRegion);
+         builder.region(Region.of(awsRegion));
       }
       if (!Utils.empty(awsAccessKey) && !Utils.empty(awsSecretKey))
       {
-         BasicAWSCredentials creds = new BasicAWSCredentials(awsAccessKey, awsSecretKey);
-         builder.withCredentials(new AWSStaticCredentialsProvider(creds));
+         AwsBasicCredentials creds = AwsBasicCredentials.create(awsAccessKey, awsSecretKey);
+         builder.credentialsProvider(StaticCredentialsProvider.create(creds));
       }
-      AmazonDynamoDB dynamoClient = builder.build();
 
-      return dynamoClient;
+      return builder.build();
    }
 
 }
