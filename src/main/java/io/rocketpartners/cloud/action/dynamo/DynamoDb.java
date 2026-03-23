@@ -78,7 +78,7 @@ public class DynamoDb extends Db<DynamoDb>
 
    protected int          batchMax     = 20;
 
-   private DynamoDbClient dynamoClient = null;
+   private volatile DynamoDbClient dynamoClient = null;
 
    public DynamoDb()
    {
