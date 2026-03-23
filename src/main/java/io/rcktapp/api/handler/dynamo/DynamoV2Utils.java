@@ -52,7 +52,10 @@ public class DynamoV2Utils {
       Map<String, AttributeValue> item = new HashMap<>();
       for (Map.Entry<String, Object> entry : map.entrySet())
       {
-         item.put(entry.getKey(), toAttributeValue(entry.getValue()));
+         if (entry.getValue() != null)
+         {
+            item.put(entry.getKey(), toAttributeValue(entry.getValue()));
+         }
       }
       return item;
    }
