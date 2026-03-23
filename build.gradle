@@ -71,7 +71,6 @@ dependencies {
 
    api group: 'org.bouncycastle', name: 'bcprov-jdk15on', version: '1.55'
 
-   api group: 'com.mchange', name: 'c3p0', version: '0.9.5.2'
    api group: 'com.mchange', name: 'mchange-commons-java', version: '0.2.11'
 
    api group: 'commons-codec', name: 'commons-codec', version: '1.10'
