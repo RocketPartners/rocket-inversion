@@ -95,7 +95,7 @@ public class DynamoDb extends Db
     */
    protected String       blueprintRow;
 
-   private DynamoDbClient dynamoClient = null;
+   private volatile DynamoDbClient dynamoClient = null;
 
    @Override
    public void bootstrapApi() throws Exception
@@ -352,19 +352,27 @@ public class DynamoDb extends Db
          return dynamoClient;
       }
 
-      DynamoDbClientBuilder builder = DynamoDbClient.builder();
-      if (!J.empty(awsRegion))
+      synchronized (this)
       {
-         builder.region(Region.of(awsRegion));
-      }
-      if (!J.empty(awsAccessKey) && !J.empty(awsSecretKey))
-      {
-         AwsBasicCredentials creds = AwsBasicCredentials.create(awsAccessKey, awsSecretKey);
-         builder.credentialsProvider(StaticCredentialsProvider.create(creds));
-      }
+         if (dynamoClient != null)
+         {
+            return dynamoClient;
+         }
 
-      dynamoClient = builder.build();
-      return dynamoClient;
+         DynamoDbClientBuilder builder = DynamoDbClient.builder();
+         if (!J.empty(awsRegion))
+         {
+            builder.region(Region.of(awsRegion));
+         }
+         if (!J.empty(awsAccessKey) && !J.empty(awsSecretKey))
+         {
+            AwsBasicCredentials creds = AwsBasicCredentials.create(awsAccessKey, awsSecretKey);
+            builder.credentialsProvider(StaticCredentialsProvider.create(creds));
+         }
+
+         dynamoClient = builder.build();
+         return dynamoClient;
+      }
    }
 
    @Override
@@ -513,13 +521,11 @@ public class DynamoDb extends Db
       return attr.s();
    }
 
-   public static KeyConditionFragment predicateToKeyConditionFragment(Predicate pred, Table table)
+   public static KeyConditionFragment predicateToKeyConditionFragment(Predicate pred, Table table, String nameKey, String valueKey)
    {
       String name = pred.getTerms().get(0).getToken();
       Object val = DynamoDb.cast((String) pred.getTerms().get(1).getToken(), name, table);
 
-      String nameKey = "#sk";
-      String valueKey = ":skval";
       String operator;
 
       switch (pred.getToken())

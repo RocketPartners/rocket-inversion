@@ -84,14 +84,7 @@ public class DynamoV2Utils {
          case S:
             return av.s();
          case N:
-            try
-            {
-               return Long.parseLong(av.n());
-            }
-            catch (NumberFormatException e)
-            {
-               return Double.parseDouble(av.n());
-            }
+            return new java.math.BigDecimal(av.n());
          case BOOL:
             return av.bool();
          case NUL:
@@ -106,10 +99,7 @@ public class DynamoV2Utils {
             return new java.util.ArrayList<>(av.ss());
          case NS:
             return av.ns().stream()
-                     .map(n -> {
-                        try { return (Object) Long.parseLong(n); }
-                        catch (NumberFormatException e) { return (Object) Double.parseDouble(n); }
-                     })
+                     .map(n -> (Object) new java.math.BigDecimal(n))
                      .collect(Collectors.toList());
          case BS:
             return new java.util.ArrayList<>(av.bs());

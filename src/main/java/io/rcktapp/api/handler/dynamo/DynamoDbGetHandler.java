@@ -236,7 +236,7 @@ public class DynamoDbGetHandler extends DynamoDbHandler
       Predicate skPred = dynamoExpression.getExcludedPredicate(orderCol);
       if (skPred != null)
       {
-         KeyConditionFragment kcf = DynamoDb.predicateToKeyConditionFragment(skPred, dynamoExpression.getTable());
+         KeyConditionFragment kcf = DynamoDb.predicateToKeyConditionFragment(skPred, dynamoExpression.getTable(), "#sk", ":skval");
          keyConditionExpression = keyConditionExpression + " AND " + kcf.getExpression();
          expressionNames.put(kcf.getNameKey(), kcf.getNameValue());
          expressionValues.put(kcf.getValueKey(), DynamoV2Utils.toAttributeValue(kcf.getValueObject()));
