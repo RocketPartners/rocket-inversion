@@ -53,7 +53,7 @@ public class DynamoV2Utils {
       for (Map.Entry<String, Object> entry : map.entrySet())
       {
          Object value = entry.getValue();
-         if (value != null && !"null".equals(value))
+         if (value != null && !"null".equals(value) && !"".equals(value))
          {
             item.put(entry.getKey(), toAttributeValue(value));
          }
