@@ -102,7 +102,6 @@ public class DynamoDbPostHandler extends DynamoDbHandler
       {
 
          Map m = new HashMap<>(json);
-         m.values().removeIf(v -> v == null);
 
          if (isMultiTenant && tenantIdOrCode != null)
          {
