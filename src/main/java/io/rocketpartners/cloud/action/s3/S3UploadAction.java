@@ -98,11 +98,11 @@ public class S3UploadAction extends Action<S3UploadAction>
          {
             Upload upload = uploads.get(0);
             contentLength = upload.getFileSize();
+            fileSize = contentLength;
 
             uploadStream = new DigestInputStream(upload.getInputStream(), MessageDigest.getInstance("MD5"));
             String[] fileNameParts = upload.getFileName().split("[.]");
             fileName = "" + fileNameParts[0] + "-" + System.currentTimeMillis() + "." + fileNameParts[1];
-            fileSize = upload.getFileSize();
 
             requestPath = upload.getRequestPath();
             if (requestPath.indexOf("/") == 0)
