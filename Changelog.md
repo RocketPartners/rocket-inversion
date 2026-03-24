@@ -1,5 +1,8 @@
 ## Unreleased
 
+## [0.3.6.14 - 03/20/26]
+- LIFT-1805: Upgrade DynamoDB from AWS SDK v1 to v2
+
 ## [0.3.6.13 - 03/19/26]
 - LIFT-1395: Migrate off c3p0 to HikariCP
 - LIFT-1804: fix etag capitalization from s3 sdk v2 upgrade
