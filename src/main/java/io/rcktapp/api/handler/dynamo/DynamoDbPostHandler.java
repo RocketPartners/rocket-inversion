@@ -21,10 +21,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import com.amazonaws.services.dynamodbv2.document.Item;
-import com.amazonaws.services.dynamodbv2.document.spec.PutItemSpec;
-import com.amazonaws.services.dynamodbv2.model.ConditionalCheckFailedException;
-
 import io.rcktapp.api.Action;
 import io.rcktapp.api.Api;
 import io.rcktapp.api.Chain;
@@ -35,6 +31,10 @@ import io.rcktapp.api.Response;
 import io.rcktapp.api.SC;
 import io.rcktapp.api.Table;
 import io.rcktapp.api.service.Service;
+import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
+import software.amazon.awssdk.services.dynamodb.model.AttributeValue;
+import software.amazon.awssdk.services.dynamodb.model.ConditionalCheckFailedException;
+import software.amazon.awssdk.services.dynamodb.model.PutItemRequest;
 
 /**
  * @author tc-rocket
@@ -55,7 +55,8 @@ public class DynamoDbPostHandler extends DynamoDbHandler
       Collection collection = api.getCollection(req.getCollectionKey(), DynamoDb.class);
       Table table = collection.getEntity().getTable();
       DynamoDb db = (DynamoDb) table.getDb();
-      com.amazonaws.services.dynamodbv2.document.Table dynamoTable = db.getDynamoTable(table.getName());
+      DynamoDbClient dynamoClient = db.getDynamoDbClient();
+      String tableName = table.getName();
       DynamoIndex dynamoIdx = DynamoDb.findIndexByName(table, DynamoDb.PRIMARY_INDEX);
       String pk = dynamoIdx.getPartitionKey();
       boolean appendTenantIdToPk = isAppendTenantIdToPk(chain, collection.getName());
@@ -83,19 +84,19 @@ public class DynamoDbPostHandler extends DynamoDbHandler
          List l = (List) payloadObj;
          for (Object obj : l)
          {
-            putMapToDynamo((Map) obj, dynamoTable, pk, tenantIdOrCode, req.getApi().isMultiTenant(), appendTenantIdToPk, conditionalWriteConf);
+            putMapToDynamo((Map) obj, dynamoClient, tableName, pk, tenantIdOrCode, req.getApi().isMultiTenant(), appendTenantIdToPk, conditionalWriteConf);
          }
       }
       else if (payloadObj instanceof Map)
       {
-         putMapToDynamo((Map) payloadObj, dynamoTable, pk, tenantIdOrCode, req.getApi().isMultiTenant(), appendTenantIdToPk, conditionalWriteConf);
+         putMapToDynamo((Map) payloadObj, dynamoClient, tableName, pk, tenantIdOrCode, req.getApi().isMultiTenant(), appendTenantIdToPk, conditionalWriteConf);
       }
 
       res.setStatus(SC.SC_200_OK);
 
    }
 
-   void putMapToDynamo(Map json, com.amazonaws.services.dynamodbv2.document.Table dynamoTable, String pk, Object tenantIdOrCode, boolean isMultiTenant, boolean appendTenantIdToPk, ConditionalWriteConf conditionalWriteConf)
+   void putMapToDynamo(Map json, DynamoDbClient dynamoClient, String tableName, String pk, Object tenantIdOrCode, boolean isMultiTenant, boolean appendTenantIdToPk, ConditionalWriteConf conditionalWriteConf)
    {
       try
       {
@@ -113,26 +114,28 @@ public class DynamoDbPostHandler extends DynamoDbHandler
             }
          }
 
-         Item item = Item.fromMap(m);
+         Map<String, AttributeValue> item = DynamoV2Utils.toItemMap(m);
 
-         PutItemSpec putItemSpec = new PutItemSpec().withItem(item);
+         PutItemRequest.Builder putBuilder = PutItemRequest.builder()
+            .tableName(tableName)
+            .item(item);
 
          if (conditionalWriteConf != null)
          {
-            putItemSpec = putItemSpec.withConditionExpression(conditionalWriteConf.expression);
+            putBuilder.conditionExpression(conditionalWriteConf.expression);
             if (!conditionalWriteConf.fields.isEmpty())
             {
-               Map<String, Object> valueMap = new HashMap<>();
+               Map<String, AttributeValue> expressionValues = new HashMap<>();
                for (String field : conditionalWriteConf.fields)
                {
-                  valueMap.put(":" + field, m.get(field));
+                  expressionValues.put(":" + field, DynamoV2Utils.toAttributeValue(m.get(field)));
                }
 
-               putItemSpec = putItemSpec.withValueMap(valueMap);
+               putBuilder.expressionAttributeValues(expressionValues);
             }
          }
 
-         dynamoTable.putItem(putItemSpec);
+         dynamoClient.putItem(putBuilder.build());
       }
       catch (ConditionalCheckFailedException ccfe)
       {

@@ -197,7 +197,7 @@ class S3DbRestHandlerTest {
 
             assertNotNull(json);
             assertEquals("http://localhost/api/s3test-bucket/test-key.txt", json.getString("href"));
-            assertEquals("test-etag", json.getString("eTag"));
+            assertEquals("test-etag", json.getString("etag"));
             assertEquals(0, json.getObject("userMetadata").keys().size());
         }
     }
@@ -755,7 +755,7 @@ class S3DbRestHandlerTest {
             JSObject json = response.getJson();
             assertEquals(2048L, json.get("contentLength"));
             assertEquals("application/json", json.get("contentType"));
-            assertEquals("test-etag-quoted", json.get("eTag")); // Should remove quotes
+            assertEquals("test-etag-quoted", json.get("etag")); // Should remove quotes
             assertNotNull(json.get("lastModified"));
             assertNotNull(json.get("userMetadata"));
         }
