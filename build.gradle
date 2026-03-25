@@ -28,7 +28,7 @@ project.docsDirName = '../docs/0.3.x/'
 configurations.all { resolutionStrategy.cacheChangingModulesFor 0, 'seconds' }
 
 
-version = '0.4.6'
+version = '0.4.7'
 group = 'com.github.RocketPartners'
 sourceCompatibility = JavaVersion.VERSION_17
 
@@ -80,7 +80,7 @@ dependencies {
     api "software.amazon.awssdk:dynamodb:$awsSdkV2Version"
     api 'com.amazonaws:aws-java-sdk-kinesis:1.11.390'
     api 'com.amazonaws:aws-lambda-java-core:1.2.0'
-    api 'com.amazonaws:aws-java-sdk-rds:1.11.542'
+    api "software.amazon.awssdk:rds:$awsSdkV2Version"
 
     // required for the Redis client
     api group: 'redis.clients', name: 'jedis', version: '5.2.0'
