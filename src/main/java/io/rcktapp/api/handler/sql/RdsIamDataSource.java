@@ -1,11 +1,12 @@
 package io.rcktapp.api.handler.sql;
 
-import com.amazonaws.auth.DefaultAWSCredentialsProviderChain;
-import com.amazonaws.regions.DefaultAwsRegionProviderChain;
-import com.amazonaws.services.rds.auth.GetIamAuthTokenRequest;
-import com.amazonaws.services.rds.auth.RdsIamAuthTokenGenerator;
 import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
+import software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider;
+import software.amazon.awssdk.regions.Region;
+import software.amazon.awssdk.regions.providers.DefaultAwsRegionProviderChain;
+import software.amazon.awssdk.services.rds.RdsUtilities;
+import software.amazon.awssdk.services.rds.model.GenerateAuthenticationTokenRequest;
 
 import java.sql.Connection;
 import java.sql.DriverManager;
@@ -24,15 +25,16 @@ public class RdsIamDataSource extends HikariDataSource {
     }
 
     private static String generateAuthToken(String jdbcUrl, String username) {
-        RdsIamAuthTokenGenerator generator = RdsIamAuthTokenGenerator.builder()
-                .credentials(new DefaultAWSCredentialsProviderChain())
-                .region(new DefaultAwsRegionProviderChain().getRegion())
+        Region region = new DefaultAwsRegionProviderChain().getRegion();
+        RdsUtilities utilities = RdsUtilities.builder()
+                .region(region)
+                .credentialsProvider(DefaultCredentialsProvider.create())
                 .build();
 
-        return generator.getAuthToken(GetIamAuthTokenRequest.builder()
+        return utilities.generateAuthenticationToken(GenerateAuthenticationTokenRequest.builder()
                 .hostname(determineHostname(jdbcUrl))
                 .port(determinePort(jdbcUrl))
-                .userName(username)
+                .username(username)
                 .build());
     }
 
