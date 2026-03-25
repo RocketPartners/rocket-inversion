@@ -1,13 +1,9 @@
 package io.rcktapp.api.handler.firehose;
 
-import com.amazonaws.services.kinesisfirehose.AmazonKinesisFirehose;
-import com.amazonaws.services.kinesisfirehose.AmazonKinesisFirehoseAsync;
-import com.amazonaws.services.kinesisfirehose.AmazonKinesisFirehoseClientBuilder;
-import com.amazonaws.services.kinesisfirehose.model.ListDeliveryStreamsRequest;
-import com.amazonaws.services.kinesisfirehose.model.ListDeliveryStreamsResult;
-import com.amazonaws.services.kinesisfirehose.model.PutRecordBatchRequest;
-import com.amazonaws.services.kinesisfirehose.model.PutRecordBatchResult;
-import com.amazonaws.services.kinesisfirehose.model.Record;
+import software.amazon.awssdk.core.SdkBytes;
+import software.amazon.awssdk.services.firehose.FirehoseClient;
+import software.amazon.awssdk.services.firehose.model.PutRecordBatchRequest;
+import software.amazon.awssdk.services.firehose.model.Record;
 import io.forty11.web.js.JSArray;
 import io.forty11.web.js.JSObject;
 import io.rcktapp.api.Action;
@@ -23,11 +19,8 @@ import io.rcktapp.api.SC;
 import io.rcktapp.api.Table;
 import io.rcktapp.api.service.Service;
 
-import java.nio.ByteBuffer;
-import java.security.SecureRandom;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.Future;
 
 /**
  * Posts records to a mapped AWS Kinesis Firehose stream.
@@ -51,29 +44,15 @@ import java.util.concurrent.Future;
  * <p>
  * The underlying Firehose stream may be mapped to the collection name through
  * the FirehoseDb.includeStreams property.
- ho
+ *
  * @author wells
  */
 public class FirehosePostHandler implements Handler
 {
-    public static final String upper = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
-    public static final String lower = upper.toLowerCase();
-    public static final String digits = "0123456789";
-    public static final char[] symbols = (upper + lower + digits).toCharArray();
-    static SecureRandom random = new SecureRandom();
     protected int     batchMax     = 500;
     protected int     fieldCharMax = 10000;
     protected String  separator    = "\n";
     protected boolean prettyPrint  = false;
-
-    public static String randomString(int size)
-    {
-
-        char[] buf = new char[size];
-        for (int idx = 0; idx < buf.length; ++idx)
-            buf[idx] = symbols[random.nextInt(symbols.length)];
-        return new String(buf);
-    }
 
     @Override
     public void service(Service service, Api api, Endpoint endpoint, Action action, Chain chain, Request req, Response res) throws Exception
@@ -86,7 +65,7 @@ public class FirehosePostHandler implements Handler
         Table table = col.getEntity().getTable();
         String streamName = table.getName();
 
-        AmazonKinesisFirehoseAsync firehose = ((FirehoseDb) table.getDb()).getFirehoseClient();
+        FirehoseClient firehose = ((FirehoseDb) table.getDb()).getFirehoseClient();
 
         JSObject body = req.getJson();
 
@@ -131,17 +110,17 @@ public class FirehosePostHandler implements Handler
                 if (separator != null && !string.endsWith(separator))
                     string += separator;
 
-                batch.add(new Record().withData(ByteBuffer.wrap(string.getBytes())));
+                batch.add(Record.builder().data(SdkBytes.fromByteArray(string.getBytes())).build());
 
                 if ((i + 1) % batchMax == 0)
                 {
-                    firehose.putRecordBatchAsync(new PutRecordBatchRequest().withDeliveryStreamName(streamName).withRecords(batch));
+                    firehose.putRecordBatch(PutRecordBatchRequest.builder().deliveryStreamName(streamName).records(batch).build());
                     batch = new ArrayList<>();
                 }
             }
 
             if (!batch.isEmpty())
-                firehose.putRecordBatchAsync(new PutRecordBatchRequest().withDeliveryStreamName(streamName).withRecords(batch));
+                firehose.putRecordBatch(PutRecordBatchRequest.builder().deliveryStreamName(streamName).records(batch).build());
         }
         catch (Exception e)
         {
