@@ -15,19 +15,20 @@
  */
 package io.rocketpartners.cloud.action.firehose;
 
-import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
-import com.amazonaws.auth.AWSStaticCredentialsProvider;
-import com.amazonaws.auth.BasicAWSCredentials;
-import com.amazonaws.services.kinesisfirehose.AmazonKinesisFirehose;
-import com.amazonaws.services.kinesisfirehose.AmazonKinesisFirehoseClientBuilder;
-import com.amazonaws.services.kinesisfirehose.model.PutRecordBatchRequest;
-import com.amazonaws.services.kinesisfirehose.model.Record;
+import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
+import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
+import software.amazon.awssdk.core.SdkBytes;
+import software.amazon.awssdk.regions.Region;
+import software.amazon.awssdk.services.firehose.FirehoseClient;
+import software.amazon.awssdk.services.firehose.FirehoseClientBuilder;
+import software.amazon.awssdk.services.firehose.model.PutRecordBatchRequest;
+import software.amazon.awssdk.services.firehose.model.Record;
 
 import io.rocketpartners.cloud.model.ApiException;
 import io.rocketpartners.cloud.model.Attribute;
@@ -41,32 +42,32 @@ import io.rocketpartners.cloud.utils.Rows.Row;
 import io.rocketpartners.cloud.utils.Utils;
 
 /**
- * Posts records to a mapped AWS Kinesis Firehose stream. 
- * 
+ * Posts records to a mapped AWS Kinesis Firehose stream.
+ *
  * When you PUT/POST a:
  * <ul>
  * <li>a JSON object - it is submitted as a single record
  * <li>a JSON array - each element in the array is submitted as a single record.
  * </ul>
- * 
+ *
  * Unless <code>jsonPrettyPrint</code> is set to <code>true</code> all JSON
  * records are stringified without return characters.
- * 
- * All records are always submitted in batches of up to <code>batchMax</code>.  
+ *
+ * All records are always submitted in batches of up to <code>batchMax</code>.
  * You can submit more than <code>batchMax</code> to the handler and it will try to
- * send as many batches as required. 
- * 
- * If <code>jsonSeparator</code> is not null (it is '\n' by default) and the 
+ * send as many batches as required.
+ *
+ * If <code>jsonSeparator</code> is not null (it is '\n' by default) and the
  * stringified record does not end in <code>separator</code>,
  * <code>separator</code> will be appended to the record.
- * 
+ *
  * If your firehose is Redshift, you probably want to leave <code>jsonLowercaseNames</code>
  * at its default which is true.  Redshift only matches to lowercase names on COPY.
- * 
+ *
  * The underlying Firehose stream is mapped to the collection name through
  * the FireshoseDb.includeStreams property.
- * 
- * 
+ *
+ *
  * @author wells
  *
  */
@@ -74,25 +75,25 @@ public class FirehoseDb extends Db<FirehoseDb>
 {
    /**
     * A CSV of pipe delimited collection name to table name pairs.
-    * 
+    *
     * Example: firehosedb.includeStreams=impression|liftck-player9-impression
-    * 
+    *
     * Or if the collection name is the name as the table name you can just send a the name
-    * 
+    *
     * Example: firehosedb.includeStreams=liftck-player9-impression
     */
-   protected String                includeStreams     = null;
+   protected String      includeStreams     = null;
 
-   protected String                awsAccessKey       = null;
-   protected String                awsSecretKey       = null;
-   protected String                awsRegion          = null;
+   protected String      awsAccessKey       = null;
+   protected String      awsSecretKey       = null;
+   protected String      awsRegion          = null;
 
-   protected AmazonKinesisFirehose firehoseClient     = null;
+   protected FirehoseClient firehoseClient  = null;
 
-   protected int                   batchMax           = 500;
-   protected String                jsonSeparator      = "\n";
-   protected boolean               jsonPrettyPrint    = false;
-   protected boolean               jsonLowercaseNames = true;
+   protected int         batchMax           = 500;
+   protected String      jsonSeparator      = "\n";
+   protected boolean     jsonPrettyPrint    = false;
+   protected boolean     jsonLowercaseNames = true;
 
    public FirehoseDb()
    {
@@ -162,29 +163,29 @@ public class FirehoseDb extends Db<FirehoseDb>
          if (jsonSeparator != null && !string.endsWith(jsonSeparator))
             string += jsonSeparator;
 
-         batch.add(new Record().withData(ByteBuffer.wrap(string.getBytes())));
+         batch.add(Record.builder().data(SdkBytes.fromByteArray(string.getBytes())).build());
 
          if (i > 0 && i % batchMax == 0)
          {
-            getFirehoseClient().putRecordBatch(new PutRecordBatchRequest().withDeliveryStreamName(table.getName()).withRecords(batch));
+            getFirehoseClient().putRecordBatch(PutRecordBatchRequest.builder().deliveryStreamName(table.getName()).records(batch).build());
             batch.clear();
          }
       }
 
       if (batch.size() > 0)
       {
-         getFirehoseClient().putRecordBatch(new PutRecordBatchRequest().withDeliveryStreamName(table.getName()).withRecords(batch));
+         getFirehoseClient().putRecordBatch(PutRecordBatchRequest.builder().deliveryStreamName(table.getName()).records(batch).build());
       }
 
       return Collections.emptyList();
    }
 
-   public AmazonKinesisFirehose getFirehoseClient()
+   public FirehoseClient getFirehoseClient()
    {
       return getFirehoseClient(awsRegion, awsAccessKey, awsSecretKey);
    }
 
-   public AmazonKinesisFirehose getFirehoseClient(String awsRegion, String awsAccessKey, String awsSecretKey)
+   public FirehoseClient getFirehoseClient(String awsRegion, String awsAccessKey, String awsSecretKey)
    {
       if (this.firehoseClient == null)
       {
@@ -196,15 +197,15 @@ public class FirehoseDb extends Db<FirehoseDb>
                awsAccessKey = Utils.findSysEnvPropStr(getName() + ".awsAccessKey", awsAccessKey);
                awsSecretKey = Utils.findSysEnvPropStr(getName() + ".awsSecretKey", awsSecretKey);
 
-               AmazonKinesisFirehoseClientBuilder builder = AmazonKinesisFirehoseClientBuilder.standard();
+               FirehoseClientBuilder builder = FirehoseClient.builder();
 
                if (!Utils.empty(awsRegion))
-                  builder.withRegion(awsRegion);
+                  builder.region(Region.of(awsRegion));
 
                if (!Utils.empty(awsAccessKey) && !Utils.empty(awsSecretKey))
                {
-                  BasicAWSCredentials creds = new BasicAWSCredentials(awsAccessKey, awsSecretKey);
-                  builder.withCredentials(new AWSStaticCredentialsProvider(creds));
+                  AwsBasicCredentials creds = AwsBasicCredentials.create(awsAccessKey, awsSecretKey);
+                  builder.credentialsProvider(StaticCredentialsProvider.create(creds));
                }
 
                firehoseClient = builder.build();

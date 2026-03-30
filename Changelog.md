@@ -1,5 +1,8 @@
 ## Unreleased
 
+## [0.4.8 - 03/30/26]
+- LIFT-1806: Upgrade Firehose to AWS SDK v2
+
 ## [0.4.6 - 03/17/26]
 - LIFT-1805: AWS DynamoDB SDK V2 upgrade
 
