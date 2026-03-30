@@ -1,11 +1,13 @@
 package io.rcktapp.api.handler.firehose;
 
-import com.amazonaws.auth.AWSStaticCredentialsProvider;
-import com.amazonaws.auth.BasicAWSCredentials;
-import com.amazonaws.services.kinesisfirehose.AmazonKinesisFirehoseAsync;
-import com.amazonaws.services.kinesisfirehose.AmazonKinesisFirehoseAsyncClientBuilder;
-import com.amazonaws.services.kinesisfirehose.model.ListDeliveryStreamsRequest;
-import com.amazonaws.services.kinesisfirehose.model.ListDeliveryStreamsResult;
+import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
+import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
+import software.amazon.awssdk.regions.Region;
+import software.amazon.awssdk.services.firehose.FirehoseClient;
+import software.amazon.awssdk.services.firehose.FirehoseClientBuilder;
+import software.amazon.awssdk.services.firehose.model.DeliveryStreamType;
+import software.amazon.awssdk.services.firehose.model.ListDeliveryStreamsRequest;
+import software.amazon.awssdk.services.firehose.model.ListDeliveryStreamsResponse;
 import io.forty11.j.J;
 import io.rcktapp.api.Collection;
 import io.rcktapp.api.Db;
@@ -46,7 +48,7 @@ public class FirehoseDb extends Db
      */
     protected String includeStreams;
 
-    AmazonKinesisFirehoseAsync firehoseClient = null;
+    FirehoseClient firehoseClient = null;
 
     public FirehoseDb() {
         super();
@@ -101,7 +103,7 @@ public class FirehoseDb extends Db
 
     private List<String> listAllDeliveryStreamNames() {
 
-        ListDeliveryStreamsResult listDeliveryStreamsResult;
+        ListDeliveryStreamsResponse listDeliveryStreamsResponse;
         List<String> deliveryStreamNames = new ArrayList<>();
 
         do {
@@ -109,32 +111,35 @@ public class FirehoseDb extends Db
 
             ListDeliveryStreamsRequest listDeliveryStreamsRequest = getRequest(last);
 
-            listDeliveryStreamsResult = getFirehoseClient().listDeliveryStreams(listDeliveryStreamsRequest);
+            listDeliveryStreamsResponse = getFirehoseClient().listDeliveryStreams(listDeliveryStreamsRequest);
 
-            deliveryStreamNames.addAll(listDeliveryStreamsResult.getDeliveryStreamNames());
+            deliveryStreamNames.addAll(listDeliveryStreamsResponse.deliveryStreamNames());
 
-        } while (listDeliveryStreamsResult.getHasMoreDeliveryStreams());
+        } while (listDeliveryStreamsResponse.hasMoreDeliveryStreams());
 
         return deliveryStreamNames;
     }
 
     ListDeliveryStreamsRequest getRequest(String lastEntry) {
-        return new ListDeliveryStreamsRequest()
-                .withDeliveryStreamType("DirectPut")
-                .withExclusiveStartDeliveryStreamName(lastEntry);
+        ListDeliveryStreamsRequest.Builder builder = ListDeliveryStreamsRequest.builder()
+                .deliveryStreamType(DeliveryStreamType.DIRECT_PUT);
+        if (lastEntry != null) {
+            builder.exclusiveStartDeliveryStreamName(lastEntry);
+        }
+        return builder.build();
     }
 
-    public AmazonKinesisFirehoseAsync getFirehoseClient() {
+    public FirehoseClient getFirehoseClient() {
         if (this.firehoseClient == null) {
             synchronized (this) {
                 if (this.firehoseClient == null) {
-                    AmazonKinesisFirehoseAsyncClientBuilder builder = AmazonKinesisFirehoseAsyncClientBuilder.standard();
+                    FirehoseClientBuilder builder = FirehoseClient.builder();
                     if (!J.empty(awsRegion))
-                        builder.withRegion(awsRegion);
+                        builder.region(Region.of(awsRegion));
 
                     if (!J.empty(awsAccessKey) && !J.empty(awsSecretKey)) {
-                        BasicAWSCredentials creds = new BasicAWSCredentials(awsAccessKey, awsSecretKey);
-                        builder.withCredentials(new AWSStaticCredentialsProvider(creds));
+                        AwsBasicCredentials creds = AwsBasicCredentials.create(awsAccessKey, awsSecretKey);
+                        builder.credentialsProvider(StaticCredentialsProvider.create(creds));
                     }
 
                     firehoseClient = builder.build();

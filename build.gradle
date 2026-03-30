@@ -13,7 +13,7 @@ project.docsDirName = '../docs/0.3.x/'
 
 configurations.all { resolutionStrategy.cacheChangingModulesFor 0, 'seconds' }
 
-version = '0.3.24'
+version = '0.3.26'
 group = 'com.github.RocketPartners'
 sourceCompatibility = JavaVersion.VERSION_17
 targetCompatibility = JavaVersion.VERSION_17
@@ -143,6 +143,7 @@ dependencies {
 
     api "software.amazon.awssdk:s3:$awsSdkV2Version"
     api "software.amazon.awssdk:dynamodb:$awsSdkV2Version"
+    api "software.amazon.awssdk:firehose:$awsSdkV2Version"
     api 'com.amazonaws:aws-java-sdk-kinesis:1.11.390'
     api "software.amazon.awssdk:rds:$awsSdkV2Version"
 
