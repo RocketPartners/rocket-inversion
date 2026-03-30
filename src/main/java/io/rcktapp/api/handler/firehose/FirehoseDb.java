@@ -1,12 +1,12 @@
 package io.rcktapp.api.handler.firehose;
 
-import com.amazonaws.services.kinesisfirehose.AmazonKinesisFirehoseAsync;
-import com.amazonaws.services.kinesisfirehose.AmazonKinesisFirehoseAsyncClientBuilder;
 import org.atteo.evo.inflector.English;
 
-import com.amazonaws.auth.AWSStaticCredentialsProvider;
-import com.amazonaws.auth.BasicAWSCredentials;
-import com.amazonaws.services.kinesisfirehose.AmazonKinesisFirehose;
+import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
+import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
+import software.amazon.awssdk.regions.Region;
+import software.amazon.awssdk.services.firehose.FirehoseClient;
+import software.amazon.awssdk.services.firehose.FirehoseClientBuilder;
 
 import io.forty11.j.J;
 import io.rcktapp.api.Collection;
@@ -16,27 +16,27 @@ import io.rcktapp.api.Table;
 
 public class FirehoseDb extends Db
 {
-   protected String      awsAccessKey   = null;
-   protected String      awsSecretKey   = null;
-   protected String      awsRegion      = null;
+   protected String awsAccessKey = null;
+   protected String awsSecretKey = null;
+   protected String awsRegion    = null;
 
    /**
     * A CSV of pipe delimited collection name to table name pairs.
-    * 
+    *
     * Example: firehosedb.includeStreams=impression|liftck-player9-impression
-    * 
+    *
     * Or if the collection name is the name as the table name you can just send a the name
-    * 
+    *
     * Example: firehosedb.includeStreams=liftck-player9-impression
     */
-   protected String      includeStreams;
+   protected String includeStreams;
 
-   AmazonKinesisFirehoseAsync firehoseClient = null;
+   FirehoseClient firehoseClient = null;
 
    @Override
    public void bootstrapApi() throws Exception
    {
-      AmazonKinesisFirehose firehoseClient = getFirehoseClient();
+      FirehoseClient firehoseClient = getFirehoseClient();
 
       this.setType("firehose");
 
@@ -78,7 +78,7 @@ public class FirehoseDb extends Db
       }
    }
 
-   public AmazonKinesisFirehoseAsync getFirehoseClient()
+   public FirehoseClient getFirehoseClient()
    {
       if (this.firehoseClient == null)
       {
@@ -86,14 +86,14 @@ public class FirehoseDb extends Db
          {
             if (this.firehoseClient == null)
             {
-               AmazonKinesisFirehoseAsyncClientBuilder builder = AmazonKinesisFirehoseAsyncClientBuilder.standard();
+               FirehoseClientBuilder builder = FirehoseClient.builder();
                if (!J.empty(awsRegion))
-                  builder.withRegion(awsRegion);
+                  builder.region(Region.of(awsRegion));
 
                if (!J.empty(awsAccessKey) && !J.empty(awsSecretKey))
                {
-                  BasicAWSCredentials creds = new BasicAWSCredentials(awsAccessKey, awsSecretKey);
-                  builder.withCredentials(new AWSStaticCredentialsProvider(creds));
+                  AwsBasicCredentials creds = AwsBasicCredentials.create(awsAccessKey, awsSecretKey);
+                  builder.credentialsProvider(StaticCredentialsProvider.create(creds));
                }
 
                firehoseClient = builder.build();
