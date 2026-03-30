@@ -1,5 +1,8 @@
 ## Unreleased
 
+## [0.3.6.15 - 03/30/26]
+- LIFT-1807: Upgrade RDS IAM auth token generation to AWS SDK v2
+
 ## [0.3.6.14 - 03/20/26]
 - LIFT-1805: Upgrade DynamoDB from AWS SDK v1 to v2
 
