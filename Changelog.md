@@ -1,10 +1,10 @@
 ## Unreleased
 
 ## [0.3.26 - 03/30/26]
-- LIFT-1806: Upgrade Firehose to AWS SDK v2
+- LIFT-1807: Upgrade RDS IAM auth token generation to AWS SDK v2
 
 ## [0.3.25 - 03/30/26]
-- LIFT-1807: Upgrade RDS IAM auth token generation to AWS SDK v2
+- LIFT-1806: Upgrade Firehose to AWS SDK v2
 
 ## [0.3.24 - 03/17/26]
 - LIFT-1805: AWS DydnamoDB SDK V2 Upgrade
