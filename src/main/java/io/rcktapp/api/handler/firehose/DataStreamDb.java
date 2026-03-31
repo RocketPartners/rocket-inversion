@@ -1,10 +1,11 @@
 package io.rcktapp.api.handler.firehose;
 
-import com.amazonaws.auth.AWSCredentialsProvider;
-import com.amazonaws.auth.AWSStaticCredentialsProvider;
-import com.amazonaws.auth.BasicAWSCredentials;
-import com.amazonaws.services.kinesis.AmazonKinesisAsync;
-import com.amazonaws.services.kinesis.AmazonKinesisAsyncClientBuilder;
+import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
+import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
+import software.amazon.awssdk.regions.Region;
+import software.amazon.awssdk.services.kinesis.KinesisAsyncClient;
+import software.amazon.awssdk.services.kinesis.KinesisAsyncClientBuilder;
+import io.forty11.j.J;
 import io.rcktapp.api.Collection;
 import io.rcktapp.api.Db;
 import io.rcktapp.api.Entity;
@@ -18,23 +19,26 @@ public class DataStreamDb extends Db {
     protected String awsAccessKey = null;
     protected String awsSecretKey = null;
     protected String awsRegion = null;
-    AmazonKinesisAsync datastreamClient = null;
+    KinesisAsyncClient datastreamClient = null;
 
-    private AWSCredentialsProvider getCreds() {
-        return new AWSStaticCredentialsProvider(new BasicAWSCredentials(awsAccessKey, awsSecretKey));
-    }
-
-    AmazonKinesisAsync getClient() {
+    KinesisAsyncClient getClient() {
         return datastreamClient;
     }
 
     @Override
     public void bootstrapApi() {
-        datastreamClient = AmazonKinesisAsyncClientBuilder.standard().withRegion(awsRegion).withCredentials(getCreds()).build();
+        KinesisAsyncClientBuilder builder = KinesisAsyncClient.builder();
+        if (!J.empty(awsRegion))
+            builder.region(Region.of(awsRegion));
+        if (!J.empty(awsAccessKey) && !J.empty(awsSecretKey)) {
+            AwsBasicCredentials creds = AwsBasicCredentials.create(awsAccessKey, awsSecretKey);
+            builder.credentialsProvider(StaticCredentialsProvider.create(creds));
+        }
+        datastreamClient = builder.build();
 
         this.setType("datastream");
 
-        datastreamClient.listStreams().getStreamNames().forEach(streamName -> {
+        datastreamClient.listStreams().join().streamNames().forEach(streamName -> {
             Table table = new Table(this, streamName);
             addTable(table);
 
