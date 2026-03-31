@@ -144,7 +144,6 @@ dependencies {
     api "software.amazon.awssdk:s3:$awsSdkV2Version"
     api "software.amazon.awssdk:dynamodb:$awsSdkV2Version"
     api "software.amazon.awssdk:firehose:$awsSdkV2Version"
-    api 'com.amazonaws:aws-java-sdk-kinesis:1.11.390'
     api "software.amazon.awssdk:rds:$awsSdkV2Version"
 
     //drivers for supportd DBs
