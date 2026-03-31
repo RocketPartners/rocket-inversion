@@ -144,8 +144,8 @@ dependencies {
     api "software.amazon.awssdk:s3:$awsSdkV2Version"
     api "software.amazon.awssdk:dynamodb:$awsSdkV2Version"
     api "software.amazon.awssdk:firehose:$awsSdkV2Version"
+    api "software.amazon.awssdk:rds:$awsSdkV2Version"
     api "software.amazon.awssdk:kinesis:$awsSdkV2Version"
-    api 'com.amazonaws:aws-java-sdk-rds:1.11.542'
 
     //drivers for supportd DBs
     api group: 'mysql', name: 'mysql-connector-java', version: '5.1.34'

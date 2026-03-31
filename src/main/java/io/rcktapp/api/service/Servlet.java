@@ -26,8 +26,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import com.amazonaws.util.IOUtils;
-
+import software.amazon.awssdk.utils.IoUtils;
 import io.forty11.j.J;
 import io.forty11.web.Url;
 import io.rcktapp.api.ApiException;
@@ -139,7 +138,7 @@ public class Servlet extends HttpServlet
                         }
                         else if (part.getName().equals("requestPath"))
                         {
-                           requestPath = IOUtils.toString(part.getInputStream());
+                           requestPath = IoUtils.toUtf8String(part.getInputStream());
                            if (requestPath.indexOf("/") == 0)
                               requestPath = requestPath.substring(1);
                         }
