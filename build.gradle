@@ -80,7 +80,7 @@ dependencies {
     api "software.amazon.awssdk:dynamodb:$awsSdkV2Version"
     api "software.amazon.awssdk:firehose:$awsSdkV2Version"
     api 'com.amazonaws:aws-lambda-java-core:1.2.0'
-    api 'com.amazonaws:aws-java-sdk-rds:1.11.542'
+    api "software.amazon.awssdk:rds:$awsSdkV2Version"
 
     // required for the Redis client
     api group: 'redis.clients', name: 'jedis', version: '5.2.0'
