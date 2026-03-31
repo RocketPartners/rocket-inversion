@@ -87,7 +87,7 @@ dependencies {
    api "software.amazon.awssdk:s3:$awsSdkV2Version"
    api "software.amazon.awssdk:dynamodb:$awsSdkV2Version"
    api "software.amazon.awssdk:firehose:$awsSdkV2Version"
-   api 'com.amazonaws:aws-java-sdk-rds:1.11.542'
+   api "software.amazon.awssdk:rds:$awsSdkV2Version"
 
    // Beware of changing the redshift driver version. Newer versions of this driver are not thread-safe
    // Version 1.2.10.1009 is thread-safe
