@@ -1,10 +1,11 @@
 package io.rcktapp.api.handler.firehose;
 
-import com.amazonaws.services.kinesis.AmazonKinesisAsync;
-import com.amazonaws.services.kinesis.model.DescribeStreamRequest;
-import com.amazonaws.services.kinesis.model.PutRecordsRequest;
-import com.amazonaws.services.kinesis.model.PutRecordsRequestEntry;
-import com.amazonaws.services.kinesis.model.StreamDescription;
+import software.amazon.awssdk.core.SdkBytes;
+import software.amazon.awssdk.services.kinesis.KinesisAsyncClient;
+import software.amazon.awssdk.services.kinesis.model.DescribeStreamSummaryRequest;
+import software.amazon.awssdk.services.kinesis.model.PutRecordsRequest;
+import software.amazon.awssdk.services.kinesis.model.PutRecordsRequestEntry;
+import software.amazon.awssdk.services.kinesis.model.StreamStatus;
 import io.forty11.web.js.JSArray;
 import io.forty11.web.js.JSObject;
 import io.rcktapp.api.Action;
@@ -21,7 +22,6 @@ import io.rcktapp.api.Table;
 import io.rcktapp.api.service.Service;
 import lombok.extern.slf4j.Slf4j;
 
-import java.nio.ByteBuffer;
 import java.util.LinkedList;
 
 import static org.apache.commons.codec.binary.Base64.decodeBase64;
@@ -53,7 +53,7 @@ public class DataStreamPostHandler implements Handler {
         Table table = col.getEntity().getTable();
         String streamName = table.getName();
 
-        AmazonKinesisAsync datastream = ((DataStreamDb) table.getDb()).getClient();
+        KinesisAsyncClient datastream = ((DataStreamDb) table.getDb()).getClient();
 
         validateStream(datastream, streamName);
 
@@ -79,18 +79,19 @@ public class DataStreamPostHandler implements Handler {
                 String blob = data.getString("base64");
                 String partitionKey = data.getString("partitionkey");
 
-                batch.add(new PutRecordsRequestEntry()
-                        .withData(ByteBuffer.wrap(decodeBase64(blob)))
-                        .withPartitionKey(partitionKey));
+                batch.add(PutRecordsRequestEntry.builder()
+                        .data(SdkBytes.fromByteArray(decodeBase64(blob)))
+                        .partitionKey(partitionKey)
+                        .build());
 
                 if ((i + 1) % batchMax == 0) {
-                    datastream.putRecordsAsync(new PutRecordsRequest().withStreamName(streamName).withRecords(batch));
+                    datastream.putRecords(PutRecordsRequest.builder().streamName(streamName).records(batch).build());
                     batch.clear();
                 }
             }
 
             if (!batch.isEmpty())
-                datastream.putRecordsAsync(new PutRecordsRequest().withStreamName(streamName).withRecords(batch));
+                datastream.putRecords(PutRecordsRequest.builder().streamName(streamName).records(batch).build());
         } catch (Exception e) {
             e.printStackTrace();
             throw new ApiException(SC.SC_500_INTERNAL_SERVER_ERROR, "Error putting records to data stream '" + streamName + "' - " + e.getMessage());
@@ -105,12 +106,13 @@ public class DataStreamPostHandler implements Handler {
      * @param kinesisClient Amazon Kinesis client instance
      * @param streamName Name of stream
      */
-    private static void validateStream(AmazonKinesisAsync kinesisClient, String streamName) {
+    private static void validateStream(KinesisAsyncClient kinesisClient, String streamName) {
         try {
-            DescribeStreamRequest describeStreamRequest =  new DescribeStreamRequest().withStreamName(streamName);
-            StreamDescription describeStreamDescription = kinesisClient.describeStream(describeStreamRequest).getStreamDescription();
-            if(!describeStreamDescription.getStreamStatus().equals("ACTIVE")) {
-                log.error("Stream {} is not active. Please wait a few moments and try again.",  streamName );
+            StreamStatus status = kinesisClient.describeStreamSummary(
+                    DescribeStreamSummaryRequest.builder().streamName(streamName).build()
+            ).join().streamDescriptionSummary().streamStatus();
+            if (status != StreamStatus.ACTIVE) {
+                log.error("Stream {} is not active. Please wait a few moments and try again.", streamName);
             }
         } catch (Exception e) {
             log.error("Error found while describing the stream " + streamName, e);
