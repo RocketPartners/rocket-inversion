@@ -161,43 +161,68 @@ public class BoolQuery extends ElasticQuery
          }
          else if (elastic instanceof BoolQuery)
          {
-            // When a nested BoolQuery has 'should' clauses for relevance scoring,
-            // hoist them to this outer BoolQuery instead of nesting in filter context
-            // (filter context disables scoring)
             BoolQuery innerBool = (BoolQuery) elastic;
 
-            // Hoist filter clauses
-            if (innerBool.getFilter() != null)
+            // Only hoist clauses if this BoolQuery has relevance-scoring should clauses
+            // (i.e., should clauses containing MatchQuery). Otherwise, keep it nested
+            // to preserve the original query structure.
+            if (hasRelevanceScoringShould(innerBool))
             {
-               for (ElasticQuery filterItem : innerBool.getFilter())
-                  addFilter(filterItem);
-            }
+               // Hoist filter clauses
+               if (innerBool.getFilter() != null)
+               {
+                  for (ElasticQuery filterItem : innerBool.getFilter())
+                     addFilter(filterItem);
+               }
 
-            // Hoist should clauses (preserves relevance scoring)
-            if (innerBool.getShould() != null)
-            {
-               for (ElasticQuery shouldItem : innerBool.getShould())
-                  addShould(shouldItem);
-            }
+               // Hoist should clauses (preserves relevance scoring)
+               if (innerBool.getShould() != null)
+               {
+                  for (ElasticQuery shouldItem : innerBool.getShould())
+                     addShould(shouldItem);
+               }
 
-            // Hoist must clauses
-            if (innerBool.getMust() != null)
-            {
-               for (ElasticQuery mustItem : innerBool.getMust())
-                  addMust(mustItem);
-            }
+               // Hoist must clauses
+               if (innerBool.getMust() != null)
+               {
+                  for (ElasticQuery mustItem : innerBool.getMust())
+                     addMust(mustItem);
+               }
 
-            // Hoist must_not clauses
-            if (innerBool.getMustNot() != null)
+               // Hoist must_not clauses
+               if (innerBool.getMustNot() != null)
+               {
+                  for (ElasticQuery mustNotItem : innerBool.getMustNot())
+                     addMustNot(mustNotItem);
+               }
+            }
+            else
             {
-               for (ElasticQuery mustNotItem : innerBool.getMustNot())
-                  addMustNot(mustNotItem);
+               // Keep the BoolQuery nested in filter context (original behavior)
+               addFilter(elastic);
             }
          }
          else
             addFilter(elastic);
       }
 
+   }
+
+   /**
+    * Checks if this BoolQuery has should clauses that contribute to relevance scoring.
+    * This is true when there are MatchQuery objects in the should list.
+    */
+   private boolean hasRelevanceScoringShould(BoolQuery bool)
+   {
+      if (bool.getShould() == null || bool.getShould().isEmpty())
+         return false;
+
+      for (ElasticQuery shouldItem : bool.getShould())
+      {
+         if (shouldItem instanceof MatchQuery)
+            return true;
+      }
+      return false;
    }
 
    private List<Map<String, ElasticQuery>> getListForElasticJson(List<ElasticQuery> queryList)
