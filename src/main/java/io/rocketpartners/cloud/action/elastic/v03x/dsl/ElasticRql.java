@@ -319,7 +319,11 @@ public class ElasticRql extends Rql
    }
 
    /**
-    * 
+    * Creates a hybrid query with both wildcard (for substring matching) and match (for relevance scoring).
+    *
+    * The wildcard in filter ensures documents contain the substring (preserves existing behavior).
+    * The match in should adds relevance scoring so exact token matches rank higher.
+    *
     * @param pred
     * @param withType WITH, STARTS_WITH, ENDS_WITH
     */
@@ -329,16 +333,23 @@ public class ElasticRql extends Rql
       String termToken = pred.terms.get(0).token;
       for (int i = 1; i < pred.terms.size(); i++)
       {
+         String dequotedValue = Parser.dequote(pred.terms.get(i).token);
+
          switch (withType)
          {
             case WITH:
-               bq.addShould(new Wildcard(termToken, "*" + Parser.dequote(pred.terms.get(i).token) + "*"));
+               // Filter: ensures substring match (preserves current behavior)
+               bq.addFilter(new Wildcard(termToken, "*" + dequotedValue + "*"));
+               // Should: adds relevance scoring for exact token matches
+               bq.addShould(new MatchQuery(termToken, dequotedValue));
                break;
             case STARTS_WITH:
-               bq.addShould(new Wildcard(termToken, Parser.dequote(pred.terms.get(i).token) + "*"));
+               bq.addFilter(new Wildcard(termToken, dequotedValue + "*"));
+               bq.addShould(new MatchQuery(termToken, dequotedValue));
                break;
             case ENDS_WITH:
-               bq.addShould(new Wildcard(termToken, "*" + Parser.dequote(pred.terms.get(i).token)));
+               bq.addFilter(new Wildcard(termToken, "*" + dequotedValue));
+               bq.addShould(new MatchQuery(termToken, dequotedValue));
                break;
          }
       }
