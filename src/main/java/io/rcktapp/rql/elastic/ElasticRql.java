@@ -124,17 +124,31 @@ public class ElasticRql extends Rql
       // because we are starting the search after 'AL'
       io.rcktapp.rql.elastic.Order elasticOrder = null;
       List<Order> orderList = stmt.order;
-      //      if (orderList.size() > 0)
-      //      {
+
+      // Check if this query involves relevance scoring (has search terms)
+      // If so, add _score as secondary sort so relevant results rank higher within ties
+      boolean hasRelevanceScoring = hasRelevanceScoringQueries(elasticList);
+      boolean scoreSortExists = false;
+
       boolean idSortExists = false;
       for (Order order : orderList)
       {
          if (Parser.dequote(order.col).equalsIgnoreCase("id"))
             idSortExists = true;
+         if (Parser.dequote(order.col).equalsIgnoreCase("_score"))
+            scoreSortExists = true;
       }
       if (!idSortExists)
          orderList.add(new Order("id", "asc"));
-      //      }
+
+      // Add _score desc as secondary sort when searching (before id, after user's primary sort)
+      if (hasRelevanceScoring && !scoreSortExists)
+      {
+         // Insert _score before the id sort (which is last)
+         int insertIndex = orderList.size() - 1; // before id
+         orderList.add(insertIndex, new Order("_score", "desc"));
+      }
+
       for (int i = 0; i < orderList.size(); i++)
       {
          Order order = orderList.get(i);
@@ -197,6 +211,31 @@ public class ElasticRql extends Rql
          bool.divvyElasticList(elasticList);
          dsl.setBool(bool);
       }
+   }
+
+   /**
+    * Checks if any of the ElasticQuery objects involve relevance scoring.
+    * This is true when there are BoolQuery objects with 'should' clauses containing MatchQuery,
+    * which are created by the wildcard search functions (w, sw, ew) for relevance ranking.
+    */
+   private boolean hasRelevanceScoringQueries(List<ElasticQuery> elasticList)
+   {
+      for (ElasticQuery elastic : elasticList)
+      {
+         if (elastic instanceof BoolQuery)
+         {
+            BoolQuery bool = (BoolQuery) elastic;
+            if (bool.getShould() != null && !bool.getShould().isEmpty())
+            {
+               for (ElasticQuery shouldItem : bool.getShould())
+               {
+                  if (shouldItem instanceof MatchQuery)
+                     return true;
+               }
+            }
+         }
+      }
+      return false;
    }
 
    private ElasticQuery convertPredicate(Predicate pred) throws Exception

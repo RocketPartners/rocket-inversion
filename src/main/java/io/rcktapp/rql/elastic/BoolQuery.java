@@ -128,7 +128,7 @@ public class BoolQuery extends ElasticQuery
             if (nestedList.size() > 1)
             {
                BoolQuery bool = new BoolQuery();
-               
+
                // move the filters from each nest to this nested query
                for (ElasticQuery nest : nestedList)
                {
@@ -158,6 +158,41 @@ public class BoolQuery extends ElasticQuery
             // add this new object to a filter.
             addFilter(elastic);
 
+         }
+         else if (elastic instanceof BoolQuery)
+         {
+            // When a nested BoolQuery has 'should' clauses for relevance scoring,
+            // hoist them to this outer BoolQuery instead of nesting in filter context
+            // (filter context disables scoring)
+            BoolQuery innerBool = (BoolQuery) elastic;
+
+            // Hoist filter clauses
+            if (innerBool.getFilter() != null)
+            {
+               for (ElasticQuery filterItem : innerBool.getFilter())
+                  addFilter(filterItem);
+            }
+
+            // Hoist should clauses (preserves relevance scoring)
+            if (innerBool.getShould() != null)
+            {
+               for (ElasticQuery shouldItem : innerBool.getShould())
+                  addShould(shouldItem);
+            }
+
+            // Hoist must clauses
+            if (innerBool.getMust() != null)
+            {
+               for (ElasticQuery mustItem : innerBool.getMust())
+                  addMust(mustItem);
+            }
+
+            // Hoist must_not clauses
+            if (innerBool.getMustNot() != null)
+            {
+               for (ElasticQuery mustNotItem : innerBool.getMustNot())
+                  addMustNot(mustNotItem);
+            }
          }
          else
             addFilter(elastic);
