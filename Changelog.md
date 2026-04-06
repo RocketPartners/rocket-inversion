@@ -1,6 +1,6 @@
 ## Unreleased
 
-## [0.3.6.19 - 04/05/26]
+## [0.3.6.17 - 04/05/26]
 - LIFT-2099: Add relevance scoring to wildcard search queries (w, sw, ew operators)
   - Wildcard queries now include match queries in `should` for TF-IDF/BM25 relevance scoring
   - `_score` added as secondary sort when search terms are present
