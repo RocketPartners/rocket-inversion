@@ -96,15 +96,14 @@ public class TestElasticRql
          assertNull(dsl.getBool().getMustNot());
          assertNotNull(dsl.getBool().getShould());
 
-         // Filter contains Wildcards for matching
-         assertEquals(2, dsl.getBool().getFilter().size());
-         assertTrue(dsl.getBool().getFilter().get(0) instanceof Wildcard);
+         // Filter contains an inner BoolQuery with wildcards in should (OR semantics)
+         assertEquals(1, dsl.getBool().getFilter().size());
+         assertTrue(dsl.getBool().getFilter().get(0) instanceof BoolQuery);
 
-         Wildcard wildcard = (Wildcard)dsl.getBool().getFilter().get(0);
-
-         assertEquals("city", wildcard.getName());
-         assertEquals("Chand*", wildcard.getValue());
-         assertNull(wildcard.getNestedPath());
+         BoolQuery wildcardBq = (BoolQuery) dsl.getBool().getFilter().get(0);
+         assertEquals(2, wildcardBq.getShould().size());
+         assertTrue(wildcardBq.getShould().get(0) instanceof Wildcard);
+         assertEquals("Chand*", ((Wildcard) wildcardBq.getShould().get(0)).getValue());
 
          // Should contains MatchQuery for relevance scoring
          assertEquals(2, dsl.getBool().getShould().size());
@@ -114,7 +113,7 @@ public class TestElasticRql
          String json = mapper.writeValueAsString(dsl);
 
          assertNotNull("json should not be empty.", json);
-         assertEquals("{\"bool\":{\"filter\":[{\"wildcard\":{\"city\":\"Chand*\"}},{\"wildcard\":{\"city\":\"Atl*\"}}],\"should\":[{\"match\":{\"city\":\"Chand\"}},{\"match\":{\"city\":\"Atl\"}}]}}", json);
+         assertEquals("{\"bool\":{\"filter\":[{\"bool\":{\"should\":[{\"wildcard\":{\"city\":\"Chand*\"}},{\"wildcard\":{\"city\":\"Atl*\"}}]}}],\"should\":[{\"match\":{\"city\":\"Chand\"}},{\"match\":{\"city\":\"Atl\"}}]}}", json);
 
       }
       catch (Exception e)
@@ -189,21 +188,15 @@ public class TestElasticRql
          assertNull(dsl.getBool().getMustNot());
          assertNotNull(dsl.getBool().getShould());
 
-         // Filter contains Wildcards for matching
-         assertEquals(2, dsl.getBool().getFilter().size());
-         assertTrue(dsl.getBool().getFilter().get(0) instanceof Wildcard);
+         // Filter contains an inner BoolQuery with wildcards in should (OR semantics)
+         assertEquals(1, dsl.getBool().getFilter().size());
+         assertTrue(dsl.getBool().getFilter().get(0) instanceof BoolQuery);
 
-         Wildcard wildcard = (Wildcard)dsl.getBool().getFilter().get(0);
-
-         assertEquals("name", wildcard.getName());
-         assertEquals("*nestl*", wildcard.getValue());
-         assertNull(wildcard.getNestedPath());
-
-         wildcard = (Wildcard)dsl.getBool().getFilter().get(1);
-
-         assertEquals("name", wildcard.getName());
-         assertEquals("*f'*", wildcard.getValue());
-         assertNull(wildcard.getNestedPath());
+         BoolQuery wildcardBq = (BoolQuery) dsl.getBool().getFilter().get(0);
+         assertEquals(2, wildcardBq.getShould().size());
+         assertTrue(wildcardBq.getShould().get(0) instanceof Wildcard);
+         assertEquals("*nestl*", ((Wildcard) wildcardBq.getShould().get(0)).getValue());
+         assertEquals("*f'*", ((Wildcard) wildcardBq.getShould().get(1)).getValue());
 
          // Should contains MatchQuery for relevance scoring
          assertEquals(2, dsl.getBool().getShould().size());
@@ -213,7 +206,7 @@ public class TestElasticRql
          String json = mapper.writeValueAsString(dsl);
 
          assertNotNull("json should not be empty.", json);
-         assertEquals("{\"bool\":{\"filter\":[{\"wildcard\":{\"name\":\"*nestl*\"}},{\"wildcard\":{\"name\":\"*f'*\"}}],\"should\":[{\"match\":{\"name\":\"nestl\"}},{\"match\":{\"name\":\"f'\"}}]}}", json);
+         assertEquals("{\"bool\":{\"filter\":[{\"bool\":{\"should\":[{\"wildcard\":{\"name\":\"*nestl*\"}},{\"wildcard\":{\"name\":\"*f'*\"}}]}}],\"should\":[{\"match\":{\"name\":\"nestl\"}},{\"match\":{\"name\":\"f'\"}}]}}", json);
 
       }
       catch (Exception e)

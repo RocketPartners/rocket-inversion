@@ -225,7 +225,7 @@ public class ElasticRql extends Rql
          if (elastic instanceof BoolQuery)
          {
             BoolQuery bool = (BoolQuery) elastic;
-            if (bool.getShould() != null && !bool.getShould().isEmpty())
+            if (bool.getShould() != null)
             {
                for (ElasticQuery shouldItem : bool.getShould())
                {
@@ -387,6 +387,8 @@ public class ElasticRql extends Rql
    {
       BoolQuery bq = new BoolQuery();
       String termToken = pred.terms.get(0).token;
+      List<Wildcard> wildcards = new ArrayList<Wildcard>();
+
       for (int i = 1; i < pred.terms.size(); i++)
       {
          String dequotedValue = Parser.dequote(pred.terms.get(i).token);
@@ -394,24 +396,42 @@ public class ElasticRql extends Rql
          switch (withType)
          {
             case WITH:
-               // Filter: ensures substring match (preserves current behavior)
-               bq.addFilter(new Wildcard(termToken, "*" + dequotedValue + "*"));
-               // Should: adds relevance scoring for exact token matches
+               wildcards.add(new Wildcard(termToken, "*" + dequotedValue + "*"));
                bq.addShould(new MatchQuery(termToken, dequotedValue));
                break;
             case STARTS_WITH:
-               bq.addFilter(new Wildcard(termToken, dequotedValue + "*"));
+               wildcards.add(new Wildcard(termToken, dequotedValue + "*"));
                bq.addShould(new MatchQuery(termToken, dequotedValue));
                break;
             case ENDS_WITH:
-               bq.addFilter(new Wildcard(termToken, "*" + dequotedValue));
+               wildcards.add(new Wildcard(termToken, "*" + dequotedValue));
                bq.addShould(new MatchQuery(termToken, dequotedValue));
                break;
             case WITHOUT:
-               // WITHOUT is a negative match - no relevance scoring needed
                bq.addMustNot(new Wildcard(termToken, "*" + dequotedValue + "*"));
          }
       }
+
+      if (!wildcards.isEmpty())
+      {
+         if (wildcards.size() == 1)
+         {
+            // Single value: wildcard directly in filter (boolean match required)
+            bq.addFilter(wildcards.get(0));
+         }
+         else
+         {
+            // Multi-value: wrap wildcards in inner should for OR semantics.
+            // An inner bool with only should clauses defaults minimum_should_match=1,
+            // so at least one wildcard must match (OR, not AND).
+            // This preserves OR semantics even when combined with outer filter clauses.
+            BoolQuery wildcardBq = new BoolQuery();
+            for (Wildcard wildcard : wildcards)
+               wildcardBq.addShould(wildcard);
+            bq.addFilter(wildcardBq);
+         }
+      }
+
       return bq;
    }
 }
