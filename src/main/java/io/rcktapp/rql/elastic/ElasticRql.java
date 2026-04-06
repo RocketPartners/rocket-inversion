@@ -124,17 +124,31 @@ public class ElasticRql extends Rql
       // because we are starting the search after 'AL'
       io.rcktapp.rql.elastic.Order elasticOrder = null;
       List<Order> orderList = stmt.order;
-      //      if (orderList.size() > 0)
-      //      {
+
+      // Check if this query involves relevance scoring (has search terms)
+      // If so, add _score as secondary sort so relevant results rank higher within ties
+      boolean hasRelevanceScoring = hasRelevanceScoringQueries(elasticList);
+      boolean scoreSortExists = false;
+
       boolean idSortExists = false;
       for (Order order : orderList)
       {
          if (Parser.dequote(order.col).equalsIgnoreCase("id"))
             idSortExists = true;
+         if (Parser.dequote(order.col).equalsIgnoreCase("_score"))
+            scoreSortExists = true;
       }
       if (!idSortExists)
          orderList.add(new Order("id", "asc"));
-      //      }
+
+      // Add _score desc as secondary sort when searching (before id, after user's primary sort)
+      if (hasRelevanceScoring && !scoreSortExists)
+      {
+         // Insert _score before the id sort (which is last)
+         int insertIndex = orderList.size() - 1; // before id
+         orderList.add(insertIndex, new Order("_score", "desc"));
+      }
+
       for (int i = 0; i < orderList.size(); i++)
       {
          Order order = orderList.get(i);
@@ -197,6 +211,31 @@ public class ElasticRql extends Rql
          bool.divvyElasticList(elasticList);
          dsl.setBool(bool);
       }
+   }
+
+   /**
+    * Checks if any of the ElasticQuery objects involve relevance scoring.
+    * This is true when there are BoolQuery objects with 'should' clauses containing MatchQuery,
+    * which are created by the wildcard search functions (w, sw, ew) for relevance ranking.
+    */
+   private boolean hasRelevanceScoringQueries(List<ElasticQuery> elasticList)
+   {
+      for (ElasticQuery elastic : elasticList)
+      {
+         if (elastic instanceof BoolQuery)
+         {
+            BoolQuery bool = (BoolQuery) elastic;
+            if (bool.getShould() != null)
+            {
+               for (ElasticQuery shouldItem : bool.getShould())
+               {
+                  if (shouldItem instanceof MatchQuery)
+                     return true;
+               }
+            }
+         }
+      }
+      return false;
    }
 
    private ElasticQuery convertPredicate(Predicate pred) throws Exception
@@ -336,31 +375,63 @@ public class ElasticRql extends Rql
    }
 
    /**
-    * 
+    * Creates a hybrid query with both wildcard (for substring matching) and match (for relevance scoring).
+    *
+    * The wildcard in filter ensures documents contain the substring (preserves existing behavior).
+    * The match in should adds relevance scoring so exact token matches rank higher.
+    *
     * @param pred
-    * @param withType WITH, STARTS_WITH, ENDS_WITH
+    * @param withType WITH, STARTS_WITH, ENDS_WITH, WITHOUT
     */
    private BoolQuery withWildCardPopulater(Predicate pred, WithType withType)
    {
       BoolQuery bq = new BoolQuery();
       String termToken = pred.terms.get(0).token;
+      List<Wildcard> wildcards = new ArrayList<Wildcard>();
+
       for (int i = 1; i < pred.terms.size(); i++)
       {
+         String dequotedValue = Parser.dequote(pred.terms.get(i).token);
+
          switch (withType)
          {
             case WITH:
-               bq.addShould(new Wildcard(termToken, "*" + Parser.dequote(pred.terms.get(i).token) + "*"));
+               wildcards.add(new Wildcard(termToken, "*" + dequotedValue + "*"));
+               bq.addShould(new MatchQuery(termToken, dequotedValue));
                break;
             case STARTS_WITH:
-               bq.addShould(new Wildcard(termToken, Parser.dequote(pred.terms.get(i).token) + "*"));
+               wildcards.add(new Wildcard(termToken, dequotedValue + "*"));
+               bq.addShould(new MatchQuery(termToken, dequotedValue));
                break;
             case ENDS_WITH:
-               bq.addShould(new Wildcard(termToken, "*" + Parser.dequote(pred.terms.get(i).token)));
+               wildcards.add(new Wildcard(termToken, "*" + dequotedValue));
+               bq.addShould(new MatchQuery(termToken, dequotedValue));
                break;
             case WITHOUT:
-               bq.addMustNot(new Wildcard(termToken, "*" + Parser.dequote(pred.terms.get(i).token) + "*"));
+               bq.addMustNot(new Wildcard(termToken, "*" + dequotedValue + "*"));
          }
       }
+
+      if (!wildcards.isEmpty())
+      {
+         if (wildcards.size() == 1)
+         {
+            // Single value: wildcard directly in filter (boolean match required)
+            bq.addFilter(wildcards.get(0));
+         }
+         else
+         {
+            // Multi-value: wrap wildcards in inner should for OR semantics.
+            // An inner bool with only should clauses defaults minimum_should_match=1,
+            // so at least one wildcard must match (OR, not AND).
+            // This preserves OR semantics even when combined with outer filter clauses.
+            BoolQuery wildcardBq = new BoolQuery();
+            for (Wildcard wildcard : wildcards)
+               wildcardBq.addShould(wildcard);
+            bq.addFilter(wildcardBq);
+         }
+      }
+
       return bq;
    }
 }
