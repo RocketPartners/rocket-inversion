@@ -33,7 +33,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.servlet.http.Part;
 
-import com.amazonaws.util.IOUtils;
+import software.amazon.awssdk.utils.IoUtils;
 
 import io.rocketpartners.cloud.model.ApiException;
 import io.rocketpartners.cloud.model.Request;
@@ -170,7 +170,7 @@ public class Servlet extends HttpServlet
                         }
                         else if (part.getName().equals("requestPath"))
                         {
-                           requestPath = IOUtils.toString(part.getInputStream());
+                           requestPath = IoUtils.toUtf8String(part.getInputStream());
                            if (requestPath.indexOf("/") == 0)
                               requestPath = requestPath.substring(1);
                         }
