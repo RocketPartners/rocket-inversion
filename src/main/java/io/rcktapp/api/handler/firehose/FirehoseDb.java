@@ -5,8 +5,8 @@ import org.atteo.evo.inflector.English;
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
 import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
 import software.amazon.awssdk.regions.Region;
-import software.amazon.awssdk.services.firehose.FirehoseClient;
-import software.amazon.awssdk.services.firehose.FirehoseClientBuilder;
+import software.amazon.awssdk.services.firehose.FirehoseAsyncClient;
+import software.amazon.awssdk.services.firehose.FirehoseAsyncClientBuilder;
 
 import io.forty11.j.J;
 import io.rcktapp.api.Collection;
@@ -31,12 +31,12 @@ public class FirehoseDb extends Db
     */
    protected String includeStreams;
 
-   FirehoseClient firehoseClient = null;
+   FirehoseAsyncClient firehoseClient = null;
 
    @Override
    public void bootstrapApi() throws Exception
    {
-      FirehoseClient firehoseClient = getFirehoseClient();
+      FirehoseAsyncClient firehoseClient = getFirehoseClient();
 
       this.setType("firehose");
 
@@ -78,7 +78,7 @@ public class FirehoseDb extends Db
       }
    }
 
-   public FirehoseClient getFirehoseClient()
+   public FirehoseAsyncClient getFirehoseClient()
    {
       if (this.firehoseClient == null)
       {
@@ -86,7 +86,7 @@ public class FirehoseDb extends Db
          {
             if (this.firehoseClient == null)
             {
-               FirehoseClientBuilder builder = FirehoseClient.builder();
+               FirehoseAsyncClientBuilder builder = FirehoseAsyncClient.builder();
                if (!J.empty(awsRegion))
                   builder.region(Region.of(awsRegion));
 
