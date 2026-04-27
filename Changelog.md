@@ -1,5 +1,8 @@
 ## Unreleased
 
+## [0.3.6.18 - 04/27/26]
+- LIFT-2452: Restore async (fire-and-forget) Firehose client to fix Tomcat thread blocking causing player disconnections
+
 ## [0.3.6.17 - 04/05/26]
 - LIFT-2099: Add relevance scoring to wildcard search queries (w, sw, ew operators)
   - Wildcard queries now include match queries in `should` for TF-IDF/BM25 relevance scoring
