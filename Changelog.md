@@ -1,5 +1,8 @@
 ## Unreleased
 
+## [0.3.27 - 04/27/26]
+- LIFT-2453: Restore async (fire-and-forget) Firehose client to fix Tomcat thread blocking causing player disconnections
+
 ## [0.3.26 - 03/30/26]
 - LIFT-1807: Upgrade RDS IAM auth token generation to AWS SDK v2
 
