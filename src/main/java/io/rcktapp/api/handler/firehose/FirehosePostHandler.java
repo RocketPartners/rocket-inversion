@@ -1,7 +1,7 @@
 package io.rcktapp.api.handler.firehose;
 
 import software.amazon.awssdk.core.SdkBytes;
-import software.amazon.awssdk.services.firehose.FirehoseClient;
+import software.amazon.awssdk.services.firehose.FirehoseAsyncClient;
 import software.amazon.awssdk.services.firehose.model.PutRecordBatchRequest;
 import software.amazon.awssdk.services.firehose.model.Record;
 import io.forty11.web.js.JSArray;
@@ -65,7 +65,7 @@ public class FirehosePostHandler implements Handler
         Table table = col.getEntity().getTable();
         String streamName = table.getName();
 
-        FirehoseClient firehose = ((FirehoseDb) table.getDb()).getFirehoseClient();
+        FirehoseAsyncClient firehose = ((FirehoseDb) table.getDb()).getFirehoseClient();
 
         JSObject body = req.getJson();
 

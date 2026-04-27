@@ -3,8 +3,8 @@ package io.rcktapp.api.handler.firehose;
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
 import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
 import software.amazon.awssdk.regions.Region;
-import software.amazon.awssdk.services.firehose.FirehoseClient;
-import software.amazon.awssdk.services.firehose.FirehoseClientBuilder;
+import software.amazon.awssdk.services.firehose.FirehoseAsyncClient;
+import software.amazon.awssdk.services.firehose.FirehoseAsyncClientBuilder;
 import software.amazon.awssdk.services.firehose.model.DeliveryStreamType;
 import software.amazon.awssdk.services.firehose.model.ListDeliveryStreamsRequest;
 import software.amazon.awssdk.services.firehose.model.ListDeliveryStreamsResponse;
@@ -48,7 +48,7 @@ public class FirehoseDb extends Db
      */
     protected String includeStreams;
 
-    FirehoseClient firehoseClient = null;
+    FirehoseAsyncClient firehoseClient = null;
 
     public FirehoseDb() {
         super();
@@ -111,7 +111,7 @@ public class FirehoseDb extends Db
 
             ListDeliveryStreamsRequest listDeliveryStreamsRequest = getRequest(last);
 
-            listDeliveryStreamsResponse = getFirehoseClient().listDeliveryStreams(listDeliveryStreamsRequest);
+            listDeliveryStreamsResponse = getFirehoseClient().listDeliveryStreams(listDeliveryStreamsRequest).join();
 
             deliveryStreamNames.addAll(listDeliveryStreamsResponse.deliveryStreamNames());
 
@@ -129,11 +129,11 @@ public class FirehoseDb extends Db
         return builder.build();
     }
 
-    public FirehoseClient getFirehoseClient() {
+    public FirehoseAsyncClient getFirehoseClient() {
         if (this.firehoseClient == null) {
             synchronized (this) {
                 if (this.firehoseClient == null) {
-                    FirehoseClientBuilder builder = FirehoseClient.builder();
+                    FirehoseAsyncClientBuilder builder = FirehoseAsyncClient.builder();
                     if (!J.empty(awsRegion))
                         builder.region(Region.of(awsRegion));
 
