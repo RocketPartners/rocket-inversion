@@ -70,6 +70,9 @@ public class QueryDsl extends ElasticQuery
    @JsonIgnore
    private Order        order;
 
+   @JsonIgnore
+   private Rescore      rescore;
+
    public Map<String, Object> toDslMap()
    {
       Map<String, Object> dslMap = new HashMap<String, Object>();
@@ -99,11 +102,24 @@ public class QueryDsl extends ElasticQuery
          dslMap.remove("from");
       }
 
-      // Sorting - very basic 
+      // Sorting - very basic
       if (order != null)
          dslMap.put("sort", order.getOrderListWithEmptySorting());
 
+      if (rescore != null)
+         dslMap.put("rescore", rescore.toMap());
+
       return dslMap;
+   }
+
+   public Rescore getRescore()
+   {
+      return rescore;
+   }
+
+   public void setRescore(Rescore rescore)
+   {
+      this.rescore = rescore;
    }
 
    Object buildSource()

@@ -113,10 +113,7 @@ public class Order
 
             Map<String, String> newEntry = new HashMap();
             newEntry.put("order", order);
-            // _score doesn't support the "missing" parameter in Elasticsearch
-            if (!"_score".equals(property)) {
-               newEntry.put("missing", "desc".equalsIgnoreCase(order) ? "_last": "_first");
-            }
+            newEntry.put("missing", "desc".equalsIgnoreCase(order) ? "_last": "_first");
 
             Map<String, Map> newOrderEntry = new HashMap<>();
             newOrderEntry.put(property, newEntry);
