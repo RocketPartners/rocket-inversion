@@ -1,6 +1,6 @@
 ## Unreleased
 
-## [0.3.6.19 - 04/29/26]
+## [0.3.6.20 - 04/29/26]
 - LIFT-2099: Rework wildcard relevance scoring using the Elasticsearch `rescore` API
   - `w()`, `sw()`, `ew()` revert to pure wildcard queries in `should` — no automatic `_score` sort, no forced `match` scoring
   - New `rank(field, "query text" [, windowSize])` RQL function attaches a top-level `rescore` block; ranking runs only on the top window per shard, so cost does not scale with total matched docs
