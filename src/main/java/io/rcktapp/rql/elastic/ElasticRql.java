@@ -328,6 +328,10 @@ public class ElasticRql extends Rql
          case "search":
             elastic = new FuzzyQuery(pred.terms.get(0).token, Parser.dequote(pred.terms.get(1).token));
             break;
+         case "rank":
+            // rank() attaches a top-level rescore block and is peeled off in toQueryDsl.
+            // Reaching this branch means rank() was nested inside and()/or(), which ES rescore does not support.
+            throw new Exception("rank() must be a top-level predicate; it cannot be nested inside and(), or(), or other predicates");
          default :
             throw new Exception("unexpected rql token: " + pred.token);
       }
@@ -367,7 +371,7 @@ public class ElasticRql extends Rql
    /**
     *
     * @param pred
-    * @param withType WITH, STARTS_WITH, ENDS_WITH
+    * @param withType WITH, STARTS_WITH, ENDS_WITH, WITHOUT
     */
    private BoolQuery withWildCardPopulater(Predicate pred, WithType withType)
    {

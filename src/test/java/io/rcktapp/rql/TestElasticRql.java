@@ -1412,6 +1412,37 @@ public class TestElasticRql
    }
 
    @Test
+   public void rank_withScoreSort_doesNotEmitMissingOnScore() throws Exception
+   {
+      // When a caller opts into score-based ordering (sort=_score,desc) so that
+      // rescore actually reorders results, the serialized sort must not include
+      // `missing` on _score — Elasticsearch rejects that.
+      QueryDsl dsl = ((ElasticRql) Rql.getRql("elastic"))
+              .toQueryDsl(split("sort=-_score&w(keywords,pb)&rank(keywords.text,'pb')"));
+
+      String sortJson = new ObjectMapper().writeValueAsString(dsl.toDslMap().get("sort"));
+      assertTrue(sortJson.contains("_score"), "sort should contain _score: " + sortJson);
+      assertTrue(!sortJson.matches(".*\"_score\"\\s*:\\s*\\{[^}]*\"missing\".*"),
+              "sort on _score must not include `missing`: " + sortJson);
+   }
+
+   @Test
+   public void rank_nestedInsideAnd_throwsClearError()
+   {
+      try
+      {
+         ((ElasticRql) Rql.getRql("elastic"))
+                 .toQueryDsl(split("and(w(keywords,pb),rank(keywords.text,'pb'))"));
+         fail("expected an exception for nested rank()");
+      }
+      catch (Exception e)
+      {
+         assertTrue(e.getMessage() != null && e.getMessage().contains("rank()"),
+                 "error message should mention rank(): " + e.getMessage());
+      }
+   }
+
+   @Test
    public void wildcardSearch_doesNotInjectScoreSort() throws Exception
    {
       // Regression: previously `w()` caused `_score desc` to be silently

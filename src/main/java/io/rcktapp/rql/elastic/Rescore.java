@@ -55,6 +55,9 @@ public class Rescore
    {
       Map<String, Object> rescoreQuery = new LinkedHashMap<String, Object>();
       rescoreQuery.put("rescore_query", Collections.singletonMap("match", Collections.singletonMap(field, queryText)));
+      // Pure rerank: the outer wildcard query contributes nothing to the final _score;
+      // ranking is determined entirely by the rescore match. Blending is intentionally
+      // not exposed — add a constructor overload if a caller ever needs it.
       rescoreQuery.put("query_weight", 0);
       rescoreQuery.put("rescore_query_weight", 1);
 
