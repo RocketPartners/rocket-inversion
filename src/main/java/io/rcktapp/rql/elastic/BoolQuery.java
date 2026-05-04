@@ -194,8 +194,6 @@ public class BoolQuery extends ElasticQuery
             jsonList.add(Collections.singletonMap("exists", elastic));
          else if (elastic instanceof FuzzyQuery)
             jsonList.add(Collections.singletonMap("fuzzy", elastic));
-         else if (elastic instanceof MatchQuery)
-            jsonList.add(Collections.singletonMap("match", elastic));
       }
 
       return jsonList;
