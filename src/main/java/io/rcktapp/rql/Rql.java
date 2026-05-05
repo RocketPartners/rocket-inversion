@@ -52,7 +52,7 @@ public class Rql
    /**
     * Words that translate into a filter/where condition
     */
-   public static final HashSet<String> CONDITIONALS = new HashSet<String>(Arrays.asList(new String[]{"n", "nn", "nemp", "emp", "w", "wo", "ew", "sw", "eq", "ne", "lt", "le", "gt", "ge", "in", "out", "if", "or", "and", "miles", "search"}));
+   public static final HashSet<String> CONDITIONALS = new HashSet<String>(Arrays.asList(new String[]{"n", "nn", "nemp", "emp", "w", "wo", "ew", "sw", "eq", "ne", "lt", "le", "gt", "ge", "in", "out", "if", "or", "and", "miles", "search", "rank"}));
 
    static HashSet<String>              FUNCTIONS    = new HashSet<String>(                                                                                                                                                                     //
                                                                           Arrays.asList(                                                                                                                                                       //
@@ -67,7 +67,7 @@ public class Rql
                                                                                       "page", "pagenum", "pagesize", "distinct",                                                                                                               // 
                                                                                       "sw", "ew", "w", "wo",                                                                                                                                   //
                                                                                       "emp", "nemp", "nn", "n",                                                                                                                                // nn == not null, n == null
-                                                                                      "search"}                                                                                                                                                //
+                                                                                      "search", "rank"}                                                                                                                                        //
                                                                           ));
 
    /**
